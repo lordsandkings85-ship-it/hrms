@@ -37,14 +37,13 @@ const NAV = [
 import { useAuthStore } from '../store/useAuthStore';
 
 export default function Layout() {
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const isAdmin = user?.role?.isSystem;
 
   const navigate = useNavigate();
 
-  function logout() {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
+  function handleLogout() {
+    logout();
     navigate('/login');
   }
 
@@ -87,7 +86,7 @@ export default function Layout() {
           ))}
         </nav>
         <button
-          onClick={logout}
+          onClick={handleLogout}
           className="flex items-center gap-3 px-5 py-4 text-sm text-white/50 hover:text-white border-t border-white/10"
         >
           <LogOut size={16} strokeWidth={1.75} />

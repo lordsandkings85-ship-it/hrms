@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { authApi } from '../api/client';
+import { useAuthStore } from '../store/useAuthStore';
 
 export default function LoginPage() {
+  useEffect(() => {
+    useAuthStore.getState().logout();
+  }, []);
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [form, setForm] = useState({ companyName: '', fullName: '', email: '', password: '' });
   const [error, setError] = useState('');
