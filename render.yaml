@@ -2,6 +2,7 @@
   - type: web
     name: hrms-backend
     env: node
+    plan: free
     rootDir: backend
     buildCommand: npm install && npx prisma generate && npm run build
     startCommand: npm run start:prod
