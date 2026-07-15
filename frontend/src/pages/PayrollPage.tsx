@@ -39,16 +39,25 @@ export default function PayrollPage() {
     setAnnualCtc(ctc);
     
     if (ctc > 0) {
-      const monthlyCTC = Math.round(ctc / 12);
+      const monthlyCTC = ctc / 12;
       
-      // Standard breakdown calculations
-      const computedBasic = Math.round(monthlyCTC * 0.50);
+      // CTC = Gross + Employer PF (12% of Basic) + Gratuity (4.81% of Basic)
+      // Since Basic = 50% of Gross:
+      // Employer PF = 6% of Gross (0.06 * Gross)
+      // Gratuity = 2.405% of Gross (0.02405 * Gross)
+      // monthlyCTC = Gross * (1 + 0.06 + 0.02405) = Gross * 1.08405
+      
+      const computedGross = monthlyCTC / 1.08405;
+      
+      const computedBasic = Math.round(computedGross * 0.50);
       const computedHra = Math.round(computedBasic * 0.40);
       const computedDa = 0;
-      const computedConveyance = Math.min(1600, Math.round(monthlyCTC * 0.05));
+      
+      // Keeping standard allowances
+      const computedConveyance = 1600;
       const computedMedical = 1250;
       
-      const computedSpecial = monthlyCTC - (computedBasic + computedHra + computedDa + computedConveyance + computedMedical);
+      const computedSpecial = Math.round(computedGross - (computedBasic + computedHra + computedDa + computedConveyance + computedMedical));
       
       setBasic(computedBasic);
       setHra(computedHra);
