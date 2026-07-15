@@ -136,9 +136,10 @@ export default function LeavePage() {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Side: Apply Leave and Leave Balance */}
-        <div className="space-y-8 lg:col-span-1">
-          <div className="bg-white border border-line rounded-lg p-6">
+        {/* Left Side: Apply Leave and Leave Balance (Employees Only) */}
+        {!isAdmin && (
+          <div className="space-y-8 lg:col-span-1">
+            <div className="bg-white border border-line rounded-lg p-6">
             <h2 className="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
               <CalendarDays className="text-ledger" size={18} /> Apply for Leave
             </h2>
@@ -262,9 +263,10 @@ export default function LeavePage() {
             </div>
           )}
         </div>
+        )}
 
         {/* Right Side: Pending Requests and Settings */}
-        <div className="lg:col-span-2 space-y-8">
+        <div className={`space-y-8 ${isAdmin ? 'lg:col-span-3' : 'lg:col-span-2'}`}>
           <div className="bg-white border border-line rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-line">
               <h3 className="text-sm font-semibold">{isAdmin ? 'Pending Approvals' : 'My Leave History'}</h3>
