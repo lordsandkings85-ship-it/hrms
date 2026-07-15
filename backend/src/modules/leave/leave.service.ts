@@ -114,10 +114,45 @@ export class LeaveService {
       include: { leaveType: true },
     });
   }
+
+  listHolidays(companyId: string) {
+    return this.prisma.holiday.findMany({
+      where: { companyId },
+      orderBy: { date: 'asc' }
+    });
+  }
+
+  createHoliday(companyId: string, name: string, date: string) {
+    return this.prisma.holiday.create({
+      data: { companyId, name, date: new Date(date) }
+    });
+  }
+
+  deleteHoliday(companyId: string, id: string) {
+    return this.prisma.holiday.delete({
+      where: { id, companyId }
+    });
+  }
 }
 
 function isHalfDayCount(start: Date, end: Date, isHalfDay: boolean): number {
   if (isHalfDay) return 0.5;
-  const diff = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-  return Math.max(diff, 1);
+  
+  let count = 0;
+  let current = new Date(start);
+  const endDate = new Date(end);
+  
+  // Reset times to compare dates safely
+  current.setHours(0, 0, 0, 0);
+  endDate.setHours(0, 0, 0, 0);
+  
+  while (current <= endDate) {
+    // 0 is Sunday
+    if (current.getDay() !== 0) {
+      count++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  
+  return Math.max(count, 1);
 }

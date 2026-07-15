@@ -113,6 +113,11 @@ export const leaveApi = {
     if (year) qs.set('year', String(year));
     return api<any[]>(`/leave/balances/${employeeId}?${qs.toString()}`);
   },
+  listHolidays: () => api<any[]>('/leave/holidays'),
+  createHoliday: (data: { name: string; date: string }) =>
+    api<any>('/leave/holidays', { method: 'POST', body: JSON.stringify(data) }),
+  deleteHoliday: (id: string) =>
+    api<any>(`/leave/holidays/${id}`, { method: 'DELETE' }),
 };
 
 export const payrollApi = {

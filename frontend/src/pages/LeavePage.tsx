@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CalendarDays, Check, X, PlusCircle, AlertCircle, Clock } from 'lucide-react';
+import { CalendarDays, Check, X, PlusCircle, AlertCircle, Clock, Trash2, Calendar } from 'lucide-react';
 import { leaveApi, employeesApi } from '../api/client';
 import { useAuthStore } from '../store/useAuthStore';
 
@@ -25,6 +25,10 @@ export default function LeavePage() {
   // Leave Type Form State
   const [newTypeName, setNewTypeName] = useState('');
   const [newTypePaid, setNewTypePaid] = useState(true);
+
+  // Holiday Form State
+  const [holidayName, setHolidayName] = useState('');
+  const [holidayDate, setHolidayDate] = useState('');
 
   // Fetch employees
   const { data: employees } = useQuery({
@@ -60,6 +64,12 @@ export default function LeavePage() {
     enabled: !!selectedEmp,
   });
 
+  // Fetch holidays
+  const { data: holidays } = useQuery({
+    queryKey: ['holidays-list'],
+    queryFn: () => leaveApi.listHolidays(),
+  });
+
   // Apply Leave Mutation
   const applyLeaveMutation = useMutation({
     mutationFn: leaveApi.apply,
@@ -83,6 +93,26 @@ export default function LeavePage() {
       alert('Leave type created!');
       setNewTypeName('');
       queryClient.invalidateQueries({ queryKey: ['leave-types'] });
+    },
+  });
+
+  // Add Holiday Mutation
+  const createHolidayMutation = useMutation({
+    mutationFn: leaveApi.createHoliday,
+    onSuccess: () => {
+      alert('Holiday added!');
+      setHolidayName('');
+      setHolidayDate('');
+      queryClient.invalidateQueries({ queryKey: ['holidays-list'] });
+    },
+  });
+
+  // Delete Holiday Mutation
+  const deleteHolidayMutation = useMutation({
+    mutationFn: leaveApi.deleteHoliday,
+    onSuccess: () => {
+      alert('Holiday deleted!');
+      queryClient.invalidateQueries({ queryKey: ['holidays-list'] });
     },
   });
 
@@ -125,6 +155,15 @@ export default function LeavePage() {
     createTypeMutation.mutate({
       name: newTypeName,
       paid: newTypePaid,
+    });
+  };
+
+  const handleCreateHoliday = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!holidayName.trim() || !holidayDate) return;
+    createHolidayMutation.mutate({
+      name: holidayName,
+      date: holidayDate,
     });
   };
 
@@ -386,6 +425,98 @@ export default function LeavePage() {
                 </div>
               ))}
             </div>
+            </div>
+          )}
+
+          {/* Manage Holidays (Admin) */}
+          {isAdmin && (
+            <div className="bg-white border border-line rounded-lg p-6">
+              <h2 className="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Calendar className="text-ledger" size={18} /> Manage Company Holidays
+              </h2>
+              <form onSubmit={handleCreateHoliday} className="flex gap-4 items-end mb-6">
+                <div className="flex-1">
+                  <label className="block text-xs text-muted mb-1">Holiday Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Christmas, Independence Day"
+                    value={holidayName}
+                    onChange={(e) => setHolidayName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-md border border-line bg-white text-sm"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={holidayDate}
+                    onChange={(e) => setHolidayDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-md border border-line bg-white text-sm"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={createHolidayMutation.isPending}
+                  className="bg-ink text-paper rounded-md px-4 py-2 text-sm hover:bg-ink/90"
+                >
+                  Add Holiday
+                </button>
+              </form>
+
+              <div className="divide-y divide-line border border-line rounded-md">
+                {(!holidays || holidays.length === 0) && (
+                  <div className="p-4 text-xs text-muted text-center bg-paper/40">No upcoming holidays configured.</div>
+                )}
+                {holidays?.map((h: any) => (
+                  <div key={h.id} className="p-3 flex items-center justify-between hover:bg-paper/40">
+                    <div>
+                      <div className="text-sm font-medium">{h.name}</div>
+                      <div className="text-xs text-muted font-mono">{new Date(h.date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}</div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Delete ${h.name}?`)) {
+                          deleteHolidayMutation.mutate(h.id);
+                        }
+                      }}
+                      className="p-1.5 rounded text-rust hover:bg-rust/10"
+                      title="Delete Holiday"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Upcoming Holidays (Employee) */}
+          {!isAdmin && (
+            <div className="bg-white border border-line rounded-lg p-6">
+              <h2 className="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Calendar className="text-ledger" size={18} /> Upcoming Company Holidays
+              </h2>
+              <p className="text-xs text-muted mb-4">Note: Sundays are automatically counted as non-working days for leave duration calculations.</p>
+              
+              <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+                {(!holidays || holidays.length === 0) && (
+                  <div className="text-xs text-muted">No holidays announced yet.</div>
+                )}
+                {holidays?.map((h: any) => (
+                  <div key={h.id} className="border border-line rounded p-4 bg-paper/40 flex items-center gap-4">
+                    <div className="bg-ledger/10 text-ledger p-3 rounded-lg text-center min-w-16">
+                      <div className="text-xs font-bold uppercase">{new Date(h.date).toLocaleDateString(undefined, { month: 'short' })}</div>
+                      <div className="text-xl font-display leading-none mt-0.5">{new Date(h.date).getDate()}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium">{h.name}</div>
+                      <div className="text-xs text-muted">{new Date(h.date).toLocaleDateString(undefined, { weekday: 'long' })}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

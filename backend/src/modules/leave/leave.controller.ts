@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Delete, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
 import { LeaveService } from './leave.service';
@@ -63,5 +63,20 @@ export class LeaveController {
   @Get('balances/:employeeId')
   balances(@Param('employeeId') employeeId: string, @Query('year') year?: string) {
     return this.leaveService.balances(employeeId, year ? Number(year) : new Date().getFullYear());
+  }
+
+  @Get('holidays')
+  listHolidays(@CurrentUser() user: AuthUser) {
+    return this.leaveService.listHolidays(user.companyId);
+  }
+
+  @Post('holidays')
+  createHoliday(@CurrentUser() user: AuthUser, @Body() body: { name: string; date: string }) {
+    return this.leaveService.createHoliday(user.companyId, body.name, body.date);
+  }
+
+  @Delete('holidays/:id')
+  deleteHoliday(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.leaveService.deleteHoliday(user.companyId, id);
   }
 }
