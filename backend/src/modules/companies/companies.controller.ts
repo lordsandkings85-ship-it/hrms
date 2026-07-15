@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Delete, Param, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Permissions } from '../../common/decorators/permissions.decorator';
@@ -30,6 +30,12 @@ export class CompaniesController {
   @Permissions({ module: 'organization', action: 'create' })
   createDepartment(@CurrentUser() user: AuthUser, @Body('name') name: string) {
     return this.companiesService.createDepartment(user.companyId, name);
+  }
+
+  @Delete('organization/departments/:id')
+  @Permissions({ module: 'organization', action: 'delete' })
+  deleteDepartment(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.companiesService.deleteDepartment(user.companyId, id);
   }
 
   @Get('organization/branches')

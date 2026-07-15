@@ -235,6 +235,8 @@ export const organizationApi = {
   listDepartments: () => api<any[]>('/organization/departments'),
   createDepartment: (name: string) =>
     api<any>('/organization/departments', { method: 'POST', body: JSON.stringify({ name }) }),
+  deleteDepartment: (id: string) =>
+    api<any>(`/organization/departments/${id}`, { method: 'DELETE' }),
   listBranches: () => api<any[]>('/organization/branches'),
   createBranch: (data: { name: string; address?: string }) =>
     api<any>('/organization/branches', { method: 'POST', body: JSON.stringify(data) }),

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Building2, Landmark, ShieldAlert, Award, Plus } from 'lucide-react';
+import { Building2, Landmark, ShieldAlert, Award, Plus, Trash2 } from 'lucide-react';
 import { organizationApi } from '../api/client';
 
 export default function OrganizationPage() {
@@ -38,6 +38,17 @@ export default function OrganizationPage() {
       setDeptName('');
       queryClient.invalidateQueries({ queryKey: ['departments-list'] });
     },
+  });
+
+  const deleteDeptMutation = useMutation({
+    mutationFn: organizationApi.deleteDepartment,
+    onSuccess: () => {
+      alert('Department deleted!');
+      queryClient.invalidateQueries({ queryKey: ['departments-list'] });
+    },
+    onError: (err: any) => {
+      alert(`Error deleting department: ${err.message}`);
+    }
   });
 
   const createBranchMutation = useMutation({
@@ -219,7 +230,21 @@ export default function OrganizationPage() {
                 {departments?.map((dept: any) => (
                   <div key={dept.id} className="p-4 flex items-center justify-between hover:bg-paper/40">
                     <span className="text-sm font-medium text-ink">{dept.name}</span>
-                    <span className="text-xs text-muted">ID: {dept.id.slice(0, 8)}...</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted">ID: {dept.id.slice(0, 8)}...</span>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Are you sure you want to delete ${dept.name}?`)) {
+                            deleteDeptMutation.mutate(dept.id);
+                          }
+                        }}
+                        disabled={deleteDeptMutation.isPending}
+                        className="p-1.5 rounded-md border border-line text-rust hover:bg-rust/5 transition-colors"
+                        title="Delete Department"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

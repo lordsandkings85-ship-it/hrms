@@ -21,6 +21,10 @@ export class CompaniesService {
     return this.prisma.department.create({ data: { companyId, name } });
   }
 
+  async deleteDepartment(companyId: string, id: string) {
+    return this.prisma.department.delete({ where: { id, companyId } });
+  }
+
   listBranches(companyId: string) {
     return this.prisma.branch.findMany({ where: { companyId } });
   }
