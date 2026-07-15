@@ -32,6 +32,32 @@ export default function PayrollPage() {
   const [conveyance, setConveyance] = useState(1600);
   const [medical, setMedical] = useState(1250);
   const [specialAllowance, setSpecialAllowance] = useState(10000);
+  const [annualCtc, setAnnualCtc] = useState(0);
+
+  const handleCtcChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const ctc = Number(e.target.value);
+    setAnnualCtc(ctc);
+    
+    if (ctc > 0) {
+      const monthlyCTC = Math.round(ctc / 12);
+      
+      // Standard breakdown calculations
+      const computedBasic = Math.round(monthlyCTC * 0.50);
+      const computedHra = Math.round(computedBasic * 0.40);
+      const computedDa = 0;
+      const computedConveyance = Math.min(1600, Math.round(monthlyCTC * 0.05));
+      const computedMedical = 1250;
+      
+      const computedSpecial = monthlyCTC - (computedBasic + computedHra + computedDa + computedConveyance + computedMedical);
+      
+      setBasic(computedBasic);
+      setHra(computedHra);
+      setDa(computedDa);
+      setConveyance(computedConveyance);
+      setMedical(computedMedical);
+      setSpecialAllowance(Math.max(0, computedSpecial));
+    }
+  };
 
   const { data: employees } = useQuery({
     queryKey: ['employees-list-all'],
@@ -235,6 +261,25 @@ export default function PayrollPage() {
             )}
 
             <form onSubmit={handleSaveStructure} className="space-y-4">
+              <div className="p-4 bg-paper/40 border border-line rounded-lg mb-6">
+                <label className="block text-xs font-semibold text-ledger uppercase tracking-wider mb-2">Auto-Calculate from CTC</label>
+                <div className="flex gap-4 items-center">
+                  <div className="flex-1">
+                    <input
+                      type="number"
+                      placeholder="Enter Annual CTC (₹)"
+                      value={annualCtc || ''}
+                      onChange={handleCtcChange}
+                      disabled={!isAdmin}
+                      className="w-full px-3 py-2 rounded-md border border-line bg-white text-sm"
+                    />
+                  </div>
+                  <div className="text-xs text-muted flex-1">
+                    Entering a CTC will automatically calculate standard breakdown percentages. You can manually adjust them below.
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">Earnings</h3>
                 <div className="grid grid-cols-2 gap-3 text-xs">
