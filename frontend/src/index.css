@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-paper text-ink font-body antialiased;
+}
+
+.ledger-row {
+  @apply relative pl-4 py-3 border-b border-line flex items-center justify-between;
+}
+.ledger-row::before {
+  content: '';
+  @apply absolute left-0 top-2 bottom-2 w-[3px] rounded-full;
+  background: var(--accent, #1F6F5C);
+}

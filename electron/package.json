@@ -1,0 +1,16 @@
+{
+  "name": "hrms-desktop",
+  "version": "1.0.0",
+  "description": "Enterprise HRMS Desktop Application",
+  "author": "Enterprise HRMS",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --config electron-builder.json"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^26.15.3"
+  }
+}

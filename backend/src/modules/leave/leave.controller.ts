@@ -1,0 +1,67 @@
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
+import { LeaveService } from './leave.service';
+
+@UseGuards(JwtAuthGuard)
+@Controller('leave')
+export class LeaveController {
+  constructor(private leaveService: LeaveService) {}
+
+  @Get('types')
+  listTypes(@CurrentUser() user: AuthUser) {
+    return this.leaveService.listTypes(user.companyId);
+  }
+
+  @Post('types')
+  createType(@CurrentUser() user: AuthUser, @Body() body: { name: string; paid: boolean }) {
+    return this.leaveService.createType(user.companyId, body.name, body.paid);
+  }
+
+  @Post('apply')
+  apply(
+    @Body()
+    body: {
+      employeeId: string;
+      leaveTypeId: string;
+      startDate: string;
+      endDate: string;
+      isHalfDay?: boolean;
+      reason?: string;
+    },
+  ) {
+    return this.leaveService.apply(
+      body.employeeId,
+      body.leaveTypeId,
+      body.startDate,
+      body.endDate,
+      !!body.isHalfDay,
+      body.reason,
+    );
+  }
+
+  @Post(':id/approve')
+  approve(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.leaveService.approve(id, user.userId);
+  }
+
+  @Post(':id/reject')
+  reject(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.leaveService.reject(id, user.userId);
+  }
+
+  @Get('employee/:employeeId')
+  listForEmployee(@Param('employeeId') employeeId: string) {
+    return this.leaveService.listForEmployee(employeeId);
+  }
+
+  @Get('pending')
+  listPending(@CurrentUser() user: AuthUser) {
+    return this.leaveService.listPendingForCompany(user.companyId);
+  }
+
+  @Get('balances/:employeeId')
+  balances(@Param('employeeId') employeeId: string, @Query('year') year?: string) {
+    return this.leaveService.balances(employeeId, year ? Number(year) : new Date().getFullYear());
+  }
+}
