@@ -40,22 +40,36 @@ export default function PayrollPage() {
     
     if (ctc > 0) {
       const monthlyCTC = ctc / 12;
+      let computedGross = 0;
+
+      // CTC = Gross + Employer PF + Employer ESI + Gratuity
+      // Basic = 50% of Gross
+      // Gratuity = 4.81% of Basic = 2.405% of Gross (0.02405 * Gross)
       
-      // CTC = Gross + Employer PF (12% of Basic) + Gratuity (4.81% of Basic)
-      // Since Basic = 50% of Gross:
-      // Employer PF = 6% of Gross (0.06 * Gross)
-      // Gratuity = 2.405% of Gross (0.02405 * Gross)
-      // monthlyCTC = Gross * (1 + 0.06 + 0.02405) = Gross * 1.08405
-      
-      const computedGross = monthlyCTC / 1.08405;
-      
+      // Calculate Gross based on statutory thresholds
+      // Threshold 1: Gross > 30000 (Basic > 15000) -> PF is capped at 1800, ESI is 0
+      // Expected CTC for Gross=30000 -> 30000 + 1800 + 0 + (0.02405 * 30000) = 32521.5
+      if (monthlyCTC > 32521.5) {
+        computedGross = (monthlyCTC - 1800) / 1.02405;
+      } 
+      // Threshold 2: 21000 < Gross <= 30000 -> PF is 12% of Basic (6% of Gross), ESI is 0
+      // Expected CTC for Gross=21000 -> 21000 + 1260 + 0 + (0.02405 * 21000) = 22765.05
+      else if (monthlyCTC > 22765.05) {
+        computedGross = monthlyCTC / 1.08405;
+      }
+      // Threshold 3: Gross <= 21000 -> PF is 6% of Gross, ESI is 3.25% of Gross
+      else {
+        // CTC = Gross * (1 + 0.06 + 0.0325 + 0.02405) = Gross * 1.11655
+        computedGross = monthlyCTC / 1.11655;
+      }
+
       const computedBasic = Math.round(computedGross * 0.50);
       const computedHra = Math.round(computedBasic * 0.40);
       const computedDa = 0;
       
-      // Keeping standard allowances
-      const computedConveyance = 1600;
-      const computedMedical = 1250;
+      // Allowances per user rules
+      const computedConveyance = 0;
+      const computedMedical = 0;
       
       const computedSpecial = Math.round(computedGross - (computedBasic + computedHra + computedDa + computedConveyance + computedMedical));
       
