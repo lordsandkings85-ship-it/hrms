@@ -35,14 +35,31 @@ export class EmployeesService {
     });
 
     if (dto.ctc) {
-      const monthlyGross = dto.ctc / 12;
+      const monthlyCTC = dto.ctc / 12;
+      let computedGross = 0;
+
+      if (monthlyCTC > 32521.5) {
+        computedGross = (monthlyCTC - 1800) / 1.02405;
+      } else if (monthlyCTC > 22765.05) {
+        computedGross = monthlyCTC / 1.08405;
+      } else {
+        computedGross = monthlyCTC / 1.11655;
+      }
+
+      const computedBasic = Math.round(computedGross * 0.50);
+      const computedHra = Math.round(computedBasic * 0.40);
+      const computedSpecial = Math.round(computedGross - (computedBasic + computedHra));
+
       await this.prisma.salaryStructure.create({
         data: {
           employeeId: employee.id,
           effectiveFrom: new Date(),
-          basic: monthlyGross * 0.4,
-          hra: monthlyGross * 0.2,
-          specialAllowance: monthlyGross * 0.4,
+          basic: computedBasic,
+          hra: computedHra,
+          da: 0,
+          conveyance: 0,
+          medical: 0,
+          specialAllowance: Math.max(0, computedSpecial),
         }
       });
     }

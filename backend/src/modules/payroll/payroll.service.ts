@@ -99,7 +99,10 @@ export class PayrollService {
       // LOP Calculation
       const totalWorkingDays = getWorkingDaysInMonth(emp.workingDaysPerWeek);
       const lopDays = emp.attendanceLog.length;
-      const lopAmount = (gross / totalWorkingDays) * lopDays;
+      let lopAmount = (gross / totalWorkingDays) * lopDays;
+      
+      // Safety Clamp: LOP cannot exceed gross salary
+      lopAmount = Math.min(lopAmount, gross);
 
       // Shift Allowance Calculation
       let totalShiftAllowance = 0;

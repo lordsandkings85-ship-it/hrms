@@ -34,10 +34,28 @@ export class LeaveService {
   }
 
   async approve(id: string, approverId: string) {
-    const req = await this.prisma.leaveRequest.findUnique({ where: { id } });
+    const req = await this.prisma.leaveRequest.findUnique({ 
+      where: { id },
+      include: { employee: true }
+    });
     if (!req) throw new NotFoundException('Leave request not found');
 
     let days = isHalfDayCount(req.startDate, req.endDate, req.isHalfDay);
+
+    // Holiday Exclusion (Exclude non-Sunday holidays)
+    if (!req.isHalfDay) {
+      const holidays = await this.prisma.holiday.findMany({
+        where: {
+          companyId: req.employee.companyId,
+          date: { gte: req.startDate, lte: req.endDate },
+        },
+      });
+      let holidayCount = 0;
+      for (const h of holidays) {
+        if (h.date.getDay() !== 0) holidayCount++;
+      }
+      days = Math.max(0, days - holidayCount);
+    }
 
     // Sandwich Rule detection across separate requests
     // If applying for a Monday (day 1), check if previous Friday (day 5) was a leave.
@@ -46,13 +64,18 @@ export class LeaveService {
       const lastFriday = new Date(req.startDate);
       lastFriday.setDate(lastFriday.getDate() - 3);
       
+      const startOfLastFriday = new Date(lastFriday);
+      startOfLastFriday.setHours(0,0,0,0);
+      const endOfLastFriday = new Date(lastFriday);
+      endOfLastFriday.setHours(23,59,59,999);
+      
       const adjacentLeave = await this.prisma.leaveRequest.findFirst({
         where: {
           employeeId: req.employeeId,
           status: 'approved',
           endDate: {
-            gte: new Date(lastFriday.setHours(0,0,0,0)),
-            lte: new Date(lastFriday.setHours(23,59,59,999))
+            gte: startOfLastFriday,
+            lte: endOfLastFriday
           }
         }
       });
