@@ -25,7 +25,7 @@ export class EmployeesService {
     const defaultPassword = password || 'password123';
     const passwordHash = await bcrypt.hash(defaultPassword, 12);
 
-    let assignedRoleId = null;
+    let assignedRoleId: string | null = null;
     if (dto.roleName) {
       const role = await this.prisma.role.findFirst({ where: { companyId, name: dto.roleName } });
       if (role) assignedRoleId = role.id;
