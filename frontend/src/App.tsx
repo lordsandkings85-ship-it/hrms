@@ -24,7 +24,6 @@ import SettingsPage from './pages/SettingsPage';
 import BillingPage from './pages/BillingPage';
 import IntegrationsPage from './pages/IntegrationsPage';
 import SuperAdminPage from './pages/SuperAdminPage';
-
 import FnfPage from './pages/FnfPage';
 import ExitPage from './pages/ExitPage';
 import TaxCalculatorPage from './pages/TaxCalculatorPage';
@@ -32,6 +31,7 @@ import TaxCalculatorPage from './pages/TaxCalculatorPage';
 import { useEffect } from 'react';
 import { useAuthStore } from './store/useAuthStore';
 import { authApi } from './api/client';
+import { FullPageSpinner } from './components/ui/Spinner';
 
 function isAuthed() {
   return !!localStorage.getItem('accessToken');
@@ -53,7 +53,7 @@ function Protected({ children }: { children: React.ReactNode }) {
   }, [user, setUser, setLoading, logout]);
 
   if (!isAuthed()) return <Navigate to="/login" replace />;
-  if (isLoading) return <div className="flex h-screen items-center justify-center">Loading...</div>;
+  if (isLoading) return <FullPageSpinner />;
 
   return <>{children}</>;
 }
@@ -71,31 +71,31 @@ export default function App() {
         }
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="employees" element={<EmployeesPage />} />
-        <Route path="employees/:id" element={<EmployeeDetailPage />} />
-        <Route path="attendance" element={<AttendancePage />} />
-        <Route path="leave" element={<LeavePage />} />
-        <Route path="payroll" element={<PayrollPage />} />
-        <Route path="recruitment" element={<RecruitmentPage />} />
-        <Route path="performance" element={<PerformancePage />} />
-        <Route path="documents" element={<DocumentsPage />} />
-        <Route path="assets" element={<AssetsPage />} />
-        <Route path="expenses" element={<ExpensesPage />} />
-        <Route path="travel" element={<TravelPage />} />
-        <Route path="shifts" element={<ShiftsPage />} />
-        <Route path="timesheets" element={<TimesheetsPage />} />
-        <Route path="projects" element={<ProjectsPage />} />
-        <Route path="announcements" element={<AnnouncementsPage />} />
-        <Route path="training" element={<TrainingPage />} />
-        <Route path="organization" element={<OrganizationPage />} />
-        <Route path="reports" element={<ReportsPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="billing" element={<BillingPage />} />
-        <Route path="integrations" element={<IntegrationsPage />} />
-        <Route path="super-admin" element={<SuperAdminPage />} />
-        <Route path="fnf" element={<FnfPage />} />
-        <Route path="exit" element={<ExitPage />} />
+        <Route path="dashboard"      element={<DashboardPage />} />
+        <Route path="employees"      element={<EmployeesPage />} />
+        <Route path="employees/:id"  element={<EmployeeDetailPage />} />
+        <Route path="attendance"     element={<AttendancePage />} />
+        <Route path="leave"          element={<LeavePage />} />
+        <Route path="payroll"        element={<PayrollPage />} />
+        <Route path="recruitment"    element={<RecruitmentPage />} />
+        <Route path="performance"    element={<PerformancePage />} />
+        <Route path="documents"      element={<DocumentsPage />} />
+        <Route path="assets"         element={<AssetsPage />} />
+        <Route path="expenses"       element={<ExpensesPage />} />
+        <Route path="travel"         element={<TravelPage />} />
+        <Route path="shifts"         element={<ShiftsPage />} />
+        <Route path="timesheets"     element={<TimesheetsPage />} />
+        <Route path="projects"       element={<ProjectsPage />} />
+        <Route path="announcements"  element={<AnnouncementsPage />} />
+        <Route path="training"       element={<TrainingPage />} />
+        <Route path="organization"   element={<OrganizationPage />} />
+        <Route path="reports"        element={<ReportsPage />} />
+        <Route path="settings"       element={<SettingsPage />} />
+        <Route path="billing"        element={<BillingPage />} />
+        <Route path="integrations"   element={<IntegrationsPage />} />
+        <Route path="super-admin"    element={<SuperAdminPage />} />
+        <Route path="fnf"            element={<FnfPage />} />
+        <Route path="exit"           element={<ExitPage />} />
         <Route path="tax-calculator" element={<TaxCalculatorPage />} />
       </Route>
     </Routes>

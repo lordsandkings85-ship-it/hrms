@@ -33,4 +33,5 @@ export class CreateEmployeeDto {
   @IsOptional() @IsString() password?: string;
   @IsOptional() workingDaysPerWeek?: number;
   @IsOptional() ctc?: number;
+  @IsOptional() roleName?: string;
 }

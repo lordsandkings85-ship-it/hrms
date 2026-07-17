@@ -7,7 +7,7 @@ import { Spinner } from '../ui/Spinner';
 import {
   Users, CheckCircle, AlertTriangle, Calendar, FileClock,
   Briefcase, FolderKanban, UserMinus, HandCoins, Calculator,
-  ArrowRight, Plus, Banknote, Zap,
+  ArrowRight, Plus, Banknote, Zap, PartyPopper, UserCheck, Target,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import {
@@ -65,7 +65,7 @@ export default function AdminDashboard() {
           style={{ backgroundImage: 'radial-gradient(circle at 80% 50%, #1F6F5C 0%, transparent 60%)' }} />
 
         <div className="relative z-10">
-          <p className="text-white/50 text-sm mb-1">Good {getGreeting()},</p>
+          <p className="text-white/50 text-sm mb-1">Welcome to the HR Portal, Good {getGreeting()}</p>
           <h1 className="font-display text-3xl font-bold text-white tracking-tight">{name}</h1>
           <p className="text-white/55 text-sm mt-2 max-w-md">
             Here's your workforce overview for today. Everything looks operational.
@@ -210,6 +210,86 @@ export default function AdminDashboard() {
           })}
         </div>
       </div>
+
+      {/* ── Recruitment Pipeline & Milestones ─────────── */}
+      {data && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Recruitment Pipeline */}
+          <div className="section-card p-5">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-sm font-semibold text-ink">Recruitment Pipeline</h2>
+              <Target size={16} className="text-muted" />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              {[
+                { label: 'Applied', count: data.recruitmentPipeline?.applied || 0, color: 'bg-paperDim text-muted' },
+                { label: 'Interview', count: data.recruitmentPipeline?.interview || 0, color: 'bg-info-light text-info-dark border border-info/20' },
+                { label: 'Offered', count: data.recruitmentPipeline?.offer || 0, color: 'bg-warning-light text-warning-dark border border-warning/20' },
+                { label: 'Hired', count: data.recruitmentPipeline?.hired || 0, color: 'bg-success-light text-success-dark border border-success/20' },
+              ].map((stage, i) => (
+                <div key={stage.label} className="flex-1 flex flex-col items-center">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center font-display font-bold text-lg mb-2 ${stage.color}`}>
+                    {stage.count}
+                  </div>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">{stage.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Celebrations & Milestones */}
+          <div className="section-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-ink">Celebrations & Milestones</h2>
+              <PartyPopper size={16} className="text-muted" />
+            </div>
+            
+            <div className="space-y-4">
+              {/* Anniversaries */}
+              {data.milestones?.anniversaries?.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-bold text-ledger mb-2">Work Anniversaries</h3>
+                  <div className="space-y-2">
+                    {data.milestones.anniversaries.map((e: any) => (
+                      <div key={e.id} className="flex items-center gap-3 p-2 rounded-lg bg-ledgerLight/50">
+                        <div className="w-8 h-8 rounded-full bg-ledger text-white flex items-center justify-center text-xs font-bold">
+                          {e.years}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-ink">{e.name}</p>
+                          <p className="text-[10px] text-muted">{e.years} Year Anniversary</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* New Joiners */}
+              {data.milestones?.newJoiners?.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-bold text-info mb-2">Recent Joiners (Last 30 Days)</h3>
+                  <div className="space-y-2">
+                    {data.milestones.newJoiners.slice(0, 3).map((e: any) => (
+                      <div key={e.id} className="flex items-center gap-3 p-2 rounded-lg bg-info-light/50">
+                        <UserCheck size={16} className="text-info-dark" />
+                        <div>
+                          <p className="text-xs font-semibold text-ink">{e.name}</p>
+                          <p className="text-[10px] text-muted">Joined {new Date(e.date).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!data.milestones?.anniversaries?.length && !data.milestones?.newJoiners?.length && (
+                <p className="text-xs text-muted text-center py-4">No upcoming milestones this month.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

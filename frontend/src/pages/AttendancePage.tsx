@@ -123,6 +123,8 @@ export default function AttendancePage() {
     ? todayLogs 
     : todayLogs?.filter((log: any) => log.employeeId === myEmpId);
 
+  const hasCheckedInToday = todayLogs?.some((log: any) => log.employeeId === selectedEmp);
+
   const statusBadge = (status: string) => {
     const map: Record<string, string> = {
       present: 'bg-green-100 text-green-700',
@@ -216,10 +218,18 @@ export default function AttendancePage() {
 
               <button
                 onClick={handleCheckIn}
-                disabled={checkInMutation.isPending}
-                className="w-full flex items-center justify-center gap-2 bg-ledger text-paper rounded-md py-2.5 text-sm font-medium hover:bg-ledgerDark disabled:opacity-50"
+                disabled={checkInMutation.isPending || hasCheckedInToday}
+                className="w-full flex items-center justify-center gap-2 bg-ledger text-paper rounded-md py-2.5 text-sm font-medium hover:bg-ledgerDark disabled:opacity-50 transition-colors"
               >
-                <Play size={16} /> Check In Now
+                {hasCheckedInToday ? (
+                  <>
+                    <CheckCircle2 size={16} /> Already Checked In Today
+                  </>
+                ) : (
+                  <>
+                    <Play size={16} /> Check In Now
+                  </>
+                )}
               </button>
             </div>
           )}

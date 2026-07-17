@@ -29,6 +29,7 @@ export default function AddEmployeeModal({ onClose }: AddEmployeeModalProps) {
     pan: '',
     aadhaar: '',
     ctc: '',
+    roleName: '',
   });
 
   const { data: departments } = useQuery({
@@ -40,6 +41,8 @@ export default function AddEmployeeModal({ onClose }: AddEmployeeModalProps) {
     queryKey: ['designations'],
     queryFn: () => organizationApi.listDesignations(),
   });
+
+
 
   const mutation = useMutation({
     mutationFn: (data: any) => employeesApi.create(data),
@@ -62,6 +65,7 @@ export default function AddEmployeeModal({ onClose }: AddEmployeeModalProps) {
     const payload: any = { ...formData, workingDaysPerWeek: Number(formData.workingDaysPerWeek) };
     if (!payload.departmentId) delete payload.departmentId;
     if (!payload.designationId) delete payload.designationId;
+    if (!payload.roleName) delete payload.roleName;
     if (!payload.joiningDate) delete payload.joiningDate;
     if (!payload.phone) delete payload.phone;
     if (payload.ctc) {
@@ -143,6 +147,20 @@ export default function AddEmployeeModal({ onClose }: AddEmployeeModalProps) {
                   placeholder="e.g. securePass123"
                   value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
                 <p className="text-[10px] text-muted mt-1">Provide this to the employee for their first login.</p>
+              </div>
+
+              <div className="mt-4">
+                <label className="block text-xs font-medium text-muted mb-1">System Role (Optional)</label>
+                <select
+                  value={formData.roleName}
+                  onChange={(e) => setFormData({ ...formData, roleName: e.target.value })}
+                  className="w-full border border-line rounded px-3 py-2 text-sm focus:ring-2 focus:ring-ledger/40"
+                >
+                  <option value="">-- No specific role (Default Employee) --</option>
+                  <option value="System Admin">System Admin (Full Access)</option>
+                  <option value="HR Admin">HR Admin (HR Portal Access)</option>
+                </select>
+                <p className="text-[10px] text-muted mt-1">Assign a role to grant them specific portal access.</p>
               </div>
             </div>
           )}
@@ -253,7 +271,9 @@ export default function AddEmployeeModal({ onClose }: AddEmployeeModalProps) {
         <div className="p-6 border-t border-line bg-paper/20 flex items-center justify-between">
           <div>
              {mutation.isError && (
-              <p className="text-xs text-rust font-medium">Error saving employee. Email or Code may be taken.</p>
+              <p className="text-xs text-rust font-medium">
+                {mutation.error instanceof Error ? mutation.error.message : 'Error saving employee. Email or Code may be taken.'}
+              </p>
              )}
           </div>
           <div className="flex gap-3">
