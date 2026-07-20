@@ -1,13 +1,15 @@
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   LayoutDashboard, Users, Fingerprint, CalendarDays, Banknote, Briefcase,
   TrendingUp, FileText, Laptop, Receipt, Plane, Clock3, ListChecks,
   FolderKanban, Megaphone, GraduationCap, Building2, BarChart3, Settings,
   CreditCard, Plug, ShieldCheck, LogOut, Calculator, UserMinus, HandCoins,
-  ChevronLeft, Bell, Menu,
+  ChevronLeft, Bell, Menu, Moon, Sun, Command, Headphones,
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
+import { useTheme } from './ui/ThemeProvider';
+import CommandPalette from './ui/CommandPalette';
 
 type NavItem = {
   to: string;
@@ -65,6 +67,7 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
   {
     group: 'System',
     items: [
+      { to: '/helpdesk',     label: 'Helpdesk',     icon: Headphones },
       { to: '/reports',      label: 'Reports',      icon: BarChart3, adminOnly: true },
       { to: '/settings',     label: 'Settings',     icon: Settings, adminOnly: true },
       { to: '/billing',      label: 'Billing',      icon: CreditCard, adminOnly: true },
@@ -84,7 +87,7 @@ const ROUTE_LABELS: Record<string, string> = {
   training: 'Training', organization: 'Organization', reports: 'Reports',
   settings: 'Settings', billing: 'Billing', integrations: 'Integrations',
   'super-admin': 'Super Admin', fnf: 'FnF Settlement', exit: 'Exit Management',
-  'tax-calculator': 'Tax Calculator',
+  'tax-calculator': 'Tax Calculator', helpdesk: 'Helpdesk',
 };
 
 function LiveClock() {
@@ -114,7 +117,9 @@ export default function Layout() {
   const isAdmin = user?.role?.isSystem;
   const navigate = useNavigate();
   const location = useLocation();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const fullName = user?.employee
     ? `${user.employee.firstName} ${user.employee.lastName}`
@@ -124,13 +129,27 @@ export default function Layout() {
   const currentSegment = location.pathname.split('/').filter(Boolean)[0] ?? '';
   const breadcrumb = ROUTE_LABELS[currentSegment] ?? currentSegment;
 
+  // Global keyboard shortcut: Ctrl+K / Cmd+K
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      setPaletteOpen(open => !open);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
   function handleLogout() {
     logout();
     navigate('/login');
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-paper">
+    <div className="flex h-screen overflow-hidden bg-paperDim dark:bg-ink2">
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       {/* ── Sidebar ─────────────────────────────────── */}
       <aside
         className={`${collapsed ? 'w-16' : 'w-60'} shrink-0 bg-ink border-r border-line/10 text-paper flex flex-col transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] z-40 relative`}
@@ -216,30 +235,50 @@ export default function Layout() {
       </aside>
 
       {/* ── Main content ─────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 dark:bg-ink2">
         {/* Topbar */}
-        <header className="h-12 bg-white border-b border-line flex items-center gap-3 px-5 shrink-0 sticky top-0 z-30">
+        <header className="h-12 bg-white dark:bg-ink border-b border-line dark:border-white/5 flex items-center gap-2 px-4 shrink-0 sticky top-0 z-30">
           <button
             onClick={() => setCollapsed(c => !c)}
-            className="p-1.5 rounded-lg text-muted hover:text-ink hover:bg-paperDim transition-colors"
+            className="p-1.5 rounded-lg text-muted dark:text-white/50 hover:text-ink dark:hover:text-white hover:bg-paperDim dark:hover:bg-white/5 transition-colors"
+            title="Toggle sidebar"
           >
             {collapsed ? <Menu size={16} /> : <ChevronLeft size={16} />}
           </button>
 
           {/* Breadcrumb */}
-          <div className="flex items-center gap-1.5 text-sm text-muted">
-            <span className="text-ink/40">Ledger</span>
-            <span>/</span>
-            <span className="text-ink font-medium">{breadcrumb}</span>
+          <div className="flex items-center gap-1.5 text-sm">
+            <span className="text-muted dark:text-white/40">Ledger</span>
+            <span className="text-muted dark:text-white/20">/</span>
+            <span className="text-ink dark:text-white font-medium">{breadcrumb}</span>
           </div>
+
+          {/* Command Palette Trigger */}
+          <button
+            onClick={() => setPaletteOpen(true)}
+            className="hidden md:flex items-center gap-2 ml-3 px-3 py-1.5 text-xs text-muted dark:text-white/40 bg-paperDim dark:bg-white/5 border border-line dark:border-white/10 rounded-lg hover:border-muted dark:hover:border-white/20 transition-colors"
+          >
+            <Command size={12} />
+            <span>Search…</span>
+            <span className="ml-1 text-[10px] bg-white dark:bg-white/10 border border-line dark:border-white/10 px-1 rounded font-mono">⌘K</span>
+          </button>
 
           {/* Spacer */}
           <div className="flex-1" />
 
           <LiveClock />
 
-          {/* Notification bell placeholder */}
-          <button className="p-1.5 rounded-lg text-muted hover:text-ink hover:bg-paperDim transition-colors relative">
+          {/* Dark mode toggle */}
+          <button
+            onClick={toggleTheme}
+            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+            className="p-1.5 rounded-lg text-muted dark:text-white/50 hover:text-ink dark:hover:text-white hover:bg-paperDim dark:hover:bg-white/5 transition-colors"
+          >
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+
+          {/* Notification bell */}
+          <button className="p-1.5 rounded-lg text-muted dark:text-white/50 hover:text-ink dark:hover:text-white hover:bg-paperDim dark:hover:bg-white/5 transition-colors relative">
             <Bell size={16} />
           </button>
 
