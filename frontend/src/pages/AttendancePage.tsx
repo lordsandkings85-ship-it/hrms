@@ -264,8 +264,8 @@ export default function AttendancePage() {
                   <div className="flex items-center gap-4">
                     {statusBadge(log.status)}
                     <div className="text-right text-xs text-muted">
-                      <div>In: {log.checkIn ? new Date(log.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</div>
-                      <div>Out: {log.checkOut ? new Date(log.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'}</div>
+                      <div>In: {log.checkIn ? new Date(log.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}</div>
+                      <div>Out: {log.checkOut ? new Date(log.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : 'Pending'}</div>
                     </div>
                     {!log.checkOut ? (
                       <button

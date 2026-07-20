@@ -95,7 +95,7 @@ function LiveClock() {
   }, []);
   return (
     <span className="font-mono text-xs text-muted tabular-nums">
-      {time.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+      {time.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
     </span>
   );
 }
