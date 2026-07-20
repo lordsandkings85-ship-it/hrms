@@ -37,8 +37,23 @@ export const authApi = {
     }),
 };
 
+export interface DashboardSummary {
+  widgets: Record<string, number>;
+  attendanceTrend?: any[];
+  recruitmentPipeline?: {
+    applied: number;
+    interview: number;
+    offer: number;
+    hired: number;
+  };
+  milestones?: {
+    anniversaries?: any[];
+    newJoiners?: any[];
+  };
+}
+
 export const dashboardApi = {
-  summary: () => api<{ widgets: Record<string, number> }>('/dashboard/summary'),
+  summary: () => api<DashboardSummary>('/dashboard/summary'),
 };
 
 export interface Employee {

@@ -133,84 +133,83 @@ export default function Layout() {
     <div className="flex h-screen overflow-hidden bg-paper">
       {/* ── Sidebar ─────────────────────────────────── */}
       <aside
-        className={`${collapsed ? 'w-16' : 'w-60'} shrink-0 bg-ink text-paper flex flex-col transition-all duration-200 ease-in-out`}
+        className={`${collapsed ? 'w-16' : 'w-60'} shrink-0 bg-ink border-r border-line/10 text-paper flex flex-col transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] z-40 relative`}
       >
         {/* Logo */}
-        <div className={`flex items-center gap-2.5 px-4 py-5 border-b border-white/10 ${collapsed ? 'justify-center' : ''}`}>
-          <div className="w-7 h-7 rounded-lg bg-ledger flex items-center justify-center flex-shrink-0">
-            <Banknote size={14} className="text-white" />
+        <div className={`flex items-center gap-3 px-4 py-5 border-b border-white/5 ${collapsed ? 'justify-center' : ''}`}>
+          <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center flex-shrink-0">
+            <Banknote size={16} className="text-ink" strokeWidth={2.5} />
           </div>
           {!collapsed && (
-            <div className="overflow-hidden">
-              <div className="font-display text-sm font-bold tracking-tight leading-none">Ledger HRMS</div>
-              <div className="text-[10px] text-white/35 mt-0.5">Workforce &amp; Payroll</div>
+            <div className="overflow-hidden flex-1">
+              <div className="font-display text-[15px] font-bold tracking-tight leading-none text-white">Ledger HRMS</div>
+              <div className="text-[10px] text-muted-400 mt-1 uppercase tracking-widest text-white/40">Workforce</div>
             </div>
           )}
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-2">
+        <nav className="flex-1 overflow-y-auto py-3 custom-scrollbar">
           {NAV_GROUPS.map(({ group, items }) => {
             const visible = items.filter(item => isAdmin || !item.adminOnly);
             if (!visible.length) return null;
             return (
-              <div key={group}>
+              <div key={group} className="mb-2">
                 {!collapsed && <div className="nav-group-label">{group}</div>}
-                {collapsed && <div className="my-1 mx-3 border-t border-white/10" />}
-                {visible.map(item => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    title={collapsed ? item.label : undefined}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 px-4 py-2 text-[13px] transition-colors relative group ${
-                        collapsed ? 'justify-center' : ''
-                      } ${
-                        isActive
-                          ? 'bg-ledger/20 text-white font-medium'
-                          : 'text-white/55 hover:text-white hover:bg-white/5'
-                      }`
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        {isActive && (
-                          <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-ledger" />
-                        )}
-                        <item.icon size={15} strokeWidth={isActive ? 2 : 1.75} className="flex-shrink-0" />
-                        {!collapsed && item.label}
-                        {/* Tooltip for collapsed */}
-                        {collapsed && (
-                          <span className="absolute left-full ml-2 px-2 py-1 bg-ink2 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg transition-opacity">
-                            {item.label}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </NavLink>
-                ))}
+                {collapsed && <div className="my-2 mx-4 border-t border-white/5" />}
+                <div className="px-2 space-y-0.5">
+                  {visible.map(item => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      title={collapsed ? item.label : undefined}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2 text-[13px] rounded-md transition-all relative group ${
+                          collapsed ? 'justify-center' : ''
+                        } ${
+                          isActive
+                            ? 'bg-white/10 text-white font-medium shadow-sm'
+                            : 'text-white/60 hover:text-white hover:bg-white/5'
+                        }`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          <item.icon size={16} strokeWidth={isActive ? 2 : 1.75} className="flex-shrink-0" />
+                          {!collapsed && item.label}
+                          {/* Tooltip for collapsed */}
+                          {collapsed && (
+                            <span className="absolute left-full ml-2 px-2.5 py-1.5 bg-ink2 border border-white/10 text-white text-xs font-medium rounded-md opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl transition-opacity">
+                              {item.label}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </NavLink>
+                  ))}
+                </div>
               </div>
             );
           })}
         </nav>
 
         {/* User footer */}
-        <div className="border-t border-white/10">
+        <div className="border-t border-white/5 bg-white/5">
           {!collapsed && (
-            <div className="flex items-center gap-2.5 px-4 py-3">
+            <div className="flex items-center gap-3 px-4 py-4">
               <UserAvatar name={fullName} />
               <div className="overflow-hidden flex-1">
-                <div className="text-xs font-semibold text-white truncate">{fullName}</div>
-                <div className="text-[10px] text-white/40 truncate">{roleName}</div>
+                <div className="text-[13px] font-semibold text-white truncate">{fullName}</div>
+                <div className="text-[11px] text-white/50 truncate mt-0.5">{roleName}</div>
               </div>
             </div>
           )}
           <button
             onClick={handleLogout}
             title="Sign out"
-            className={`flex items-center gap-2.5 w-full px-4 py-3 text-[13px] text-white/45 hover:text-white hover:bg-white/5 transition-colors ${collapsed ? 'justify-center' : ''}`}
+            className={`flex items-center gap-3 w-full px-4 py-3 text-[13px] font-medium text-rustLight hover:text-white hover:bg-rust/20 transition-colors ${collapsed ? 'justify-center' : ''}`}
           >
-            <LogOut size={15} strokeWidth={1.75} />
+            <LogOut size={16} strokeWidth={2} />
             {!collapsed && 'Sign out'}
           </button>
         </div>

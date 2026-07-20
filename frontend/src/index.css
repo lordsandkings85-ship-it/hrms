@@ -3,89 +3,92 @@
 @tailwind utilities;
 
 /* ─── Scrollbar ────────────────────────────────────────────── */
-* { scrollbar-width: thin; scrollbar-color: #C9C6BA transparent; }
+* { scrollbar-width: thin; scrollbar-color: #E4E4E7 transparent; }
 *::-webkit-scrollbar { width: 6px; height: 6px; }
-*::-webkit-scrollbar-thumb { background: #C9C6BA; border-radius: 8px; }
+*::-webkit-scrollbar-thumb { background: #E4E4E7; border-radius: 8px; }
 *::-webkit-scrollbar-track { background: transparent; }
+*:hover::-webkit-scrollbar-thumb { background: #D4D4D8; }
 
 html { -webkit-tap-highlight-color: transparent; }
 
 body {
-  @apply bg-paper text-ink font-body antialiased;
+  @apply bg-paperDim text-ink font-body antialiased selection:bg-ledger selection:text-white;
 }
 
 /* ─── Page container ────────────────────────────────────────── */
 .page-container {
-  @apply p-6 md:p-8 max-w-7xl mx-auto;
+  @apply p-6 md:p-8 max-w-[1400px] mx-auto w-full;
 }
 
 /* ─── Section card ──────────────────────────────────────────── */
 .section-card {
-  @apply bg-white border border-line rounded-xl shadow-card;
+  @apply bg-white border border-line rounded-xl shadow-card transition-shadow hover:shadow-raised overflow-hidden;
 }
 
-/* ─── Ledger accent row ─────────────────────────────────────── */
+/* ─── Ledger accent row (Now a sleek indicator) ──────────────── */
 .ledger-row {
-  @apply relative pl-4 py-3 border-b border-line flex items-center justify-between transition-colors;
+  @apply relative pl-5 py-3 border-b border-line flex items-center justify-between transition-colors bg-white;
 }
 .ledger-row::before {
   content: '';
-  @apply absolute left-0 top-2 bottom-2 w-[3px] rounded-full transition-all;
-  background: var(--accent, #1F6F5C);
+  @apply absolute left-0 top-0 bottom-0 w-[3px] transition-all opacity-0;
+  background: var(--accent, #000000);
 }
-.ledger-row:hover::before { @apply top-1 bottom-1; }
+.ledger-row:hover { @apply bg-paperDim/50; }
+.ledger-row:hover::before { @apply opacity-100; }
 
 /* ─── Focus ring ────────────────────────────────────────────── */
 .focus-ring {
-  @apply outline-none ring-0 focus-visible:ring-2 focus-visible:ring-ledger/40 focus-visible:border-ledger;
+  @apply outline-none ring-0 focus-visible:ring-2 focus-visible:ring-ledger/20 focus-visible:border-ledger transition-shadow;
 }
 
 /* ─── Skeleton shimmer ──────────────────────────────────────── */
 .skeleton {
-  @apply bg-line/70 rounded-md relative overflow-hidden;
-  background-image: linear-gradient(90deg, rgba(228,225,216,0.6) 25%, rgba(255,255,255,0.9) 37%, rgba(228,225,216,0.6) 63%);
+  @apply bg-line/50 rounded-md relative overflow-hidden;
+  background-image: linear-gradient(90deg, rgba(228,228,231,0.4) 25%, rgba(255,255,255,0.8) 37%, rgba(228,228,231,0.4) 63%);
   background-size: 400px 100%;
   animation: shimmer 1.4s infinite linear;
 }
 
 /* ─── Card hover lift ───────────────────────────────────────── */
-.card-hover { @apply transition-all duration-200; }
-.card-hover:hover { @apply shadow-raised -translate-y-0.5; }
+.card-hover { @apply transition-all duration-300 ease-out; }
+.card-hover:hover { @apply shadow-raised -translate-y-[2px]; }
 
-/* ─── Data tables ───────────────────────────────────────────── */
+/* ─── Data tables (Stripe/Linear style) ─────────────────────── */
 table.data-table { @apply w-full text-sm border-collapse; }
 table.data-table thead th {
-  @apply text-left text-[11px] uppercase tracking-wide text-muted font-semibold py-2.5 px-3 border-b border-line bg-paperDim/60;
+  @apply text-left text-xs tracking-wider text-muted font-medium py-3 px-4 border-b border-line bg-white sticky top-0 z-10;
 }
-table.data-table tbody td { @apply py-3 px-3 border-b border-line align-middle; }
+table.data-table tbody td { @apply py-3.5 px-4 border-b border-line align-middle bg-white; }
 table.data-table tbody tr { @apply transition-colors; }
-table.data-table tbody tr:hover { @apply bg-paperDim/50; }
+table.data-table tbody tr:hover td { @apply bg-paperDim/60; }
+table.data-table tbody tr:last-child td { @apply border-b-0; }
 
-/* ─── Buttons ───────────────────────────────────────────────── */
+/* ─── Buttons (Premium SaaS) ────────────────────────────────── */
 .btn-primary {
-  @apply inline-flex items-center gap-2 px-4 py-2 bg-ledger hover:bg-ledgerDark text-white text-sm font-semibold rounded-lg transition-colors shadow-sm;
+  @apply inline-flex items-center gap-2 px-4 py-2 bg-ledger hover:bg-ink2 text-white text-sm font-medium rounded-lg transition-all shadow-sm active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
 }
 .btn-secondary {
-  @apply inline-flex items-center gap-2 px-4 py-2 bg-white border border-line hover:border-muted text-ink text-sm font-semibold rounded-lg transition-colors;
+  @apply inline-flex items-center gap-2 px-4 py-2 bg-white border border-line hover:border-muted hover:bg-paperDim text-ink text-sm font-medium rounded-lg transition-all shadow-sm active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
 }
 .btn-ghost {
-  @apply inline-flex items-center gap-2 px-3 py-1.5 text-muted hover:text-ink hover:bg-paperDim text-sm font-medium rounded-lg transition-colors;
+  @apply inline-flex items-center gap-2 px-3 py-1.5 text-muted hover:text-ink hover:bg-line/50 text-sm font-medium rounded-lg transition-colors active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
 }
 .btn-danger {
-  @apply inline-flex items-center gap-2 px-4 py-2 bg-danger hover:bg-danger-dark text-white text-sm font-semibold rounded-lg transition-colors;
+  @apply inline-flex items-center gap-2 px-4 py-2 bg-danger hover:bg-danger-dark text-white text-sm font-medium rounded-lg transition-all shadow-sm active:scale-[0.98] disabled:opacity-50;
 }
 
 /* ─── Form inputs ───────────────────────────────────────────── */
 .input {
-  @apply w-full px-3 py-2 rounded-lg border border-line bg-white text-sm text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-ledger/30 focus:border-ledger transition-colors;
+  @apply w-full px-3 py-2 rounded-lg border border-line bg-white text-sm text-ink placeholder:text-muted/70 focus:outline-none focus:ring-2 focus:ring-ledger/10 focus:border-ledger transition-all shadow-sm disabled:bg-paperDim disabled:cursor-not-allowed;
 }
 .input-label {
-  @apply block text-xs font-semibold text-muted mb-1.5 uppercase tracking-wide;
+  @apply block text-[13px] font-medium text-ink2 mb-1.5;
 }
 
 /* ─── Nav group label ───────────────────────────────────────── */
 .nav-group-label {
-  @apply px-4 pt-5 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-white/25 select-none;
+  @apply px-4 pt-6 pb-2 text-[11px] font-semibold tracking-wider text-white/40 select-none uppercase;
 }
 
 /* ─── Keyframes ─────────────────────────────────────────────── */
@@ -98,14 +101,14 @@ table.data-table tbody tr:hover { @apply bg-paperDim/50; }
   to   { opacity: 1; }
 }
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.96); }
+  from { opacity: 0; transform: scale(0.97); }
   to   { opacity: 1; transform: scale(1); }
 }
 @keyframes slideInLeft {
-  from { opacity: 0; transform: translateX(-10px); }
+  from { opacity: 0; transform: translateX(-16px); }
   to   { opacity: 1; transform: translateX(0); }
 }

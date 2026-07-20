@@ -246,11 +246,11 @@ export default function AdminDashboard() {
             
             <div className="space-y-4">
               {/* Anniversaries */}
-              {data.milestones?.anniversaries?.length > 0 && (
-                <div>
-                  <h3 className="text-xs font-bold text-ledger mb-2">Work Anniversaries</h3>
+              {(data.milestones?.anniversaries?.length ?? 0) > 0 && (
+                <div className="mb-4">
+                  <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">Work Anniversaries</h4>
                   <div className="space-y-2">
-                    {data.milestones.anniversaries.map((e: any) => (
+                    {data.milestones?.anniversaries?.map((e: any) => (
                       <div key={e.id} className="flex items-center gap-3 p-2 rounded-lg bg-ledgerLight/50">
                         <div className="w-8 h-8 rounded-full bg-ledger text-white flex items-center justify-center text-xs font-bold">
                           {e.years}
@@ -266,11 +266,11 @@ export default function AdminDashboard() {
               )}
 
               {/* New Joiners */}
-              {data.milestones?.newJoiners?.length > 0 && (
+              {(data.milestones?.newJoiners?.length ?? 0) > 0 && (
                 <div>
-                  <h3 className="text-xs font-bold text-info mb-2">Recent Joiners (Last 30 Days)</h3>
+                  <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">New Joiners</h4>
                   <div className="space-y-2">
-                    {data.milestones.newJoiners.slice(0, 3).map((e: any) => (
+                    {data.milestones?.newJoiners?.slice(0, 3).map((e: any) => (
                       <div key={e.id} className="flex items-center gap-3 p-2 rounded-lg bg-info-light/50">
                         <UserCheck size={16} className="text-info-dark" />
                         <div>

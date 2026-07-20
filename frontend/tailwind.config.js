@@ -4,31 +4,33 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: '#12181B',
-        ink2: '#1B2226',
-        paper: '#F6F5F1',
-        paperDim: '#EFEDE5',
-        ledger: '#1F6F5C',
-        ledgerDark: '#154F42',
-        ledgerLight: '#E8F2EF',
-        rust: '#B5522E',
-        rustLight: '#FBEAE3',
-        line: '#E4E1D8',
-        muted: '#6B6A63',
-        success: { DEFAULT: '#10B981', dark: '#047857', light: '#E5F8F1' },
-        warning: { DEFAULT: '#F59E0B', dark: '#B45309', light: '#FEF3E2' },
-        danger: { DEFAULT: '#EF4444', dark: '#B91C1C', light: '#FDEAEA' },
-        info: { DEFAULT: '#3B82F6', dark: '#1D4ED8', light: '#EAF1FE' },
+        // Modern Minimalist Palette (Zinc/Stripe inspired)
+        ink: '#09090B',       // Zinc 950 - Pure dark for text
+        ink2: '#18181B',      // Zinc 900 - Slightly softer text
+        paper: '#FFFFFF',     // Pure white background
+        paperDim: '#FAFAFA',  // Zinc 50 - Very subtle off-white for cards/sections
+        ledger: '#000000',    // Premium Black for brand actions (Vercel/Linear style)
+        ledgerDark: '#09090B',
+        ledgerLight: '#F4F4F5',
+        rust: '#E11D48',      // Modern Rose for destructive actions
+        rustLight: '#FFF1F2',
+        line: '#E4E4E7',      // Zinc 200 - Crisp, light borders
+        muted: '#71717A',     // Zinc 500 - Secondary text
+        success: { DEFAULT: '#10B981', dark: '#047857', light: '#ECFDF5' }, // Emerald
+        warning: { DEFAULT: '#F59E0B', dark: '#B45309', light: '#FFFBEB' }, // Amber
+        danger: { DEFAULT: '#EF4444', dark: '#B91C1C', light: '#FEF2F2' },  // Red
+        info: { DEFAULT: '#3B82F6', dark: '#1D4ED8', light: '#EFF6FF' },    // Blue
       },
       fontFamily: {
-        display: ['"Space Grotesk"', 'sans-serif'],
+        display: ['"Inter"', 'sans-serif'], // Linear uses Inter for everything
         body: ['"Inter"', 'sans-serif'],
         mono: ['"IBM Plex Mono"', 'monospace'],
       },
       boxShadow: {
-        card: '0 1px 2px rgba(18,24,27,0.04), 0 1px 8px rgba(18,24,27,0.03)',
-        raised: '0 4px 14px rgba(18,24,27,0.08), 0 1px 3px rgba(18,24,27,0.06)',
-        popover: '0 12px 32px rgba(18,24,27,0.14), 0 2px 6px rgba(18,24,27,0.08)',
+        // Stripe/Vercel diffused shadows
+        card: '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02)',
+        raised: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.025)',
+        popover: '0 10px 25px -5px rgba(0,0,0,0.08), 0 8px 10px -6px rgba(0,0,0,0.04)',
       },
       borderRadius: { xl2: '1rem' },
       keyframes: {
