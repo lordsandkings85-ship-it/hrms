@@ -10,7 +10,7 @@ export class EmployeesService {
   constructor(private prisma: PrismaService) {}
 
   async create(companyId: string, userId: string, dto: CreateEmployeeDto) {
-    const { password, workingDaysPerWeek, ctc, ...employeeData } = dto;
+    const { password, workingDaysPerWeek, ctc, roleName, ...employeeData } = dto;
     const encryptedData = encryptPiiFields(employeeData);
     
     const employee = await this.prisma.employee.create({
