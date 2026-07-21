@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { dashboardApi, employeesApi } from '../../api/client';
+import { dashboardApi, employeesApi, leaveApi } from '../../api/client';
 import { useAuthStore } from '../../store/useAuthStore';
 import { StatCard } from '../ui/StatCard';
 import { Spinner } from '../ui/Spinner';
@@ -45,8 +45,16 @@ function LiveClock() {
 }
 
 export default function HrDashboard() {
+  const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const name = user?.employee ? user.employee.firstName : user?.email?.split('@')[0] ?? 'HR';
+
+  const approveMutation = useMutation({
+    mutationFn: leaveApi.approve,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+    }
+  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-summary'],
@@ -312,18 +320,21 @@ export default function HrDashboard() {
                 {data.pendingLeaveRequests && data.pendingLeaveRequests.length > 0 && (
                   <div className="mb-3">
                     {data.pendingLeaveRequests.map((req: any) => (
-                      <Link to="/leave" key={req.id} className="block p-3 rounded-lg border bg-warning/10 border-warning/20 mb-2 hover:bg-warning/20 transition-colors">
+                      <div key={req.id} className="block p-3 rounded-lg border bg-warning/10 border-warning/20 mb-2 transition-colors">
                         <div className="flex justify-between items-start">
                           <div>
                             <p className="text-[13px] text-ink font-semibold leading-snug">{req.employeeName}</p>
                             <p className="text-[11px] text-muted mt-0.5 font-medium">{req.leaveType} Request</p>
                           </div>
-                          <span className="text-[9px] bg-warning/20 text-warning px-2 py-1 rounded-md uppercase font-bold tracking-wider">Review</span>
+                          <div className="flex gap-1.5">
+                            <button onClick={() => approveMutation.mutate(req.id)} className="text-[9px] bg-success/20 text-success hover:bg-success hover:text-white px-2 py-1 rounded-md uppercase font-bold tracking-wider transition-colors cursor-pointer">Approve</button>
+                            <Link to="/leave/requests" className="text-[9px] bg-warning/20 text-warning hover:bg-warning hover:text-white px-2 py-1 rounded-md uppercase font-bold tracking-wider transition-colors">Review</Link>
+                          </div>
                         </div>
                         <p className="text-[10px] text-ink/70 mt-2 font-medium">
                           {new Date(req.startDate).toLocaleDateString()} to {new Date(req.endDate).toLocaleDateString()}
                         </p>
-                      </Link>
+                      </div>
                     ))}
                   </div>
                 )}
