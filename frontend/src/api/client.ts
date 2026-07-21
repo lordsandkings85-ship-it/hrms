@@ -1,3 +1,4 @@
+
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
 
 function getToken() {
@@ -6,18 +7,24 @@ function getToken() {
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+  } catch {
+    throw new Error('Cannot reach the server. Please check your connection or try again in a moment.');
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `Request failed: ${res.status}`);
+    const msg = Array.isArray(body.message) ? body.message.join(', ') : (body.message || `Request failed: ${res.status}`);
+    throw new Error(msg);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -38,17 +45,30 @@ export const authApi = {
 };
 
 export interface DashboardSummary {
-  widgets: Record<string, number>;
-  attendanceTrend?: any[];
-  recruitmentPipeline?: {
-    applied: number;
-    interview: number;
-    offer: number;
-    hired: number;
+  widgets: {
+    totalEmployees: number;
+    presentToday: number;
+    absentToday: number;
+    onLeaveToday: number;
+    pendingApprovals: number;
+    openPositions: number;
+    activeProjects: number;
   };
+  attendanceTrend: { month: string; present: number; absent: number; onLeave: number }[];
+  headcountTrend: { month: string; count: number }[];
+  departmentMix: { name: string; value: number }[];
+  recruitmentPipeline: { applied: number; interview: number; offer: number; hired: number };
+  
+  // New Phase 3 Fields
+  leaveStatistics?: { name: string; value: number }[];
+  monthlyPayrollCost?: { month: string; cost: number }[];
+  attritionRate?: { month: string; rate: number }[];
+  genderDistribution?: { name: string; value: number }[];
+  recentActivities?: { id: string; title: string; time: string; type: string }[];
+  notifications?: { id: string; title: string; type: string; actionUrl?: string }[];
   milestones?: {
-    anniversaries?: any[];
-    newJoiners?: any[];
+    newJoiners: any[];
+    anniversaries: any[];
   };
 }
 
@@ -63,10 +83,17 @@ export interface Employee {
   lastName: string;
   email: string;
   status: string;
+  bankAccount?: string;
+  bankIfsc?: string;
   departmentId?: string | null;
   designationId?: string | null;
+  managerId?: string | null;
+  roleId?: string | null;
+  education?: any;
+  experience?: any;
   department?: { name: string; id?: string } | null;
   designation?: { title: string; id?: string } | null;
+  manager?: Employee | null;
   joiningDate?: string | null;
   uan?: string | null;
   esic?: string | null;
@@ -133,6 +160,13 @@ export const leaveApi = {
     api<any>('/leave/holidays', { method: 'POST', body: JSON.stringify(data) }),
   deleteHoliday: (id: string) =>
     api<any>(`/leave/holidays/${id}`, { method: 'DELETE' }),
+
+  // Phase 4: Enterprise features
+  analytics: () => api<any>('/leave/analytics'),
+  getPolicies: () => api<any>('/leave/policies'),
+  setPolicies: (data: any) => api<any>('/leave/policies', { method: 'POST', body: JSON.stringify(data) }),
+  bulkApprove: (ids: string[]) => api<any>('/leave/bulk-approve', { method: 'POST', body: JSON.stringify({ ids }) }),
+  bulkReject: (ids: string[]) => api<any>('/leave/bulk-reject', { method: 'POST', body: JSON.stringify({ ids }) }),
 };
 
 export const payrollApi = {

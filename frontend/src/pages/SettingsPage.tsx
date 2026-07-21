@@ -104,67 +104,69 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="font-display text-2xl font-semibold">Settings</h1>
-        <p className="text-sm text-muted mt-1">Configure company profiles, metadata, regional policies, and custom Role-based security permissions.</p>
+    <div className="page-container max-w-7xl space-y-6">
+      <header className="mb-6 animate-slideUp" style={{ animationDelay: '0.1s' }}>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-ink">Settings</h1>
+        <p className="text-sm font-medium text-muted mt-1">Configure company profiles, metadata, regional policies, and custom Role-based security permissions.</p>
       </header>
 
       {/* Tabs */}
-      <div className="flex border-b border-line mb-8 gap-6 text-sm">
+      <div className="flex border-b border-line gap-8 text-sm animate-slideUp" style={{ animationDelay: '0.15s' }}>
         <button
           onClick={() => setActiveTab('profile')}
-          className={`pb-2.5 font-medium transition-colors border-b-2 ${activeTab === 'profile' ? 'border-ledger text-ledger font-semibold' : 'text-muted hover:text-ink border-transparent'}`}
+          className={`pb-3 font-semibold transition-colors relative ${activeTab === 'profile' ? 'text-ledger' : 'text-muted hover:text-ink'}`}
         >
           Company Profile
+          {activeTab === 'profile' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-ledger rounded-t-full animate-slideUp" />}
         </button>
         <button
           onClick={() => setActiveTab('rbac')}
-          className={`pb-2.5 font-medium transition-colors border-b-2 ${activeTab === 'rbac' ? 'border-ledger text-ledger font-semibold' : 'text-muted hover:text-ink border-transparent'}`}
+          className={`pb-3 font-semibold transition-colors relative ${activeTab === 'rbac' ? 'text-ledger' : 'text-muted hover:text-ink'}`}
         >
           RBAC Security Roles
+          {activeTab === 'rbac' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-ledger rounded-t-full animate-slideUp" />}
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-slideUp" style={{ animationDelay: '0.2s' }}>
         {activeTab === 'profile' ? (
           <>
             {/* Left Profile details Form */}
-            <div className="bg-white border border-line rounded-lg p-6 lg:col-span-2">
-              <h2 className="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
+            <div className="section-card p-6 lg:col-span-2">
+              <h2 className="text-sm font-semibold uppercase tracking-wider mb-5 flex items-center gap-2 text-muted">
                 <Settings className="text-ledger" size={18} /> Company Meta Settings
               </h2>
               {profile && (
                 <form onSubmit={handleUpdateProfile} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs text-muted mb-1">Company Name</label>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1">Company Name</label>
                       <input
                         type="text"
                         value={companyName}
                         onChange={(e) => setCompanyName(e.target.value)}
                         required
-                        className="w-full px-3 py-2 rounded-md border border-line bg-white text-sm"
+                        className="w-full px-3 py-2 rounded border border-line bg-paper/50 text-sm focus:border-ledger focus:ring-1 focus:ring-ledger transition-colors"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-muted mb-1">Logo URL</label>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1">Logo URL</label>
                       <input
                         type="text"
                         value={logoUrl}
                         onChange={(e) => setLogoUrl(e.target.value)}
-                        className="w-full px-3 py-2 rounded-md border border-line bg-white text-sm"
+                        className="w-full px-3 py-2 rounded border border-line bg-paper/50 text-sm focus:border-ledger focus:ring-1 focus:ring-ledger transition-colors"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs text-muted mb-1">Timezone</label>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1">Timezone</label>
                       <select
                         value={timezone}
                         onChange={(e) => setTimezone(e.target.value)}
-                        className="w-full px-3 py-2 rounded-md border border-line bg-white text-sm"
+                        className="w-full px-3 py-2 rounded border border-line bg-paper/50 text-sm focus:border-ledger focus:ring-1 focus:ring-ledger transition-colors"
                       >
                         <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
                         <option value="UTC">UTC / Coordinated Time</option>
@@ -173,11 +175,11 @@ export default function SettingsPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs text-muted mb-1">Currency Code</label>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1">Currency Code</label>
                       <select
                         value={currency}
                         onChange={(e) => setCurrency(e.target.value)}
-                        className="w-full px-3 py-2 rounded-md border border-line bg-white text-sm font-mono"
+                        className="w-full px-3 py-2 rounded border border-line bg-paper/50 text-sm font-mono focus:border-ledger focus:ring-1 focus:ring-ledger transition-colors"
                       >
                         <option value="INR">INR (₹)</option>
                         <option value="USD">USD ($)</option>
@@ -187,63 +189,71 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <button type="submit" disabled={updateProfileMutation.isPending} className="bg-ledger text-paper rounded-md px-6 py-2.5 text-sm font-semibold hover:bg-ledgerDark">
-                    Save Config Settings
-                  </button>
+                  <div className="pt-2">
+                    <button type="submit" disabled={updateProfileMutation.isPending} className="btn-primary py-2.5 px-6 text-sm font-semibold">
+                      {updateProfileMutation.isPending ? 'Saving...' : 'Save Config Settings'}
+                    </button>
+                  </div>
                 </form>
               )}
             </div>
             {/* Visual company profile detail card */}
-            <div className="bg-white border border-line rounded-lg p-5 h-fit text-center">
-              <div className="w-20 h-20 bg-paper/60 rounded-full mx-auto flex items-center justify-center border border-line text-ledger mb-4 text-2xl font-bold">
+            <div className="section-card p-6 h-fit text-center">
+              <div className="w-20 h-20 bg-paper/60 rounded-2xl mx-auto flex items-center justify-center border border-line text-ledger mb-4 text-2xl font-bold shadow-sm">
                 {profile?.name ? profile.name.slice(0, 2).toUpperCase() : 'CO'}
               </div>
-              <h3 className="text-base font-semibold text-ink">{profile?.name}</h3>
-              <p className="text-xs text-muted mt-1">Tenant ID: <span className="font-mono">{profile?.id}</span></p>
-              <div className="border-t border-line mt-4 pt-4 text-left text-xs space-y-2 text-muted">
-                <div>Timezone: <span className="text-ink font-semibold">{profile?.timezone}</span></div>
-                <div>Currency: <span className="text-ink font-semibold">{profile?.currency}</span></div>
+              <h3 className="text-base font-bold text-ink">{profile?.name}</h3>
+              <p className="text-xs text-muted mt-1">Tenant ID: <span className="font-mono bg-paper/50 px-1 py-0.5 rounded">{profile?.id}</span></p>
+              <div className="border-t border-line mt-5 pt-5 text-left text-xs space-y-3 text-muted">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold uppercase tracking-wider">Timezone</span> 
+                  <span className="text-ink font-bold">{profile?.timezone}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold uppercase tracking-wider">Currency</span> 
+                  <span className="text-ink font-bold font-mono bg-paper/50 px-2 py-0.5 rounded">{profile?.currency}</span>
+                </div>
               </div>
             </div>
           </>
         ) : (
           <>
             {/* RBAC custom role creation form */}
-            <div className="bg-white border border-line rounded-lg p-6 lg:col-span-2">
-              <h2 className="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
+            <div className="section-card p-6 lg:col-span-2">
+              <h2 className="text-sm font-semibold uppercase tracking-wider mb-5 flex items-center gap-2 text-muted">
                 <PlusCircle className="text-ledger" size={18} /> New Security Role
               </h2>
               <form onSubmit={handleCreateRole} className="space-y-4">
                 <div>
-                  <label className="block text-xs text-muted mb-1">Role Title</label>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1">Role Title</label>
                   <input
                     type="text"
                     placeholder="e.g. Attendance Manager, Shift Specialist"
                     value={roleName}
                     onChange={(e) => setRoleName(e.target.value)}
                     required
-                    className="w-full px-3 py-2 rounded-md border border-line bg-white text-sm"
+                    className="w-full px-3 py-2 rounded border border-line bg-paper/50 text-sm focus:border-ledger focus:ring-1 focus:ring-ledger transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs text-muted mb-3 font-semibold">Customize Module Permissions Matrix</label>
-                  <div className="max-h-80 overflow-y-auto border border-line rounded divide-y divide-line bg-paper/10 text-xs">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-3">Customize Module Permissions Matrix</label>
+                  <div className="max-h-[22rem] overflow-y-auto border border-line rounded bg-paper/20 text-xs custom-scrollbar">
                     {ALL_MODULES.map((mod) => (
-                      <div key={mod} className="p-3 flex flex-col md:flex-row md:items-center justify-between gap-2">
-                        <span className="font-semibold capitalize text-ink w-32 shrink-0">{mod.replace('_', ' ')}</span>
-                        <div className="flex flex-wrap gap-4">
+                      <div key={mod} className="p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-line last:border-b-0 hover:bg-paper/40 transition-colors">
+                        <span className="font-bold capitalize text-ink w-32 shrink-0">{mod.replace('_', ' ')}</span>
+                        <div className="flex flex-wrap gap-5">
                           {ALL_ACTIONS.map((act) => {
                             const key = `${mod}:${act}`;
                             return (
-                              <label key={act} className="flex items-center gap-1.5 cursor-pointer">
+                              <label key={act} className="flex items-center gap-2 cursor-pointer group">
                                 <input
                                   type="checkbox"
                                   checked={!!selectedPermissions[key]}
                                   onChange={() => handlePermissionToggle(mod, act)}
-                                  className="rounded border-line text-ledger focus:ring-ledger w-3.5 h-3.5"
+                                  className="rounded border-line text-ledger focus:ring-ledger w-4 h-4 transition-colors"
                                 />
-                                <span className="capitalize text-muted text-[11px]">{act}</span>
+                                <span className="capitalize text-muted text-xs font-medium group-hover:text-ink transition-colors">{act}</span>
                               </label>
                             );
                           })}
@@ -253,26 +263,28 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <button type="submit" disabled={createRoleMutation.isPending} className="bg-ledger text-paper rounded-md px-6 py-2.5 text-sm font-semibold hover:bg-ledgerDark">
-                  Save Custom Security Role
-                </button>
+                <div className="pt-2">
+                  <button type="submit" disabled={createRoleMutation.isPending} className="btn-primary py-2.5 px-6 text-sm font-semibold">
+                    {createRoleMutation.isPending ? 'Creating...' : 'Save Custom Security Role'}
+                  </button>
+                </div>
               </form>
             </div>
 
             {/* Existing custom roles */}
-            <div className="bg-white border border-line rounded-lg overflow-hidden h-fit">
-              <div className="px-5 py-3 border-b border-line bg-paper/20 flex items-center gap-2">
-                <Shield size={16} /> Security Roles
+            <div className="section-card overflow-hidden h-fit">
+              <div className="px-6 py-4 border-b border-line bg-paper/20 flex items-center gap-2 font-semibold uppercase tracking-wider text-sm text-muted">
+                <Shield size={16} className="text-ledger" /> Security Roles
               </div>
-              {isLoadingRoles && <div className="p-4 text-xs text-muted">Loading roles...</div>}
+              {isLoadingRoles && <div className="p-6 text-sm text-muted flex items-center gap-2"><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-ledger"></div>Loading roles...</div>}
               <div className="divide-y divide-line">
                 {roles?.map((r: any) => (
-                  <div key={r.id} className="p-4 hover:bg-paper/40">
+                  <div key={r.id} className="p-4 hover:bg-paper/40 transition-colors">
                     <div className="flex justify-between items-center mb-1">
-                      <div className="text-sm font-medium text-ink">{r.name}</div>
-                      {r.isSystem && <span className="text-[9px] bg-ledger/10 text-ledger px-1.5 py-0.5 rounded font-bold">System Default</span>}
+                      <div className="text-sm font-bold text-ink">{r.name}</div>
+                      {r.isSystem && <span className="text-[10px] uppercase font-mono font-bold bg-ledger text-white px-2 py-0.5 rounded shadow-sm">System Default</span>}
                     </div>
-                    <div className="text-xs text-muted mt-1">{r.permissions?.length || 0} permissions rules mapped.</div>
+                    <div className="text-xs font-medium text-muted mt-2">{r.permissions?.length || 0} permissions rules mapped.</div>
                   </div>
                 ))}
               </div>

@@ -101,16 +101,21 @@ export default function CommandPalette({ open, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-[9000] flex items-start justify-center pt-[15vh]" onMouseDown={onClose}>
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-ink/40 dark:bg-black/60 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 backdrop-blur-[2px]" style={{ background: 'rgba(0,0,0,0.45)' }} />
 
       {/* Palette */}
       <div
-        className="relative w-full max-w-xl mx-4 bg-white dark:bg-ink2 border border-line dark:border-white/10 rounded-2xl shadow-popover animate-scaleIn overflow-hidden"
+        className="relative w-full max-w-xl mx-4 rounded-2xl overflow-hidden animate-scaleIn"
+        style={{
+          background: 'var(--surface-elevated)',
+          border: '1px solid var(--border)',
+          boxShadow: 'var(--shadow-modal)',
+        }}
         onMouseDown={e => e.stopPropagation()}
       >
         {/* Search input */}
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-line dark:border-white/10">
-          <Search size={16} className="text-muted flex-shrink-0" />
+        <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: '1px solid var(--border)' }}>
+          <Search size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
           <input
             ref={inputRef}
             type="text"
@@ -118,9 +123,10 @@ export default function CommandPalette({ open, onClose }: Props) {
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="flex-1 bg-transparent text-[14px] text-ink dark:text-white placeholder:text-muted/60 outline-none"
+            className="flex-1 bg-transparent text-[14px] outline-none"
+            style={{ color: 'var(--text-primary)', border: 'none' }}
           />
-          <div className="flex items-center gap-1 text-[11px] text-muted bg-paperDim dark:bg-white/5 border border-line dark:border-white/10 px-1.5 py-0.5 rounded font-mono">
+          <div className="flex items-center text-[11px] px-1.5 py-0.5 rounded font-mono" style={{ color: 'var(--text-muted)', background: 'var(--surface-active)', border: '1px solid var(--border)' }}>
             ESC
           </div>
         </div>
@@ -128,11 +134,11 @@ export default function CommandPalette({ open, onClose }: Props) {
         {/* Results */}
         <div className="max-h-80 overflow-y-auto p-2">
           {filtered.length === 0 ? (
-            <div className="text-center py-8 text-sm text-muted dark:text-white/40">No results for "{query}"</div>
+            <div className="text-center py-8 text-sm" style={{ color: 'var(--text-muted)' }}>No results for "{query}"</div>
           ) : (
             Object.entries(grouped).map(([category, items]) => (
               <div key={category} className="mb-2">
-                <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted dark:text-white/40">
+                <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
                   {category}
                 </div>
                 {items.map(item => {
@@ -143,15 +149,15 @@ export default function CommandPalette({ open, onClose }: Props) {
                       key={item.id}
                       onClick={item.action}
                       onMouseEnter={() => setSelectedIndex(idx)}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
-                        isSelected
-                          ? 'bg-ledger text-white'
-                          : 'text-ink dark:text-white/80 hover:bg-paperDim dark:hover:bg-white/5'
-                      }`}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left`}
+                      style={{
+                        background: isSelected ? 'var(--action-primary)' : 'transparent',
+                        color: isSelected ? 'var(--action-primary-text)' : 'var(--text-primary)',
+                      }}
                     >
-                      <item.icon size={15} className={isSelected ? 'text-white' : 'text-muted dark:text-white/50'} />
+                      <item.icon size={15} style={{ color: isSelected ? 'var(--action-primary-text)' : 'var(--text-muted)' }} />
                       <span className="flex-1 text-[13px] font-medium">{item.label}</span>
-                      <ArrowRight size={13} className={`opacity-0 transition-opacity ${isSelected ? 'opacity-100' : ''}`} />
+                      <ArrowRight size={13} style={{ opacity: isSelected ? 1 : 0 }} />
                     </button>
                   );
                 })}
@@ -161,7 +167,7 @@ export default function CommandPalette({ open, onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="border-t border-line dark:border-white/10 px-4 py-2.5 flex items-center gap-4 text-[11px] text-muted dark:text-white/40">
+        <div className="flex items-center gap-4 text-[11px] px-4 py-2.5" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
           <span className="flex items-center gap-1"><Command size={10} /> K to open</span>
           <span>↑↓ to navigate</span>
           <span>↵ to select</span>

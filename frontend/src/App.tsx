@@ -36,6 +36,7 @@ const ExitPage            = lazy(() => import('./pages/ExitPage'));
 const TaxCalculatorPage   = lazy(() => import('./pages/TaxCalculatorPage'));
 const HelpdeskPage        = lazy(() => import('./pages/HelpdeskPage'));
 
+
 function isAuthed() {
   return !!localStorage.getItem('accessToken');
 }
@@ -81,12 +82,22 @@ export default function App() {
         {[
           { path: 'dashboard',      El: DashboardPage },
           { path: 'employees',      El: EmployeesPage },
+          { path: 'employees/add',  El: EmployeesPage },
+          { path: 'employees/transfer', El: EmployeesPage },
+          { path: 'employees/promotion', El: EmployeesPage },
+          { path: 'employees/resignation', El: EmployeesPage },
+          { path: 'employees/exit', El: EmployeesPage },
           { path: 'employees/:id',  El: EmployeeDetailPage },
           { path: 'attendance',     El: AttendancePage },
+          { path: 'attendance/:sub',El: AttendancePage },
           { path: 'leave',          El: LeavePage },
+          { path: 'leave/:sub',     El: LeavePage },
           { path: 'payroll',        El: PayrollPage },
+          { path: 'payroll/:sub',   El: PayrollPage },
           { path: 'recruitment',    El: RecruitmentPage },
+          { path: 'recruitment/:sub',El: RecruitmentPage },
           { path: 'performance',    El: PerformancePage },
+          { path: 'performance/:sub',El: PerformancePage },
           { path: 'documents',      El: DocumentsPage },
           { path: 'assets',         El: AssetsPage },
           { path: 'expenses',       El: ExpensesPage },
@@ -97,6 +108,7 @@ export default function App() {
           { path: 'announcements',  El: AnnouncementsPage },
           { path: 'training',       El: TrainingPage },
           { path: 'organization',   El: OrganizationPage },
+          { path: 'organization/:sub',El: OrganizationPage },
           { path: 'reports',        El: ReportsPage },
           { path: 'settings',       El: SettingsPage },
           { path: 'billing',        El: BillingPage },
@@ -104,6 +116,14 @@ export default function App() {
           { path: 'super-admin',    El: SuperAdminPage },
           { path: 'fnf',            El: FnfPage },
           { path: 'exit',           El: ExitPage },
+          // Employee sub-routes are handled via modals or tabs on EmployeeDetailPage
+
+          // Recruitment sub-routes are handled via tabs on RecruitmentPage
+          // Attendance sub-routes are handled via tabs on AttendancePage
+          // Leave sub-routes are handled via tabs on LeavePage
+          // Payroll sub-routes are handled via tabs on PayrollPage
+          // Letters sub-routes are handled via tabs on DocumentsPage
+
           { path: 'tax-calculator', El: TaxCalculatorPage },
           { path: 'helpdesk',       El: HelpdeskPage },
         ].map(({ path, El }) => (

@@ -6,7 +6,7 @@ import {
 
 export interface Column<T> {
   key: keyof T | string;
-  header: string;
+  header: string | React.ReactNode;
   render?: (row: T) => React.ReactNode;
   sortable?: boolean;
   width?: string;
@@ -25,6 +25,12 @@ export interface DataTableProps<T> {
   pageSize?: number;
   toolbar?: React.ReactNode;
   onRowClick?: (row: T) => void;
+  // Server-side support
+  serverPagination?: boolean;
+  totalRecords?: number;
+  currentPage?: number;
+  onPageChange?: (page: number) => void;
+  onSearchChange?: (search: string) => void;
 }
 
 type SortDir = 'asc' | 'desc' | null;
@@ -51,6 +57,7 @@ export function DataTable<T extends object>({
   emptyTitle = 'No records found', emptyMessage = 'No data matches your current filters.',
   searchable = true, searchPlaceholder = 'Search…', bulkActions = [],
   pageSize = 15, toolbar, onRowClick,
+  serverPagination = false, totalRecords = 0, currentPage = 1, onPageChange, onSearchChange
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -85,10 +92,27 @@ export function DataTable<T extends object>({
   }, [filtered, sortKey, sortDir]);
 
   // Paginate
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
-  const paginated = sorted.slice((page - 1) * pageSize, page * pageSize);
+  const isServer = serverPagination;
+  const activeData = isServer ? data : sorted;
+  
+  const activeTotalPages = isServer 
+    ? Math.max(1, Math.ceil(totalRecords / pageSize)) 
+    : Math.max(1, Math.ceil(sorted.length / pageSize));
+    
+  const activePage = isServer ? currentPage : page;
+  
+  const paginated = isServer 
+    ? activeData 
+    : sorted.slice((page - 1) * pageSize, page * pageSize);
 
-  useEffect(() => { setPage(1); }, [search, sortKey, sortDir]);
+  useEffect(() => { 
+    if (!isServer) setPage(1); 
+  }, [search, sortKey, sortDir, isServer]);
+  
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearch(e.target.value);
+    if (onSearchChange) onSearchChange(e.target.value);
+  };
 
   const toggleSort = (key: string) => {
     if (sortKey !== key) { setSortKey(key); setSortDir('asc'); return; }
@@ -131,12 +155,12 @@ export function DataTable<T extends object>({
             <input
               type="text"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={handleSearchChange}
               placeholder={searchPlaceholder}
               className="input pl-8 h-8 text-xs"
             />
             {search && (
-              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink dark:hover:text-white">
+              <button onClick={() => handleSearchChange({ target: { value: '' } } as any)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink dark:hover:text-white">
                 <X size={13} />
               </button>
             )}
@@ -256,28 +280,28 @@ export function DataTable<T extends object>({
       </div>
 
       {/* Pagination */}
-      {!loading && sorted.length > pageSize && (
+      {!loading && (isServer ? totalRecords > pageSize : sorted.length > pageSize) && (
         <div className="flex items-center justify-between px-4 py-3 border-t border-line dark:border-white/5 text-xs text-muted dark:text-white/50">
           <span>
-            Showing {((page - 1) * pageSize) + 1}–{Math.min(page * pageSize, sorted.length)} of {sorted.length}
+            Showing {((activePage - 1) * pageSize) + 1}–{Math.min(activePage * pageSize, isServer ? totalRecords : sorted.length)} of {isServer ? totalRecords : sorted.length}
           </span>
           <div className="flex items-center gap-1">
             <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
+              onClick={() => isServer && onPageChange ? onPageChange(Math.max(1, activePage - 1)) : setPage(p => Math.max(1, p - 1))}
+              disabled={activePage === 1}
               className="btn-ghost py-1 px-2 text-xs disabled:opacity-30"
             >
               <ChevronLeft size={13} />
             </button>
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              const p = page <= 3 ? i + 1 : page - 2 + i;
-              if (p < 1 || p > totalPages) return null;
+            {Array.from({ length: Math.min(5, activeTotalPages) }, (_, i) => {
+              const p = activePage <= 3 ? i + 1 : activePage - 2 + i;
+              if (p < 1 || p > activeTotalPages) return null;
               return (
                 <button
                   key={p}
-                  onClick={() => setPage(p)}
+                  onClick={() => isServer && onPageChange ? onPageChange(p) : setPage(p)}
                   className={`w-7 h-7 rounded-md text-xs font-medium transition-colors ${
-                    p === page ? 'bg-ledger text-white' : 'hover:bg-line/60 dark:hover:bg-white/10 text-ink dark:text-white'
+                    p === activePage ? 'bg-ledger text-white' : 'hover:bg-line/60 dark:hover:bg-white/10 text-ink dark:text-white'
                   }`}
                 >
                   {p}
@@ -285,8 +309,8 @@ export function DataTable<T extends object>({
               );
             })}
             <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
+              onClick={() => isServer && onPageChange ? onPageChange(Math.min(activeTotalPages, activePage + 1)) : setPage(p => Math.min(activeTotalPages, p + 1))}
+              disabled={activePage === activeTotalPages}
               className="btn-ghost py-1 px-2 text-xs disabled:opacity-30"
             >
               <ChevronRight size={13} />

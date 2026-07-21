@@ -4,7 +4,7 @@ export function StatCard({
   label,
   value,
   icon: Icon,
-  accent = '#1F6F5C',
+  accent = 'var(--action-primary)',
   trend,
 }: {
   label: string;
@@ -13,28 +13,39 @@ export function StatCard({
   accent?: string;
   trend?: { value: number; label: string };
 }) {
+  const isPositive = trend && trend.value >= 0;
+  
   return (
-    <div className="bg-white border border-line rounded-xl p-5 relative overflow-hidden shadow-card hover:shadow-raised transition-all group">
+    <div className="section-card p-5 relative group flex flex-col">
       {/* accent left bar */}
       <div
-        className="absolute left-0 top-0 bottom-0 w-1 group-hover:w-1.5 transition-all rounded-r"
+        className="absolute left-0 top-0 bottom-0 w-[3px] group-hover:w-1.5 transition-all"
         style={{ background: accent }}
       />
-      <div className="flex items-start justify-between">
-        <div className="pl-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5">
+      <div className="flex items-start justify-between pl-1">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-muted)' }}>
             {label}
           </p>
-          <p className="font-mono text-3xl font-bold text-ink leading-none">{value}</p>
+          <p className="font-mono text-3xl font-bold leading-none" style={{ color: 'var(--text-primary)' }}>{value}</p>
           {trend && (
-            <p className={`text-xs mt-2 font-medium ${trend.value >= 0 ? 'text-success-dark' : 'text-danger-dark'}`}>
-              {trend.value >= 0 ? '↑' : '↓'} {Math.abs(trend.value)}% {trend.label}
-            </p>
+            <div className="flex items-center gap-1.5 mt-3">
+              <div 
+                className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold"
+                style={{ 
+                  background: isPositive ? 'var(--success-bg)' : 'var(--danger-bg)',
+                  color: isPositive ? 'var(--success-text)' : 'var(--danger-text)',
+                }}
+              >
+                {isPositive ? '↑' : '↓'} {Math.abs(trend.value)}%
+              </div>
+              <span className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>{trend.label}</span>
+            </div>
           )}
         </div>
         <div
           className="p-2.5 rounded-xl transition-colors"
-          style={{ background: `${accent}15`, color: accent }}
+          style={{ background: 'var(--surface-active)', color: accent }}
         >
           <Icon size={20} strokeWidth={1.75} />
         </div>

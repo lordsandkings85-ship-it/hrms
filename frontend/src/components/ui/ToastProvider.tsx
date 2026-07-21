@@ -63,18 +63,29 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           return (
             <div
               key={t.id}
-              className={`pointer-events-auto bg-white dark:bg-ink2 border border-line dark:border-white/10 border-l-[3px] ${STYLES[t.type]} rounded-lg shadow-popover p-3.5 flex items-start gap-3 animate-toastIn`}
+              className="pointer-events-auto rounded-xl p-4 flex items-start gap-3 animate-toastIn"
+              style={{
+                background: 'var(--surface-elevated)',
+                border: '1px solid var(--border)',
+                borderLeft: `3px solid ${t.type === 'success' ? 'var(--success)' : t.type === 'error' ? 'var(--danger)' : t.type === 'warning' ? 'var(--warning)' : 'var(--info)'}`,
+                boxShadow: 'var(--shadow-popover)',
+              }}
             >
-              <Icon size={16} className="mt-0.5 flex-shrink-0" />
+              <Icon size={16} className="mt-0.5 flex-shrink-0"
+                style={{ color: t.type === 'success' ? 'var(--success)' : t.type === 'error' ? 'var(--danger)' : t.type === 'warning' ? 'var(--warning)' : 'var(--info)' }}
+              />
               <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-semibold text-ink dark:text-white leading-tight">{t.title}</div>
+                <div className="text-[13px] font-semibold leading-tight" style={{ color: 'var(--text-primary)' }}>{t.title}</div>
                 {t.message && (
-                  <div className="text-xs text-muted dark:text-white/50 mt-0.5 leading-relaxed">{t.message}</div>
+                  <div className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>{t.message}</div>
                 )}
               </div>
               <button
                 onClick={() => dismiss(t.id)}
-                className="flex-shrink-0 text-muted hover:text-ink dark:hover:text-white transition-colors"
+                className="flex-shrink-0"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; }}
               >
                 <X size={14} />
               </button>

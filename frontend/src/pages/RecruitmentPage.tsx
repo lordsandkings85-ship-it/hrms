@@ -1,10 +1,46 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Briefcase, UserPlus, Users, ClipboardCheck, ArrowRight, MessageSquare, Landmark } from 'lucide-react';
+import { Briefcase, UserPlus, Users, ClipboardCheck, ArrowRight, MessageSquare, Landmark, FileText, UserCheck } from 'lucide-react';
 import { recruitmentApi } from '../api/client';
+
+type TabKey = 'jobs' | 'candidates' | 'interviews' | 'offer-letters' | 'joining';
+
+const SUB_TO_TAB: Record<string, TabKey> = {
+  jobs: 'jobs',
+  candidates: 'candidates',
+  interviews: 'interviews',
+  'offer-letters': 'offer-letters',
+  joining: 'joining',
+};
+
+const TAB_TO_SUB: Record<TabKey, string> = {
+  jobs: 'jobs',
+  candidates: 'candidates',
+  interviews: 'interviews',
+  'offer-letters': 'offer-letters',
+  joining: 'joining',
+};
 
 export default function RecruitmentPage() {
   const queryClient = useQueryClient();
+  const { sub } = useParams<{ sub?: string }>();
+  const navigate = useNavigate();
+
+  const initialTab = sub ? SUB_TO_TAB[sub] || 'jobs' : 'jobs';
+  const [tab, setTab] = useState<TabKey>(initialTab);
+
+  useEffect(() => {
+    if (sub && SUB_TO_TAB[sub]) {
+      setTab(SUB_TO_TAB[sub]);
+    }
+  }, [sub]);
+
+  const handleTabChange = (t: TabKey) => {
+    setTab(t);
+    navigate(`/recruitment/${TAB_TO_SUB[t]}`);
+  };
+
   const [selectedJob, setSelectedJob] = useState<any>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
 
@@ -122,14 +158,39 @@ export default function RecruitmentPage() {
   // Find job from list if updated
   const currentJobDetail = jobs?.find((j) => j.id === selectedJob?.id) || selectedJob;
 
+  const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
+    { key: 'jobs', label: 'Job Openings', icon: <Briefcase size={16} /> },
+    { key: 'candidates', label: 'Candidates', icon: <Users size={16} /> },
+    { key: 'interviews', label: 'Interviews', icon: <ClipboardCheck size={16} /> },
+    { key: 'offer-letters', label: 'Offer Letters', icon: <FileText size={16} /> },
+    { key: 'joining', label: 'Joining & Onboarding', icon: <UserCheck size={16} /> },
+  ];
+
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="font-display text-2xl font-semibold">Recruitment Board (ATS)</h1>
-        <p className="text-sm text-muted mt-1">Manage pipeline job openings, schedule interviews, and draft offer packages.</p>
+    <div className="page-container max-w-7xl space-y-6">
+      <header className="mb-6 animate-slideUp" style={{ animationDelay: '0.1s' }}>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-ink">Recruitment Board (ATS)</h1>
+        <p className="text-sm font-medium text-muted mt-1">Manage pipeline job openings, schedule interviews, and draft offer packages.</p>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Tabs */}
+      <div className="flex border-b border-line gap-4 animate-slideUp overflow-x-auto" style={{ animationDelay: '0.15s' }}>
+        {TABS.map(t => (
+          <button
+            key={t.key}
+            onClick={() => handleTabChange(t.key)}
+            className={`flex items-center gap-2 px-4 pb-3 text-sm font-semibold transition-colors relative whitespace-nowrap ${
+              tab === t.key ? 'text-ledger' : 'text-muted hover:text-ink'
+            }`}
+          >
+            {t.icon} {t.label}
+            {tab === t.key && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-ledger rounded-t-full animate-slideUp" />}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'jobs' && (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-slideUp" style={{ animationDelay: '0.2s' }}>
         {/* Left Column: Post Job & Jobs List */}
         <div className="space-y-6">
           <div className="bg-white border border-line rounded-lg p-5">
@@ -283,6 +344,53 @@ export default function RecruitmentPage() {
           )}
         </div>
       </div>
+      )}
+
+      {/* === Candidates Tab === */}
+      {tab === 'candidates' && (
+        <div className="max-w-4xl animate-slideUp" style={{ animationDelay: '0.2s' }}>
+          <div className="section-card p-6 flex flex-col justify-center items-center text-center h-48">
+            <Users size={32} className="text-muted/30 mb-2" />
+            <h3 className="text-sm font-bold text-ink">Candidate Database</h3>
+            <p className="text-xs text-muted max-w-md">Search across all active and archived candidates globally, instead of by specific job pipeline.</p>
+          </div>
+        </div>
+      )}
+
+      {/* === Interviews Tab === */}
+      {tab === 'interviews' && (
+        <div className="max-w-4xl animate-slideUp" style={{ animationDelay: '0.2s' }}>
+          <div className="section-card p-6 flex flex-col justify-center items-center text-center h-48">
+            <ClipboardCheck size={32} className="text-muted/30 mb-2" />
+            <h3 className="text-sm font-bold text-ink">Interview Schedule</h3>
+            <p className="text-xs text-muted max-w-md">Global view of upcoming interviews, feedback collection, and interviewer availability.</p>
+          </div>
+        </div>
+      )}
+
+      {/* === Offer Letters Tab === */}
+      {tab === 'offer-letters' && (
+        <div className="max-w-4xl animate-slideUp" style={{ animationDelay: '0.2s' }}>
+          <div className="section-card p-6 flex flex-col justify-center items-center text-center h-48">
+            <FileText size={32} className="text-muted/30 mb-2" />
+            <h3 className="text-sm font-bold text-ink">Offer Letter Management</h3>
+            <p className="text-xs text-muted max-w-md">Manage offer templates, track signature statuses, and view historical offers.</p>
+            <button className="btn-primary mt-2">Generate Manual Offer</button>
+          </div>
+        </div>
+      )}
+
+      {/* === Joining Tab === */}
+      {tab === 'joining' && (
+        <div className="max-w-4xl animate-slideUp" style={{ animationDelay: '0.2s' }}>
+          <div className="section-card p-6 flex flex-col justify-center items-center text-center h-48">
+            <UserCheck size={32} className="text-muted/30 mb-2" />
+            <h3 className="text-sm font-bold text-ink">Onboarding & Joining</h3>
+            <p className="text-xs text-muted max-w-md">Track new hires joining dates, document collection, and trigger automated onboarding flows.</p>
+            <button className="btn-primary mt-2">View Onboarding Tasks</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

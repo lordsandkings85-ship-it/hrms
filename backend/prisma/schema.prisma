@@ -201,6 +201,8 @@ model Employee {
   workLocation          String?
   status                String                  @default("active")
   skills                Json?
+  education             Json?
+  experience            Json?
   notes                 String?
   workingDaysPerWeek    Int                     @default(5)
   createdAt             DateTime                @default(now())

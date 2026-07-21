@@ -8,6 +8,31 @@ import { LeaveService } from './leave.service';
 export class LeaveController {
   constructor(private leaveService: LeaveService) {}
 
+  @Get('analytics')
+  analytics(@CurrentUser() user: AuthUser) {
+    return this.leaveService.analytics(user.companyId);
+  }
+
+  @Get('policies')
+  getPolicies(@CurrentUser() user: AuthUser) {
+    return this.leaveService.getPolicies(user.companyId);
+  }
+
+  @Post('policies')
+  setPolicies(@CurrentUser() user: AuthUser, @Body() policies: any) {
+    return this.leaveService.setPolicies(user.companyId, policies);
+  }
+
+  @Post('bulk-approve')
+  bulkApprove(@CurrentUser() user: AuthUser, @Body() body: { ids: string[] }) {
+    return this.leaveService.bulkApprove(body.ids, user.userId);
+  }
+
+  @Post('bulk-reject')
+  bulkReject(@CurrentUser() user: AuthUser, @Body() body: { ids: string[] }) {
+    return this.leaveService.bulkReject(body.ids, user.userId);
+  }
+
   @Get('types')
   listTypes(@CurrentUser() user: AuthUser) {
     return this.leaveService.listTypes(user.companyId);

@@ -4,6 +4,7 @@ export interface UserProfile {
   id: string;
   companyId: string;
   email: string;
+  isSuperAdmin: boolean;
   roleId?: string;
   role?: {
     id: string;
