@@ -303,10 +303,30 @@ export default function HrDashboard() {
               </div>
             </div>
 
-            {/* Notifications */}
+            {/* Pending Actions & Notifications */}
             <div className="section-card p-5 h-96 flex flex-col">
-              <h2 className="text-sm font-semibold mb-4 text-ink flex items-center gap-2"><Bell size={16} /> Notifications & Alerts</h2>
+              <h2 className="text-sm font-semibold mb-4 text-ink flex items-center gap-2"><Bell size={16} /> Action Items & Alerts</h2>
               <div className="flex-1 overflow-y-auto pr-2 space-y-3">
+                
+                {/* Real Pending Leave Requests */}
+                {data.pendingLeaveRequests && data.pendingLeaveRequests.length > 0 && (
+                  <div className="mb-3">
+                    {data.pendingLeaveRequests.map((req: any) => (
+                      <Link to="/leave" key={req.id} className="block p-3 rounded-lg border bg-warning/10 border-warning/20 mb-2 hover:bg-warning/20 transition-colors">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="text-[13px] text-ink font-semibold leading-snug">{req.employeeName}</p>
+                            <p className="text-[11px] text-muted mt-0.5 font-medium">{req.leaveType} Request</p>
+                          </div>
+                          <span className="text-[9px] bg-warning/20 text-warning px-2 py-1 rounded-md uppercase font-bold tracking-wider">Review</span>
+                        </div>
+                        <p className="text-[10px] text-ink/70 mt-2 font-medium">
+                          {new Date(req.startDate).toLocaleDateString()} to {new Date(req.endDate).toLocaleDateString()}
+                        </p>
+                      </Link>
+                    ))}
+                  </div>
+                )}
                 {(data.notifications || []).map((notif: any) => {
                   let badge = 'bg-info/10 text-info border-info/20';
                   if (notif.type === 'warning') badge = 'bg-warning/10 text-warning border-warning/20';

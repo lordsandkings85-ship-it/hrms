@@ -275,10 +275,22 @@ export class DashboardService {
       { id: '4', title: 'Promotion Approved', time: new Date(today.getTime() - 1000 * 60 * 450).toISOString() },
     ];
 
+    // --- NEW: Pending Leave Requests for Notifications ---
+    const pendingLeaves = await this.prisma.leaveRequest.findMany({
+      where: { employee: { companyId }, status: 'pending' },
+      include: { employee: true, leaveType: true },
+      orderBy: { createdAt: 'desc' },
+      take: 5
+    });
+
     const notifications = [
+      ...pendingLeaves.map(pl => ({
+        id: `leave-${pl.id}`,
+        title: `Leave Request: ${pl.employee.firstName} ${pl.employee.lastName || ''} requested ${pl.leaveType.name}`,
+        type: 'urgent'
+      })),
       { id: 'n1', title: '5 Employees have upcoming birthdays', type: 'info' },
       { id: 'n2', title: 'Probation ending for 2 hires next week', type: 'warning' },
-      { id: 'n3', title: '3 Pending Leave Approvals require attention', type: 'urgent' },
       { id: 'n4', title: 'Q3 Goal Setting deadline approaching', type: 'info' },
     ];
 
@@ -305,6 +317,13 @@ export class DashboardService {
       recruitmentPipeline,
       recentActivities,
       notifications,
+      pendingLeaveRequests: pendingLeaves.map(pl => ({
+        id: pl.id,
+        employeeName: `${pl.employee.firstName} ${pl.employee.lastName || ''}`.trim(),
+        leaveType: pl.leaveType.name,
+        startDate: pl.startDate,
+        endDate: pl.endDate
+      })),
       milestones: {
         newJoiners: newJoiners.slice(0, 5),
         anniversaries: anniversaries.slice(0, 5)
