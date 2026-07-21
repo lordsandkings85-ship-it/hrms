@@ -1,6 +1,7 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+﻿import { useQuery, useMutation } from '@tanstack/react-query';
 import { CreditCard, ShieldCheck, Download } from 'lucide-react';
 import { billingApi } from '../api/client';
+import { PageHeader } from '../components/ui/PageHeader';
 
 export default function BillingPage() {
   // Fetch subscription metadata
@@ -29,15 +30,18 @@ export default function BillingPage() {
   };
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="font-display text-2xl font-semibold">Billing &amp; Subscription</h1>
-        <p className="text-sm text-muted mt-1">Manage workspace tier features, inspect payments transactions history, and download PDF invoice records.</p>
-      </header>
+    <div className="page-container max-w-7xl space-y-6">
+      <div className="animate-slideUp mb-2">
+        <PageHeader
+          title="Billing & Subscription"
+          subtitle="Manage your plan, invoices, and payment details."
+          icon={CreditCard}
+        />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Side: Subscription Info */}
-        <div className="bg-white border border-line rounded-lg p-6 h-fit">
+        <div className="section-card p-6 h-fit">
           <h2 className="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
             <CreditCard className="text-ledger" size={18} /> Active Subscription
           </h2>
@@ -134,3 +138,4 @@ export default function BillingPage() {
     </div>
   );
 }
+

@@ -11,7 +11,7 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  mode: 'system',
+  mode: 'light',
   theme: 'light',
   setMode: () => {},
   toggle: () => {},
@@ -37,11 +37,11 @@ function resolve(mode: ThemeMode): ResolvedTheme {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>(() => {
-    return (localStorage.getItem('themeMode') as ThemeMode) ?? 'system';
+    return (localStorage.getItem('themeMode') as ThemeMode) ?? 'light';
   });
 
   const [theme, setTheme] = useState<ResolvedTheme>(() => resolve(
-    (localStorage.getItem('themeMode') as ThemeMode) ?? 'system'
+    (localStorage.getItem('themeMode') as ThemeMode) ?? 'light'
   ));
 
   const setMode = useCallback((m: ThemeMode) => {

@@ -27,6 +27,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { FnfModule } from './modules/fnf/fnf.module';
 import { ExitModule } from './modules/exit/exit.module';
+import { HelpdeskModule } from './modules/helpdesk/helpdesk.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { ExitModule } from './modules/exit/exit.module';
     SuperAdminModule,
     FnfModule,
     ExitModule,
+    HelpdeskModule,
   ],
   providers: [
     {

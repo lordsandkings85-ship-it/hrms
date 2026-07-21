@@ -93,13 +93,16 @@ export default function HrDashboard() {
               const value = data.widgets[key as keyof typeof data.widgets] ?? 0;
               const Icon = meta.icon;
               return (
-                <div key={key} className="section-card p-5 animate-slideUp flex items-center gap-4 hover:-translate-y-1 transition-transform cursor-default" style={{ animationDelay: `${idx * 0.05}s` }}>
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${meta.color}20`, color: meta.color }}>
-                    <Icon size={24} />
+                <div key={key} className="section-card p-6 animate-slideUp flex items-center gap-5 relative overflow-hidden group hover:shadow-lg transition-all duration-300 border-none bg-surface/80 backdrop-blur-sm" style={{ animationDelay: `${idx * 0.05}s` }}>
+                  {/* Subtle hover gradient background */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-transparent to-black/5 dark:to-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm relative z-10 transition-transform duration-300 group-hover:scale-110" style={{ backgroundColor: `${meta.color}15`, color: meta.color, boxShadow: `0 8px 20px -8px ${meta.color}50` }}>
+                    <Icon size={26} strokeWidth={2.5} />
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted">{meta.label}</p>
-                    <p className="text-2xl font-bold font-display mt-0.5 text-ink">{value}</p>
+                  <div className="relative z-10">
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-muted">{meta.label}</p>
+                    <p className="text-3xl font-bold font-display mt-1 text-ink tracking-tight">{value}</p>
                   </div>
                 </div>
               );
@@ -227,12 +230,14 @@ export default function HrDashboard() {
                   const w = Math.max(10, (stage.count / max) * 100);
                   return (
                     <div key={stage.label}>
-                      <div className="flex justify-between text-[11px] mb-1 text-muted">
+                      <div className="flex justify-between text-[11px] mb-1.5 text-muted font-medium">
                         <span>{stage.label}</span>
                         <span className="font-bold text-ink">{stage.count}</span>
                       </div>
-                      <div className="h-4 rounded-full bg-surface-active overflow-hidden">
-                        <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${w}%`, backgroundColor: stage.color }}></div>
+                      <div className="h-3 rounded-full bg-surface-active overflow-hidden shadow-inner">
+                        <div className="h-full rounded-full transition-all duration-1000 relative" style={{ width: `${w}%`, backgroundColor: stage.color }}>
+                           <div className="absolute inset-0 bg-white/20 w-full h-full" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)' }}></div>
+                        </div>
                       </div>
                     </div>
                   )

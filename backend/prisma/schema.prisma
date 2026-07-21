@@ -142,6 +142,7 @@ model Company {
   reviewCycle    ReviewCycle[]
   subscription   Subscription[]
   users          User[]
+  tickets        HelpdeskTicket[]
 }
 
 model CourseEnrollment {
@@ -232,6 +233,7 @@ model Employee {
   travelRequest         TravelRequest[]
   user                  User?
   RegularizationRequest RegularizationRequest[]
+  tickets               HelpdeskTicket[]
 
   @@unique([companyId, employeeCode])
   @@index([companyId, status])
@@ -613,4 +615,20 @@ model User {
   company      Company        @relation(fields: [companyId], references: [id])
   employee     Employee?      @relation(fields: [employeeId], references: [id])
   role         Role?          @relation(fields: [roleId], references: [id])
+}
+
+model HelpdeskTicket {
+  id          String   @id @default(uuid())
+  companyId   String
+  employeeId  String?
+  subject     String
+  description String   @db.Text
+  status      String   @default("open")
+  priority    String   @default("medium")
+  category    String   @default("general")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company     Company  @relation(fields: [companyId], references: [id])
+  employee    Employee? @relation(fields: [employeeId], references: [id])
 }

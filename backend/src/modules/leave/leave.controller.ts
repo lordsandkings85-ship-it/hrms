@@ -90,6 +90,35 @@ export class LeaveController {
     return this.leaveService.balances(employeeId, year ? Number(year) : new Date().getFullYear());
   }
 
+  @Get('balances-overview')
+  balancesOverview(
+    @CurrentUser() user: AuthUser,
+    @Query('year') year?: string,
+    @Query('departmentId') departmentId?: string,
+    @Query('leaveTypeId') leaveTypeId?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.leaveService.balancesOverview(
+      user.companyId,
+      year ? Number(year) : new Date().getFullYear(),
+      { departmentId, leaveTypeId, search },
+    );
+  }
+
+  @Get('all')
+  listAll(
+    @CurrentUser() user: AuthUser,
+    @Query('departmentId') departmentId?: string,
+    @Query('status') status?: string,
+    @Query('year') year?: string,
+  ) {
+    return this.leaveService.listAllForCompany(user.companyId, {
+      departmentId,
+      status,
+      year: year ? Number(year) : undefined,
+    });
+  }
+
   @Get('holidays')
   listHolidays(@CurrentUser() user: AuthUser) {
     return this.leaveService.listHolidays(user.companyId);

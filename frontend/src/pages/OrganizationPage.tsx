@@ -2,9 +2,12 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Building2, Landmark, ShieldAlert, Award, Plus, Trash2 } from 'lucide-react';
 import { organizationApi } from '../api/client';
+import { PageHeader } from '../components/ui/PageHeader';
+import { useToast } from '../components/ui/ToastProvider';
 
 export default function OrganizationPage() {
   const queryClient = useQueryClient();
+  const { success, error: toastError } = useToast();
   const [activeTab, setActiveTab] = useState<'departments' | 'branches' | 'designations'>('departments');
 
   // Input states
@@ -34,7 +37,7 @@ export default function OrganizationPage() {
   const createDeptMutation = useMutation({
     mutationFn: organizationApi.createDepartment,
     onSuccess: () => {
-      alert('Department created!');
+      success('Department created!', 'New department added to the organization.');
       setDeptName('');
       queryClient.invalidateQueries({ queryKey: ['departments-list'] });
     },
@@ -43,18 +46,18 @@ export default function OrganizationPage() {
   const deleteDeptMutation = useMutation({
     mutationFn: organizationApi.deleteDepartment,
     onSuccess: () => {
-      alert('Department deleted!');
+      success('Department deleted!');
       queryClient.invalidateQueries({ queryKey: ['departments-list'] });
     },
     onError: (err: any) => {
-      alert(`Error deleting department: ${err.message}`);
+      toastError('Delete Failed', err.message);
     }
   });
 
   const createBranchMutation = useMutation({
     mutationFn: organizationApi.createBranch,
     onSuccess: () => {
-      alert('Branch created!');
+      success('Branch created!', 'Office location added.');
       setBranchName('');
       setBranchAddress('');
       queryClient.invalidateQueries({ queryKey: ['branches-list'] });
@@ -64,7 +67,7 @@ export default function OrganizationPage() {
   const createDesigMutation = useMutation({
     mutationFn: organizationApi.createDesignation,
     onSuccess: () => {
-      alert('Designation created!');
+      success('Designation created!', 'New pay grade added.');
       setDesigTitle('');
       setDesigGrade('');
       queryClient.invalidateQueries({ queryKey: ['designations-list'] });
@@ -91,34 +94,25 @@ export default function OrganizationPage() {
 
   return (
     <div className="page-container max-w-7xl space-y-6">
-      <header className="mb-6 animate-slideUp" style={{ animationDelay: '0.1s' }}>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-ink">Organization Structure</h1>
-        <p className="text-sm font-medium text-muted mt-1">Configure company divisions (departments), physical office locations (branches), and pay grades (designations).</p>
-      </header>
+      <div className="animate-slideUp" style={{ animationDelay: '0.1s' }}>
+        <PageHeader
+          title="Organization Structure"
+          subtitle="Departments · Branches · Designations"
+          icon={Building2}
+        />
+      </div>
 
-      {/* Tabs selectors */}
-      <div className="flex border-b border-line gap-8 text-sm animate-slideUp" style={{ animationDelay: '0.15s' }}>
-        <button
-          onClick={() => setActiveTab('departments')}
-          className={`pb-3 font-semibold transition-colors relative ${activeTab === 'departments' ? 'text-ledger' : 'text-muted hover:text-ink'}`}
-        >
-          Departments
-          {activeTab === 'departments' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-ledger rounded-t-full animate-slideUp" />}
-        </button>
-        <button
-          onClick={() => setActiveTab('branches')}
-          className={`pb-3 font-semibold transition-colors relative ${activeTab === 'branches' ? 'text-ledger' : 'text-muted hover:text-ink'}`}
-        >
-          Branches / Offices
-          {activeTab === 'branches' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-ledger rounded-t-full animate-slideUp" />}
-        </button>
-        <button
-          onClick={() => setActiveTab('designations')}
-          className={`pb-3 font-semibold transition-colors relative ${activeTab === 'designations' ? 'text-ledger' : 'text-muted hover:text-ink'}`}
-        >
-          Designations
-          {activeTab === 'designations' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-ledger rounded-t-full animate-slideUp" />}
-        </button>
+      {/* Tabs */}
+      <div className="tab-container animate-slideUp" style={{ animationDelay: '0.15s' }}>
+        {(['departments', 'branches', 'designations'] as const).map((key) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`tab-pill capitalize ${activeTab === key ? 'tab-pill-active' : 'tab-pill-inactive'}`}
+          >
+            {key === 'departments' ? 'Departments' : key === 'branches' ? 'Branches / Offices' : 'Designations'}
+          </button>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-slideUp" style={{ animationDelay: '0.2s' }}>

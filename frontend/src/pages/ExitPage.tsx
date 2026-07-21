@@ -1,7 +1,8 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { exitApi, employeesApi } from '../api/client';
 import { LogOut, CheckCircle2, Circle, ClipboardList, UserMinus, ChevronRight } from 'lucide-react';
+import { PageHeader } from '../components/ui/PageHeader';
 
 const STATUS_STEPS = ['initiated', 'clearance', 'fnf', 'completed'];
 
@@ -72,7 +73,7 @@ export default function ExitPage() {
   const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 
   return (
-    <div className="p-8">
+    <div className="page-container max-w-7xl space-y-6">
       <header className="mb-8">
         <h1 className="font-display text-2xl font-semibold flex items-center gap-3">
           <UserMinus size={24} className="text-rust" /> Exit Management
@@ -85,7 +86,7 @@ export default function ExitPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Initiate Exit Form */}
         <div className="space-y-6">
-          <div className="bg-white border border-line rounded-lg p-5">
+          <div className="section-card p-5">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mb-4">Initiate Exit</h2>
             <div className="space-y-3">
               <div>
@@ -133,7 +134,7 @@ export default function ExitPage() {
           </div>
 
           {/* Exit List */}
-          <div className="bg-white border border-line rounded-lg overflow-hidden">
+          <div className="section-card overflow-hidden">
             <div className="px-4 py-3 border-b border-line">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">Active Exits</h3>
             </div>
@@ -165,14 +166,14 @@ export default function ExitPage() {
         {/* Exit Detail / Checklist */}
         <div className="lg:col-span-2 space-y-5">
           {!activeExitId ? (
-            <div className="bg-white border border-line rounded-lg flex flex-col items-center justify-center h-64 text-muted">
+            <div className="section-card flex flex-col items-center justify-center h-64 text-muted">
               <LogOut size={40} className="mb-3 opacity-20" />
               <p className="text-sm">Select an exit process to view details and checklist</p>
             </div>
           ) : exitDetail ? (
             <>
               {/* Status Timeline */}
-              <div className="bg-white border border-line rounded-lg p-5">
+              <div className="section-card p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold">
                     {exitDetail.employee?.firstName} {exitDetail.employee?.lastName} — Exit Timeline
@@ -210,7 +211,7 @@ export default function ExitPage() {
               </div>
 
               {/* Checklist */}
-              <div className="bg-white border border-line rounded-lg p-5">
+              <div className="section-card p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
                     <ClipboardList size={16} /> Clearance Checklist
@@ -248,7 +249,7 @@ export default function ExitPage() {
               </div>
 
               {/* Exit Interview */}
-              <div className="bg-white border border-line rounded-lg p-5">
+              <div className="section-card p-5">
                 <h3 className="text-sm font-semibold mb-3">Exit Interview Notes</h3>
                 <textarea
                   rows={4}
@@ -272,3 +273,5 @@ export default function ExitPage() {
     </div>
   );
 }
+
+

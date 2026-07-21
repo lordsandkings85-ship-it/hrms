@@ -1,7 +1,8 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { FileText, UploadCloud, FolderOpen, ExternalLink } from 'lucide-react';
 import { documentsApi, employeesApi } from '../api/client';
+import { PageHeader } from '../components/ui/PageHeader';
 
 export default function DocumentsPage() {
   const [selectedEmp, setSelectedEmp] = useState('');
@@ -44,15 +45,18 @@ export default function DocumentsPage() {
 
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="font-display text-2xl font-semibold">Document Vault</h1>
-        <p className="text-sm text-muted mt-1">Manage employee identity records, training certificates, resumes, and official company documentation.</p>
-      </header>
+    <div className="page-container max-w-7xl space-y-6">
+      <div className="animate-slideUp mb-2">
+        <PageHeader
+          title="Documents & Letters"
+          subtitle="Generate letters, manage templates, and store compliance documents."
+          icon={FileText}
+        />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Upload form */}
-        <div className="bg-white border border-line rounded-lg p-6 h-fit">
+        <div className="section-card p-6 h-fit">
           <h2 className="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
             <UploadCloud className="text-ledger" size={18} /> Register Document
           </h2>
@@ -158,3 +162,4 @@ export default function DocumentsPage() {
     </div>
   );
 }
+

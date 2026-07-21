@@ -1,7 +1,8 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FolderKanban, Plus, CheckCircle, Circle, Play } from 'lucide-react';
 import { projectsApi } from '../api/client';
+import { PageHeader } from '../components/ui/PageHeader';
 
 export default function ProjectsPage() {
   const queryClient = useQueryClient();
@@ -67,16 +68,19 @@ export default function ProjectsPage() {
   const activeProjDetail = projects?.find((p) => p.id === selectedProject?.id) || selectedProject;
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="font-display text-2xl font-semibold">Project Workspaces</h1>
-        <p className="text-sm text-muted mt-1">Organize company client projects, define tasks matrices, and track execution status.</p>
-      </header>
+    <div className="page-container max-w-7xl space-y-6">
+      <div className="animate-slideUp mb-2">
+        <PageHeader
+          title="Projects & Teams"
+          subtitle="Manage cross-functional projects and team allocations."
+          icon={FolderKanban}
+        />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Project Lists Panel */}
         <div className="space-y-6">
-          <div className="bg-white border border-line rounded-lg p-5">
+          <div className="section-card p-5">
             <h2 className="text-sm font-semibold uppercase tracking-wider mb-3 flex items-center gap-2">
               <FolderKanban size={16} className="text-ledger" /> New Project
             </h2>
@@ -95,7 +99,7 @@ export default function ProjectsPage() {
             </form>
           </div>
 
-          <div className="bg-white border border-line rounded-lg overflow-hidden">
+          <div className="section-card overflow-hidden">
             <div className="px-5 py-3 border-b border-line bg-paper/20">
               <h3 className="text-xs font-semibold uppercase tracking-wider">Active Workspaces</h3>
             </div>
@@ -189,3 +193,4 @@ export default function ProjectsPage() {
     </div>
   );
 }
+

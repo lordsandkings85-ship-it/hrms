@@ -1,7 +1,8 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { TrendingUp, Award, CheckCircle2, ChevronRight } from 'lucide-react';
 import { performanceApi, employeesApi } from '../api/client';
+import { PageHeader } from '../components/ui/PageHeader';
 
 export default function PerformancePage() {
   const queryClient = useQueryClient();
@@ -91,11 +92,14 @@ export default function PerformancePage() {
   };
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="font-display text-2xl font-semibold">Performance Appraisals</h1>
-        <p className="text-sm text-muted mt-1">Set company/employee KRAs, adjust goal indicators, and record quarterly peer feedback.</p>
-      </header>
+    <div className="page-container max-w-7xl space-y-6">
+      <div className="animate-slideUp mb-2">
+        <PageHeader
+          title="Performance Management"
+          subtitle="Set goals, track OKRs, and run 360-degree review cycles."
+          icon={TrendingUp}
+        />
+      </div>
 
       <div className="mb-6 max-w-sm">
         <label className="block text-xs text-muted mb-1">Select Employee context</label>
@@ -117,7 +121,7 @@ export default function PerformancePage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Left Panel: Target Goals */}
           <div className="space-y-8">
-            <div className="bg-white border border-line rounded-lg p-6">
+            <div className="section-card p-6">
               <h2 className="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
                 <CheckCircle2 className="text-ledger" size={18} /> Set Employee Goal
               </h2>
@@ -141,7 +145,7 @@ export default function PerformancePage() {
             </div>
 
             {/* Goals list */}
-            <div className="bg-white border border-line rounded-lg overflow-hidden">
+            <div className="section-card overflow-hidden">
               <div className="px-6 py-4 border-b border-line bg-paper/20">
                 <h3 className="text-sm font-semibold">Assigned OKRs &amp; Goals</h3>
               </div>
@@ -178,7 +182,7 @@ export default function PerformancePage() {
 
           {/* Right Panel: Performance Appraisal Reviews */}
           <div className="space-y-8">
-            <div className="bg-white border border-line rounded-lg p-6">
+            <div className="section-card p-6">
               <h2 className="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
                 <Award className="text-ledger" size={18} /> Submit Review Appraisal
               </h2>
@@ -211,7 +215,7 @@ export default function PerformancePage() {
             </div>
 
             {/* Appraisal Logs */}
-            <div className="bg-white border border-line rounded-lg overflow-hidden">
+            <div className="section-card overflow-hidden">
               <div className="px-6 py-4 border-b border-line bg-paper/20">
                 <h3 className="text-sm font-semibold">Review Logs</h3>
               </div>
@@ -236,10 +240,11 @@ export default function PerformancePage() {
           </div>
         </div>
       ) : (
-        <div className="bg-white border border-line rounded-lg p-8 text-center text-sm text-muted">
+        <div className="section-card p-8 text-center text-sm text-muted">
           Please select an employee profile to inspect goal indices and appraisal metrics.
         </div>
       )}
     </div>
   );
 }
+

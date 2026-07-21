@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Receipt, Check, X, FileUp, IndianRupee } from 'lucide-react';
 import { expensesApi, employeesApi } from '../api/client';
 import { useAuthStore } from '../store/useAuthStore';
+import { PageHeader } from '../components/ui/PageHeader';
 
 export default function ExpensesPage() {
   const queryClient = useQueryClient();
@@ -72,15 +73,18 @@ export default function ExpensesPage() {
 
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="font-display text-2xl font-semibold">Expense Claims</h1>
-        <p className="text-sm text-muted mt-1">Submit employee expense claims for travel, accommodation, food, or resources, and approve reimbursement payouts.</p>
-      </header>
+    <div className="page-container max-w-7xl space-y-6">
+      <div className="animate-slideUp mb-2">
+        <PageHeader
+          title="Expense Management"
+          subtitle="Submit, review, and approve employee expense claims."
+          icon={Receipt}
+        />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Submit Claim form */}
-        <div className="bg-white border border-line rounded-lg p-6 h-fit">
+        <div className="section-card p-6 h-fit">
           <h2 className="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
             <Receipt className="text-ledger" size={18} /> Submit Claim
           </h2>
@@ -239,3 +243,4 @@ export default function ExpensesPage() {
     </div>
   );
 }
+

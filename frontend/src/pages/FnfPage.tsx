@@ -1,7 +1,8 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fnfApi, employeesApi } from '../api/client';
 import { HandCoins, CheckCircle2, AlertTriangle, FileText, Lock } from 'lucide-react';
+import { PageHeader } from '../components/ui/PageHeader';
 
 const fmt = (n: number) => '₹' + Math.round(n || 0).toLocaleString('en-IN');
 
@@ -50,7 +51,7 @@ export default function FnfPage() {
   };
 
   return (
-    <div className="p-8">
+    <div className="page-container max-w-7xl space-y-6">
       <header className="mb-8">
         <h1 className="font-display text-2xl font-semibold flex items-center gap-3">
           <HandCoins size={24} className="text-ledger" />
@@ -63,7 +64,7 @@ export default function FnfPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Initiate form */}
-        <div className="bg-white border border-line rounded-lg p-6 h-fit">
+        <div className="section-card p-6 h-fit">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mb-4">Compute Settlement</h2>
           <div className="space-y-4">
             <div>
@@ -111,7 +112,7 @@ export default function FnfPage() {
         </div>
 
         {/* Settlement Detail */}
-        <div className="bg-white border border-line rounded-lg p-6">
+        <div className="section-card p-6">
           {!selectedEmp && (
             <div className="flex flex-col items-center justify-center h-48 text-muted text-sm">
               <HandCoins size={36} className="mb-2 opacity-20" />
@@ -180,7 +181,7 @@ export default function FnfPage() {
         </div>
 
         {/* FnF List */}
-        <div className="bg-white border border-line rounded-lg overflow-hidden h-fit">
+        <div className="section-card overflow-hidden h-fit">
           <div className="px-5 py-4 border-b border-line">
             <h3 className="text-sm font-semibold flex items-center gap-2">
               <FileText size={16} /> All Settlements
@@ -215,3 +216,5 @@ export default function FnfPage() {
     </div>
   );
 }
+
+

@@ -161,6 +161,22 @@ export const leaveApi = {
   deleteHoliday: (id: string) =>
     api<any>(`/leave/holidays/${id}`, { method: 'DELETE' }),
 
+  balancesOverview: (params: { year?: number; departmentId?: string; leaveTypeId?: string; search?: string }) => {
+    const qs = new URLSearchParams();
+    if (params.year) qs.set('year', String(params.year));
+    if (params.departmentId) qs.set('departmentId', params.departmentId);
+    if (params.leaveTypeId) qs.set('leaveTypeId', params.leaveTypeId);
+    if (params.search) qs.set('search', params.search);
+    return api<any[]>(`/leave/balances-overview?${qs.toString()}`);
+  },
+  listAll: (params: { departmentId?: string; status?: string; year?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.departmentId) qs.set('departmentId', params.departmentId);
+    if (params.status) qs.set('status', params.status);
+    if (params.year) qs.set('year', String(params.year));
+    return api<any[]>(`/leave/all?${qs.toString()}`);
+  },
+
   // Phase 4: Enterprise features
   analytics: () => api<any>('/leave/analytics'),
   getPolicies: () => api<any>('/leave/policies'),
@@ -402,3 +418,10 @@ export const payrollApiExt = {
     api<any>('/payroll/run', { method: 'POST', body: JSON.stringify(data) }),
 };
 
+export const helpdeskApi = {
+  list: () => api<any[]>('/helpdesk'),
+  create: (data: { subject: string; description: string; priority: string; category: string }) =>
+    api<any>('/helpdesk', { method: 'POST', body: JSON.stringify(data) }),
+  updateStatus: (id: string, status: string) =>
+    api<any>(`/helpdesk/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+};

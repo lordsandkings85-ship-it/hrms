@@ -1,10 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Banknote, FileText, DollarSign, Lock, Calculator, ChevronDown, ChevronUp, Eye, Gift, Target, BarChart3 } from 'lucide-react';
+import { Banknote, FileText, DollarSign, Lock, Calculator, ChevronDown, ChevronUp, Eye, Gift, Target, BarChart3, Wallet } from 'lucide-react';
 import { payrollApi, payrollApiExt, employeesApi } from '../api/client';
 import { computeTax, computePF, computeESI, computePT, fmt } from '../utils/taxCalculator';
 import { useAuthStore } from '../store/useAuthStore';
+import { PageHeader } from '../components/ui/PageHeader';
+import { StatusBadge } from '../components/ui/Badge';
 import { DataTable, Column } from '../components/ui/DataTable';
 
 type TabKey = 'run' | 'structure' | 'payslips' | 'tax' | 'bonus' | 'incentive' | 'reports';
@@ -235,23 +237,25 @@ export default function PayrollPage() {
 
   return (
     <div className="page-container max-w-7xl space-y-6">
-      <header className="mb-6 animate-slideUp" style={{ animationDelay: '0.1s' }}>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-ink">Payroll Console</h1>
-        <p className="text-sm font-medium text-muted mt-1">Automated payroll with income tax (Old/New regime), TDS, PF/ESI/PT compliance, and payslip management.</p>
-      </header>
+      <div className="animate-slideUp" style={{ animationDelay: '0.1s' }}>
+        <PageHeader 
+          title="Payroll & Compensation" 
+          subtitle="Manage salary structures, process monthly runs, and distribute payslips." 
+          icon={Wallet} 
+        />
+      </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-line gap-4 animate-slideUp overflow-x-auto" style={{ animationDelay: '0.15s' }}>
+      <div className="tab-container animate-slideUp" style={{ animationDelay: '0.15s' }}>
         {TABS.filter(t => !t.adminOnly || isAdmin).map(t => (
           <button
             key={t.key}
             onClick={() => handleTabChange(t.key)}
-            className={`flex items-center gap-2 px-4 pb-3 text-sm font-semibold transition-colors relative whitespace-nowrap ${
-              tab === t.key ? 'text-ledger' : 'text-muted hover:text-ink'
+            className={`tab-pill flex items-center gap-2 ${
+              tab === t.key ? 'tab-pill-active' : 'tab-pill-inactive'
             }`}
           >
             {t.icon} {t.label}
-            {tab === t.key && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-ledger rounded-t-full animate-slideUp" />}
           </button>
         ))}
       </div>

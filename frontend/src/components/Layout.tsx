@@ -193,16 +193,19 @@ export default function Layout() {
       >
         {/* Logo */}
         <div
-          className="flex items-center gap-3 px-4 py-5 flex-shrink-0"
+          className="flex items-center gap-3 px-5 py-6 flex-shrink-0 relative"
           style={{ borderBottom: '1px solid var(--sidebar-separator)', justifyContent: collapsed ? 'center' : undefined }}
         >
-          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
-            <Banknote size={16} className="text-white" strokeWidth={2.5} />
+          {/* Subtle glow behind logo */}
+          <div className="absolute top-1/2 left-6 -translate-y-1/2 w-10 h-10 bg-indigo-500/20 rounded-full blur-xl pointer-events-none" />
+          
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-500/20 ring-1 ring-white/10 z-10">
+            <Banknote size={18} className="text-white" strokeWidth={2.5} />
           </div>
           {!collapsed && (
-            <div className="overflow-hidden flex-1">
-              <div className="text-[15px] font-bold tracking-tight leading-none text-white">Ledger HRMS</div>
-              <div className="text-[10px] mt-0.5 uppercase tracking-widest" style={{ color: 'var(--sidebar-text)', opacity: 0.5 }}>Workforce</div>
+            <div className="overflow-hidden flex-1 z-10">
+              <div className="text-base font-bold tracking-tight leading-none text-white font-display">Ledger HRMS</div>
+              <div className="text-[10px] mt-1 font-semibold uppercase tracking-widest text-indigo-400">Enterprise</div>
             </div>
           )}
         </div>
@@ -235,27 +238,36 @@ export default function Layout() {
                         key={item.to!}
                         to={item.to!}
                         title={collapsed ? item.label : undefined}
-                        className={({ isActive }) =>
-                          `sidebar-nav-item flex items-center gap-3 px-3 py-2 text-[13px] rounded-md relative group ${
+                        className={({ isActive }) => {
+                          const active = isActive || location.pathname.startsWith(item.to!);
+                          return `sidebar-nav-item flex items-center gap-3 px-3 py-2.5 mx-2 text-[13px] rounded-lg relative group transition-all duration-200 ${
                             collapsed ? 'justify-center' : ''
                           } ${
-                            isActive || location.pathname.startsWith(item.to!) ? 'sidebar-nav-item--active font-medium' : ''
-                          }`
-                        }
+                            active ? 'sidebar-nav-item--active font-semibold shadow-sm ring-1 ring-white/5' : 'hover:bg-white/[0.03]'
+                          }`;
+                        }}
                       >
-                        {({ isActive }) => (
-                          <>
-                            <Icon size={16} strokeWidth={isActive ? 2 : 1.75} className="flex-shrink-0" />
-                            {!collapsed && item.label}
-                            {collapsed && (
-                              <span
-                                className="sidebar-tooltip absolute left-full ml-2 px-2.5 py-1.5 text-xs font-medium rounded-md pointer-events-none whitespace-nowrap z-50 shadow-lg opacity-0 group-hover:opacity-100"
-                              >
-                                {item.label}
-                              </span>
-                            )}
-                          </>
-                        )}
+                        {({ isActive }) => {
+                          const active = isActive || location.pathname.startsWith(item.to!);
+                          return (
+                            <>
+                              {/* Active indicator bar */}
+                              {active && !collapsed && (
+                                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-indigo-500 rounded-r-full" />
+                              )}
+                              
+                              <Icon size={18} strokeWidth={active ? 2.5 : 2} className={`flex-shrink-0 ${active ? 'text-indigo-400' : ''}`} />
+                              {!collapsed && <span className="tracking-wide">{item.label}</span>}
+                              {collapsed && (
+                                <span
+                                  className="sidebar-tooltip absolute left-full ml-2 px-2.5 py-1.5 text-xs font-medium rounded-md pointer-events-none whitespace-nowrap z-50 shadow-lg opacity-0 group-hover:opacity-100"
+                                >
+                                  {item.label}
+                                </span>
+                              )}
+                            </>
+                          );
+                        }}
                       </NavLink>
                     );
                   })}

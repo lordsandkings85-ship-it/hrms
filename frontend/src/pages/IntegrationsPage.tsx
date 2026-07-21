@@ -1,6 +1,7 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+﻿import { useQuery, useMutation } from '@tanstack/react-query';
 import { Plug, Power, PowerOff, ShieldCheck } from 'lucide-react';
 import { integrationsApi } from '../api/client';
+import { PageHeader } from '../components/ui/PageHeader';
 
 const INTEGRATION_PROVIDERS = [
   { provider: 'google_calendar', name: 'Google Calendar API', desc: 'Sync employee shifts and leave calendars automatically.' },
@@ -44,11 +45,14 @@ export default function IntegrationsPage() {
   };
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="font-display text-2xl font-semibold">SaaS Connectors</h1>
-        <p className="text-sm text-muted mt-1">Connect third-party calendars, communication channels, accounting systems, and bank payment processors.</p>
-      </header>
+    <div className="page-container max-w-7xl space-y-6">
+      <div className="animate-slideUp mb-2">
+        <PageHeader
+          title="Integrations"
+          subtitle="Connect third-party tools, APIs, and webhooks to your HRMS."
+          icon={Plug}
+        />
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {INTEGRATION_PROVIDERS.map((item) => {
@@ -56,7 +60,7 @@ export default function IntegrationsPage() {
           const isConnected = active?.status === 'connected';
 
           return (
-            <div key={item.provider} className="bg-white border border-line rounded-lg p-6 flex flex-col justify-between">
+            <div key={item.provider} className="section-card p-6 flex flex-col justify-between">
               <div>
                 <div className="flex items-start justify-between">
                   <div className="p-2.5 bg-paper rounded border border-line text-ledger mb-4 h-fit">
@@ -100,3 +104,4 @@ export default function IntegrationsPage() {
     </div>
   );
 }
+

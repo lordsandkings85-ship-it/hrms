@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Laptop, Plus, UserCheck, RefreshCw } from 'lucide-react';
+import { Laptop, Plus, UserCheck, RefreshCw, Package } from 'lucide-react';
 import { assetsApi, employeesApi } from '../api/client';
+import { PageHeader } from '../components/ui/PageHeader';
 
 export default function AssetsPage() {
   const queryClient = useQueryClient();
@@ -71,15 +72,18 @@ export default function AssetsPage() {
   };
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="font-display text-2xl font-semibold">Asset Inventory</h1>
-        <p className="text-sm text-muted mt-1">Register office equipment (laptops, phones, SaaS seats), assign assets to employees, and track return status.</p>
-      </header>
+    <div className="page-container max-w-7xl space-y-6">
+      <div className="animate-slideUp mb-2">
+        <PageHeader
+          title="Asset Management"
+          subtitle="Track company assets, assign to employees, and manage returns."
+          icon={Package}
+        />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Create Asset form */}
-        <div className="bg-white border border-line rounded-lg p-6 h-fit">
+        <div className="section-card p-6 h-fit">
           <h2 className="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
             <Plus className="text-ledger" size={18} /> Register Asset
           </h2>
@@ -201,3 +205,4 @@ export default function AssetsPage() {
     </div>
   );
 }
+

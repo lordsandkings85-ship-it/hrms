@@ -130,17 +130,122 @@ export class LeaveService {
     });
   }
 
-  listPendingForCompany(companyId: string) {
-    return this.prisma.leaveRequest.findMany({
+  async listPendingForCompany(companyId: string) {
+    const rows = await this.prisma.leaveRequest.findMany({
       where: { employee: { companyId }, status: 'pending' },
-      include: { leaveType: true, employee: { select: { firstName: true, lastName: true } } },
+      include: {
+        leaveType: true,
+        employee: {
+          select: {
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            department: { select: { name: true } },
+            manager: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
     });
+    // Attach a computed duration (in days) so the UI doesn't have to guess.
+    return rows.map((r) => ({
+      ...r,
+      duration: isHalfDayCount(r.startDate, r.endDate, r.isHalfDay),
+    }));
   }
 
   balances(employeeId: string, year: number) {
     return this.prisma.leaveBalance.findMany({
       where: { employeeId, year },
       include: { leaveType: true },
+    });
+  }
+
+  // Company-wide balance grid used by the HR "Employee Leave Balances" tab.
+  async balancesOverview(
+    companyId: string,
+    year: number,
+    filters: { departmentId?: string; leaveTypeId?: string; search?: string },
+  ) {
+    const employees = await this.prisma.employee.findMany({
+      where: {
+        companyId,
+        status: 'active',
+        ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
+        ...(filters.search
+          ? {
+              OR: [
+                { firstName: { contains: filters.search } },
+                { lastName: { contains: filters.search } },
+                { employeeCode: { contains: filters.search } },
+              ],
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        employeeCode: true,
+        department: { select: { name: true } },
+        leaveBalances: {
+          where: {
+            year,
+            ...(filters.leaveTypeId ? { leaveTypeId: filters.leaveTypeId } : {}),
+          },
+          include: { leaveType: true },
+        },
+      },
+      orderBy: { firstName: 'asc' },
+    });
+
+    return employees.map((e) => ({
+      employeeId: e.id,
+      employeeCode: e.employeeCode,
+      name: `${e.firstName} ${e.lastName}`,
+      department: e.department?.name || '-',
+      balances: e.leaveBalances.map((b) => ({
+        leaveType: b.leaveType.name,
+        allotted: b.allotted,
+        used: b.used,
+        remaining: Math.max(0, b.allotted - b.used),
+      })),
+    }));
+  }
+
+  // All leave requests for a company (used by the Reports tab), with optional filters.
+  listAllForCompany(
+    companyId: string,
+    filters: { departmentId?: string; status?: string; year?: number },
+  ) {
+    return this.prisma.leaveRequest.findMany({
+      where: {
+        employee: {
+          companyId,
+          ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
+        },
+        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.year
+          ? {
+              startDate: {
+                gte: new Date(filters.year, 0, 1),
+                lte: new Date(filters.year, 11, 31, 23, 59, 59),
+              },
+            }
+          : {}),
+      },
+      include: {
+        leaveType: true,
+        employee: {
+          select: {
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            department: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { startDate: 'desc' },
     });
   }
 
@@ -236,6 +341,15 @@ export class LeaveService {
       take: 5
     });
 
+    // Leave balance alerts: employees with 2 or fewer days remaining on any leave type.
+    const currentYearBalances = await this.prisma.leaveBalance.findMany({
+      where: { year: now.getFullYear(), employee: { companyId, status: 'active' } },
+    });
+    const lowBalanceEmployeeIds = new Set(
+      currentYearBalances.filter((b) => b.allotted - b.used <= 2).map((b) => b.employeeId),
+    );
+    const leaveBalanceAlerts = lowBalanceEmployeeIds.size;
+
     // We can simulate today's on-leave based on the date range
     const onLeaveToday = await this.prisma.leaveRequest.count({
       where: {
@@ -277,6 +391,7 @@ export class LeaveService {
         approvedThisMonth,
         rejectedThisMonth,
         upcomingHolidays,
+        leaveBalanceAlerts,
       },
       charts: {
         monthlyTrend,

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Clock3, Check, X, FolderKanban } from 'lucide-react';
+import { Clock3, Check, X, FolderKanban, Timer } from 'lucide-react';
 import { timesheetsApi, employeesApi, projectsApi } from '../api/client';
 import { useAuthStore } from '../store/useAuthStore';
+import { PageHeader } from '../components/ui/PageHeader';
 
 export default function TimesheetsPage() {
   const queryClient = useQueryClient();
@@ -78,15 +79,18 @@ export default function TimesheetsPage() {
   };
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="font-display text-2xl font-semibold">Timesheets</h1>
-        <p className="text-sm text-muted mt-1">Submit employee daily work hours logs, allocate them to client projects, and manage approvals.</p>
-      </header>
+    <div className="page-container max-w-7xl space-y-6">
+      <div className="animate-slideUp mb-2">
+        <PageHeader
+          title="Timesheets"
+          subtitle="Track hours, manage approvals, and generate billing reports."
+          icon={Timer}
+        />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Submit Form */}
-        <div className="bg-white border border-line rounded-lg p-6 h-fit">
+        <div className="section-card p-6 h-fit">
           <h2 className="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
             <Clock3 className="text-ledger" size={18} /> Submit Hours Log
           </h2>
@@ -235,3 +239,4 @@ export default function TimesheetsPage() {
     </div>
   );
 }
+

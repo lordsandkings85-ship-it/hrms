@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Settings, Shield, PlusCircle, CheckCircle2 } from 'lucide-react';
 import { settingsApi } from '../api/client';
+import { PageHeader } from '../components/ui/PageHeader';
+import { useToast } from '../components/ui/ToastProvider';
 
 const ALL_MODULES = [
   'dashboard', 'employees', 'attendance', 'leave', 'payroll', 'recruitment',
@@ -14,6 +16,7 @@ const ALL_ACTIONS = ['view', 'create', 'edit', 'delete', 'approve', 'export'];
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
+  const { success, error: toastError } = useToast();
   const [activeTab, setActiveTab] = useState<'profile' | 'rbac'>('profile');
 
   // Profile forms
@@ -51,7 +54,7 @@ export default function SettingsPage() {
   const updateProfileMutation = useMutation({
     mutationFn: settingsApi.updateProfile,
     onSuccess: () => {
-      alert('Company profile settings saved!');
+      success('Settings saved!', 'Company profile updated successfully.');
       queryClient.invalidateQueries({ queryKey: ['settings-profile'] });
     },
   });
@@ -60,7 +63,7 @@ export default function SettingsPage() {
   const createRoleMutation = useMutation({
     mutationFn: settingsApi.createRole,
     onSuccess: () => {
-      alert('Custom RBAC Role created!');
+      success('Role created!', 'Custom RBAC role added successfully.');
       setRoleName('');
       setSelectedPermissions({});
       queryClient.invalidateQueries({ queryKey: ['settings-roles'] });
@@ -105,26 +108,21 @@ export default function SettingsPage() {
 
   return (
     <div className="page-container max-w-7xl space-y-6">
-      <header className="mb-6 animate-slideUp" style={{ animationDelay: '0.1s' }}>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-ink">Settings</h1>
-        <p className="text-sm font-medium text-muted mt-1">Configure company profiles, metadata, regional policies, and custom Role-based security permissions.</p>
-      </header>
+      <div className="animate-slideUp" style={{ animationDelay: '0.1s' }}>
+        <PageHeader
+          title="Settings"
+          subtitle="Company profile, regional policies, and role-based security permissions."
+          icon={Settings}
+        />
+      </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-line gap-8 text-sm animate-slideUp" style={{ animationDelay: '0.15s' }}>
-        <button
-          onClick={() => setActiveTab('profile')}
-          className={`pb-3 font-semibold transition-colors relative ${activeTab === 'profile' ? 'text-ledger' : 'text-muted hover:text-ink'}`}
-        >
-          Company Profile
-          {activeTab === 'profile' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-ledger rounded-t-full animate-slideUp" />}
+      <div className="tab-container animate-slideUp" style={{ animationDelay: '0.15s' }}>
+        <button onClick={() => setActiveTab('profile')} className={`tab-pill flex items-center gap-2 ${activeTab === 'profile' ? 'tab-pill-active' : 'tab-pill-inactive'}`}>
+          <Settings size={15} /> Company Profile
         </button>
-        <button
-          onClick={() => setActiveTab('rbac')}
-          className={`pb-3 font-semibold transition-colors relative ${activeTab === 'rbac' ? 'text-ledger' : 'text-muted hover:text-ink'}`}
-        >
-          RBAC Security Roles
-          {activeTab === 'rbac' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-ledger rounded-t-full animate-slideUp" />}
+        <button onClick={() => setActiveTab('rbac')} className={`tab-pill flex items-center gap-2 ${activeTab === 'rbac' ? 'tab-pill-active' : 'tab-pill-inactive'}`}>
+          <Shield size={15} /> RBAC Security Roles
         </button>
       </div>
 

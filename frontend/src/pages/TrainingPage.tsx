@@ -1,7 +1,8 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { GraduationCap, PlusCircle, UserPlus, Award } from 'lucide-react';
 import { trainingApi, employeesApi } from '../api/client';
+import { PageHeader } from '../components/ui/PageHeader';
 
 export default function TrainingPage() {
   const queryClient = useQueryClient();
@@ -74,16 +75,19 @@ export default function TrainingPage() {
   const activeCourseDetail = courses?.find((c) => c.id === selectedCourse?.id) || selectedCourse;
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="font-display text-2xl font-semibold">Training &amp; LMS</h1>
-        <p className="text-sm text-muted mt-1">Configure professional development courses, assign training tracks, and audit progress.</p>
-      </header>
+    <div className="page-container max-w-7xl space-y-6">
+      <div className="animate-slideUp mb-2">
+        <PageHeader
+          title="Training & Development"
+          subtitle="Schedule training programs, track completion, and manage certifications."
+          icon={GraduationCap}
+        />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Side: Create Course */}
         <div className="space-y-6">
-          <div className="bg-white border border-line rounded-lg p-6">
+          <div className="section-card p-6">
             <h2 className="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
               <PlusCircle className="text-ledger" size={18} /> Register Course
             </h2>
@@ -116,7 +120,7 @@ export default function TrainingPage() {
           </div>
 
           {/* Courses List */}
-          <div className="bg-white border border-line rounded-lg overflow-hidden">
+          <div className="section-card overflow-hidden">
             <div className="px-5 py-3 border-b border-line bg-paper/20">
               <h3 className="text-xs font-semibold uppercase tracking-wider">LMS Courses</h3>
             </div>
@@ -219,3 +223,4 @@ export default function TrainingPage() {
     </div>
   );
 }
+

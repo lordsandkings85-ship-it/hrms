@@ -1,7 +1,8 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Clock3, CalendarDays, PlusCircle, ArrowRight, Sun } from 'lucide-react';
 import { shiftsApi, employeesApi } from '../api/client';
+import { PageHeader } from '../components/ui/PageHeader';
 
 export default function ShiftsPage() {
   const queryClient = useQueryClient();
@@ -99,16 +100,19 @@ export default function ShiftsPage() {
   };
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="font-display text-2xl font-semibold">Shifts &amp; Holidays</h1>
-        <p className="text-sm text-muted mt-1">Design rotational shifts, roster employees to rosters, and register annual company holiday lists.</p>
-      </header>
+    <div className="page-container max-w-7xl space-y-6">
+      <div className="animate-slideUp mb-2">
+        <PageHeader
+          title="Shift Management"
+          subtitle="Configure work schedules, rosters, and employee shift assignments."
+          icon={Clock3}
+        />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Side: Create & Assign Shift */}
         <div className="space-y-8">
-          <div className="bg-white border border-line rounded-lg p-6">
+          <div className="section-card p-6">
             <h2 className="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
               <PlusCircle className="text-ledger" size={18} /> Create Shift Plan
             </h2>
@@ -140,7 +144,7 @@ export default function ShiftsPage() {
             </form>
           </div>
 
-          <div className="bg-white border border-line rounded-lg p-6">
+          <div className="section-card p-6">
             <h2 className="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
               <Clock3 className="text-ledger" size={18} /> Assign Employee Shift
             </h2>
@@ -173,7 +177,7 @@ export default function ShiftsPage() {
         </div>
 
         {/* Center: Shift list */}
-        <div className="bg-white border border-line rounded-lg overflow-hidden h-fit">
+        <div className="section-card overflow-hidden h-fit">
           <div className="px-6 py-4 border-b border-line bg-paper/20">
             <h3 className="text-sm font-semibold">Shift Roster Plans</h3>
           </div>
@@ -198,7 +202,7 @@ export default function ShiftsPage() {
 
         {/* Right Side: Holidays list */}
         <div className="space-y-6 h-fit">
-          <div className="bg-white border border-line rounded-lg p-5">
+          <div className="section-card p-5">
             <h2 className="text-sm font-semibold uppercase tracking-wider mb-3 flex items-center gap-2">
               <Sun className="text-ledger" size={16} /> Register Holiday
             </h2>
@@ -213,7 +217,7 @@ export default function ShiftsPage() {
             </form>
           </div>
 
-          <div className="bg-white border border-line rounded-lg overflow-hidden">
+          <div className="section-card overflow-hidden">
             <div className="px-5 py-3 border-b border-line bg-paper/20">
               <h3 className="text-xs font-semibold uppercase tracking-wider">Company Holidays List</h3>
             </div>
@@ -234,3 +238,4 @@ export default function ShiftsPage() {
     </div>
   );
 }
+

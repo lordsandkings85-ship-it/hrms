@@ -141,8 +141,8 @@ export function DataTable<T extends object>({
     const key = col.key as string;
     if (sortKey !== key) return <ChevronsUpDown size={12} className="text-muted/40 ml-1" />;
     return sortDir === 'asc'
-      ? <ChevronUp size={12} className="text-ledger ml-1" />
-      : <ChevronDown size={12} className="text-ledger ml-1" />;
+      ? <ChevronUp size={12} className="text-action-primary ml-1" />
+      : <ChevronDown size={12} className="text-action-primary ml-1" />;
   };
 
   return (
@@ -184,8 +184,8 @@ export function DataTable<T extends object>({
 
       {/* Bulk action bar */}
       {hasSelection && bulkActions.length > 0 && (
-        <div className="flex items-center gap-3 px-4 py-2.5 bg-ledger/5 dark:bg-white/5 border-b border-ledger/20 dark:border-white/10 animate-slideDown">
-          <span className="text-xs font-semibold text-ledger dark:text-white">{selected.size} selected</span>
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-action-primary/5 dark:bg-white/5 border-b border-action-primary/20 dark:border-white/10 animate-slideDown">
+          <span className="text-xs font-semibold text-action-primary dark:text-white">{selected.size} selected</span>
           <div className="flex items-center gap-2 ml-2">
             {bulkActions.map((action, i) => (
               <button
@@ -215,7 +215,7 @@ export function DataTable<T extends object>({
                   type="checkbox"
                   checked={paginated.length > 0 && selected.size === paginated.length}
                   onChange={toggleAll}
-                  className="rounded border-line dark:border-white/20 accent-ledger cursor-pointer"
+                  className="rounded border-line dark:border-white/20 accent-action-primary cursor-pointer"
                 />
               </th>
               {columns.map(col => (
@@ -256,14 +256,14 @@ export function DataTable<T extends object>({
                   <tr
                     key={id}
                     onClick={() => onRowClick?.(row)}
-                    className={`${onRowClick ? 'cursor-pointer' : ''} ${selected.has(id) ? 'bg-ledger/5 dark:bg-white/5' : ''}`}
+                    className={`transition-colors ${onRowClick ? 'cursor-pointer hover:bg-surface-hover' : ''} ${selected.has(id) ? 'bg-action-primary/5 dark:bg-white/5' : ''}`}
                   >
                     <td className="bg-white dark:bg-transparent" onClick={e => { e.stopPropagation(); toggleRow(id); }}>
                       <input
                         type="checkbox"
                         checked={selected.has(id)}
                         onChange={() => toggleRow(id)}
-                        className="rounded border-line dark:border-white/20 accent-ledger cursor-pointer"
+                        className="rounded border-line dark:border-white/20 accent-action-primary cursor-pointer"
                       />
                     </td>
                     {columns.map(col => (
@@ -301,7 +301,7 @@ export function DataTable<T extends object>({
                   key={p}
                   onClick={() => isServer && onPageChange ? onPageChange(p) : setPage(p)}
                   className={`w-7 h-7 rounded-md text-xs font-medium transition-colors ${
-                    p === activePage ? 'bg-ledger text-white' : 'hover:bg-line/60 dark:hover:bg-white/10 text-ink dark:text-white'
+                    p === activePage ? 'bg-action-primary text-white' : 'hover:bg-line/60 dark:hover:bg-white/10 text-ink dark:text-white'
                   }`}
                 >
                   {p}

@@ -6,8 +6,9 @@ import {
 } from 'lucide-react';
 import { useToast } from '../components/ui/ToastProvider';
 import { useAuthStore } from '../store/useAuthStore';
-import { api } from '../api/client';
+import { helpdeskApi } from '../api/client';
 import { DataTable, type Column } from '../components/ui/DataTable';
+import { PageHeader } from '../components/ui/PageHeader';
 
 type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
@@ -40,44 +41,7 @@ const PRIORITY_CONFIG: Record<TicketPriority, { label: string; color: string }> 
   urgent: { label: 'Urgent', color: 'text-danger font-semibold' },
 };
 
-// Since the backend helpdesk module isn't yet deployed, we use localStorage mock
-function useMockTickets() {
-  const STORAGE_KEY = 'hrms_helpdesk_tickets';
-  const stored = localStorage.getItem(STORAGE_KEY);
-  const tickets: Ticket[] = stored ? JSON.parse(stored) : DEMO_TICKETS;
-
-  const save = (t: Ticket[]) => localStorage.setItem(STORAGE_KEY, JSON.stringify(t));
-
-  return {
-    tickets,
-    create: (data: Partial<Ticket>) => {
-      const newTicket: Ticket = {
-        id: `TKT-${Date.now()}`,
-        subject: data.subject ?? '',
-        description: data.description ?? '',
-        status: 'open',
-        priority: data.priority ?? 'medium',
-        category: data.category ?? 'general',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      save([newTicket, ...tickets]);
-      return newTicket;
-    },
-    updateStatus: (id: string, status: TicketStatus) => {
-      const updated = tickets.map(t => t.id === id ? { ...t, status, updatedAt: new Date().toISOString() } : t);
-      save(updated);
-      return updated;
-    },
-  };
-}
-
-const DEMO_TICKETS: Ticket[] = [
-  { id: 'TKT-001', subject: 'Cannot access payroll reports', description: 'Getting 403 error on payroll page', status: 'open', priority: 'high', category: 'it', createdAt: new Date(Date.now() - 86400000).toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString() },
-  { id: 'TKT-002', subject: 'Salary slip not generated for March', description: 'My salary slip for March 2025 is missing.', status: 'in_progress', priority: 'urgent', category: 'payroll', createdAt: new Date(Date.now() - 172800000).toISOString(), updatedAt: new Date(Date.now() - 43200000).toISOString() },
-  { id: 'TKT-003', subject: 'Laptop return request', description: 'I need to return my company laptop.', status: 'resolved', priority: 'low', category: 'asset', createdAt: new Date(Date.now() - 604800000).toISOString(), updatedAt: new Date(Date.now() - 3600000).toISOString() },
-  { id: 'TKT-004', subject: 'Leave balance correction', description: 'My casual leave balance is incorrect.', status: 'open', priority: 'medium', category: 'hr', createdAt: new Date(Date.now() - 7200000).toISOString(), updatedAt: new Date(Date.now() - 7200000).toISOString() },
-];
+// Connected to real backend API
 
 function StatusBadge({ status }: { status: TicketStatus }) {
   const cfg = STATUS_CONFIG[status];
@@ -109,14 +73,14 @@ function NewTicketModal({ onClose, onSave }: { onClose: () => void; onSave: (dat
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-ink/40 backdrop-blur-[2px]" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-md transition-all duration-200 ease-in-out" />
       <form
         onSubmit={handleSubmit}
         onClick={e => e.stopPropagation()}
-        className="relative bg-white dark:bg-ink2 border border-line dark:border-white/10 rounded-2xl shadow-popover w-full max-w-lg p-6 animate-scaleIn"
+        className="relative bg-white dark:bg-ink2 border border-line dark:border-white/10 rounded-2xl shadow-popover w-full max-w-lg p-8 animate-scaleIn"
       >
-        <h2 className="text-base font-semibold text-ink dark:text-white mb-5">Submit a Support Ticket</h2>
+        <h2 className="text-lg font-semibold text-ink dark:text-white mb-6">Submit a Support Ticket</h2>
 
         <div className="space-y-4">
           <div>
@@ -150,10 +114,10 @@ function NewTicketModal({ onClose, onSave }: { onClose: () => void; onSave: (dat
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 mt-6">
-          <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
-          <button type="submit" disabled={saving} className="btn-primary">
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+        <div className="flex items-center justify-end gap-4 mt-8">
+          <button type="button" onClick={onClose} className="btn-secondary px-6 py-2">Cancel</button>
+          <button type="submit" disabled={saving} className="btn-primary px-6 py-2">
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
             Submit Ticket
           </button>
         </div>
@@ -166,41 +130,42 @@ export default function HelpdeskPage() {
   const { success } = useToast();
   const { user } = useAuthStore();
   const isAdmin = user?.role?.isSystem;
+  const queryClient = useQueryClient();
 
   const [showNew, setShowNew] = useState(false);
   const [statusFilter, setStatusFilter] = useState<TicketStatus | 'all'>('all');
-  const [tickets, setTickets] = useState<Ticket[]>(() => {
-    const stored = localStorage.getItem('hrms_helpdesk_tickets');
-    return stored ? JSON.parse(stored) : DEMO_TICKETS;
+
+  const { data: tickets = [], isLoading } = useQuery({
+    queryKey: ['helpdesk-tickets'],
+    queryFn: () => helpdeskApi.list(),
   });
 
-  const saveTickets = (t: Ticket[]) => {
-    setTickets(t);
-    localStorage.setItem('hrms_helpdesk_tickets', JSON.stringify(t));
-  };
+  const createTicketMutation = useMutation({
+    mutationFn: helpdeskApi.create,
+    onSuccess: (newTicket) => {
+      queryClient.invalidateQueries({ queryKey: ['helpdesk-tickets'] });
+      success('Ticket Submitted', `${newTicket.id} has been created successfully.`);
+      setShowNew(false);
+    }
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: TicketStatus }) => helpdeskApi.updateStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['helpdesk-tickets'] });
+      success('Status Updated', `Ticket status updated.`);
+    }
+  });
 
   const handleCreate = (data: Partial<Ticket>) => {
-    const newTicket: Ticket = {
-      id: `TKT-${String(tickets.length + 1).padStart(3, '0')}`,
-      subject: data.subject ?? '',
-      description: data.description ?? '',
-      status: 'open',
-      priority: data.priority ?? 'medium',
-      category: data.category ?? 'general',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    saveTickets([newTicket, ...tickets]);
-    success('Ticket Submitted', `${newTicket.id} has been created successfully.`);
+    createTicketMutation.mutate(data as any);
   };
 
   const handleStatusChange = (id: string, status: TicketStatus) => {
-    const updated = tickets.map(t => t.id === id ? { ...t, status, updatedAt: new Date().toISOString() } : t);
-    saveTickets(updated);
-    success('Status Updated', `Ticket status changed to ${STATUS_CONFIG[status].label}.`);
+    updateStatusMutation.mutate({ id, status });
   };
 
-  const filtered = statusFilter === 'all' ? tickets : tickets.filter(t => t.status === statusFilter);
+  const filtered = statusFilter === 'all' ? tickets : tickets.filter((t: Ticket) => t.status === statusFilter);
 
   const stats = {
     total: tickets.length,
@@ -252,31 +217,31 @@ export default function HelpdeskPage() {
       {showNew && <NewTicketModal onClose={() => setShowNew(false)} onSave={handleCreate} />}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-xl font-bold text-ink dark:text-white tracking-tight flex items-center gap-2">
-            <Headphones size={20} />
+          <h1 className="text-2xl font-bold text-ink dark:text-white tracking-tight flex items-center gap-3">
+            <Headphones size={24} />
             Helpdesk
           </h1>
-          <p className="text-sm text-muted dark:text-white/50 mt-0.5">Submit and track support tickets for HR, IT, Payroll, and Asset issues.</p>
+          <p className="text-base text-muted dark:text-white/50 mt-1">Submit and track support tickets for HR, IT, Payroll, and Asset issues.</p>
         </div>
-        <button onClick={() => setShowNew(true)} className="btn-primary">
-          <Plus size={15} />
+        <button onClick={() => setShowNew(true)} className="btn-primary px-6 py-2">
+          <Plus size={16} />
           New Ticket
         </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
         {[
           { label: 'Total', value: stats.total, color: 'text-ink dark:text-white' },
           { label: 'Open', value: stats.open, color: 'text-info' },
           { label: 'In Progress', value: stats.inProgress, color: 'text-warning-dark' },
           { label: 'Resolved', value: stats.resolved, color: 'text-success' },
         ].map(s => (
-          <div key={s.label} className="section-card px-4 py-3">
-            <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-            <div className="text-xs text-muted dark:text-white/50 mt-0.5">{s.label}</div>
+          <div key={s.label} className="section-card px-6 py-4 hover:-translate-y-1 transition-all duration-300">
+            <div className={`text-3xl font-bold ${s.color}`}>{s.value}</div>
+            <div className="text-sm text-muted dark:text-white/50 mt-1 font-medium">{s.label}</div>
           </div>
         ))}
       </div>
@@ -318,3 +283,5 @@ export default function HelpdeskPage() {
     </div>
   );
 }
+
+

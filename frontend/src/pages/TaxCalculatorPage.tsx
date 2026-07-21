@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+﻿import { useState, useMemo } from 'react';
 import { computeTax, fmt, TaxInput } from '../utils/taxCalculator';
 import { Calculator, TrendingDown, IndianRupee, Info } from 'lucide-react';
+import { PageHeader } from '../components/ui/PageHeader';
 
 const DEFAULT: TaxInput = {
   basic: 50000, hra: 20000, da: 5000, conveyance: 1600, medical: 1250,
@@ -45,7 +46,7 @@ export default function TaxCalculatorPage() {
         {/* Input Section */}
         <div className="space-y-6">
           {/* Regime Toggle */}
-          <div className="bg-white border border-line rounded-lg p-5">
+          <div className="section-card p-5">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">Tax Regime</h2>
             <div className="flex gap-2">
               <button onClick={() => set('regime', 'new')} className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${form.regime === 'new' ? regimeColor : otherColor}`}>
@@ -61,7 +62,7 @@ export default function TaxCalculatorPage() {
           </div>
 
           {/* Monthly Salary */}
-          <div className="bg-white border border-line rounded-lg p-5">
+          <div className="section-card p-5">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mb-4">Monthly Salary Components</h2>
             <div className="grid grid-cols-2 gap-3">
               {numField('Basic Salary (₹/mo)', 'basic')}
@@ -75,7 +76,7 @@ export default function TaxCalculatorPage() {
 
           {/* Old Regime Deductions */}
           {form.regime === 'old' && (
-            <div className="bg-white border border-line rounded-lg p-5">
+            <div className="section-card p-5">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mb-4">Deductions (Old Regime)</h2>
               <div className="grid grid-cols-2 gap-3">
                 {numField('Monthly Rent Paid (₹)', 'rentPaid', 'For HRA exemption')}
@@ -108,7 +109,7 @@ export default function TaxCalculatorPage() {
           </div>
 
           {/* Annual Summary */}
-          <div className="bg-white border border-line rounded-lg p-5 space-y-3">
+          <div className="section-card p-5 space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">Annual Summary</h3>
             {[
               ['Gross Annual Income', result.grossAnnual],
@@ -125,7 +126,7 @@ export default function TaxCalculatorPage() {
           </div>
 
           {/* Tax Breakdown */}
-          <div className="bg-white border border-line rounded-lg p-5 space-y-3">
+          <div className="section-card p-5 space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">Tax Breakdown</h3>
             {result.taxSlabs.length === 0 && (
               <p className="text-sm text-ledger font-medium">✅ No tax payable (87A rebate applied)</p>
@@ -159,3 +160,5 @@ export default function TaxCalculatorPage() {
     </div>
   );
 }
+
+

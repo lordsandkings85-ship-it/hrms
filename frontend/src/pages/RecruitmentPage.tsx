@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Briefcase, UserPlus, Users, ClipboardCheck, ArrowRight, MessageSquare, Landmark, FileText, UserCheck } from 'lucide-react';
 import { recruitmentApi } from '../api/client';
+import { PageHeader } from '../components/ui/PageHeader';
+import { useToast } from '../components/ui/ToastProvider';
 
 type TabKey = 'jobs' | 'candidates' | 'interviews' | 'offer-letters' | 'joining';
 
@@ -24,6 +26,7 @@ const TAB_TO_SUB: Record<TabKey, string> = {
 
 export default function RecruitmentPage() {
   const queryClient = useQueryClient();
+  const { success, error: toastError } = useToast();
   const { sub } = useParams<{ sub?: string }>();
   const navigate = useNavigate();
 
@@ -74,7 +77,7 @@ export default function RecruitmentPage() {
   const createJobMutation = useMutation({
     mutationFn: recruitmentApi.createJob,
     onSuccess: () => {
-      alert('Job listing posted!');
+      success('Job listing posted!', 'Your new opening is now live.');
       setJobTitle('');
       setJobDesc('');
       queryClient.invalidateQueries({ queryKey: ['recruitment-jobs'] });
@@ -168,23 +171,23 @@ export default function RecruitmentPage() {
 
   return (
     <div className="page-container max-w-7xl space-y-6">
-      <header className="mb-6 animate-slideUp" style={{ animationDelay: '0.1s' }}>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-ink">Recruitment Board (ATS)</h1>
-        <p className="text-sm font-medium text-muted mt-1">Manage pipeline job openings, schedule interviews, and draft offer packages.</p>
-      </header>
+      <div className="animate-slideUp" style={{ animationDelay: '0.1s' }}>
+        <PageHeader
+          title="Recruitment Board (ATS)"
+          subtitle="Manage pipeline job openings, schedule interviews, and draft offer packages."
+          icon={Briefcase}
+        />
+      </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-line gap-4 animate-slideUp overflow-x-auto" style={{ animationDelay: '0.15s' }}>
+      <div className="tab-container animate-slideUp" style={{ animationDelay: '0.15s' }}>
         {TABS.map(t => (
           <button
             key={t.key}
             onClick={() => handleTabChange(t.key)}
-            className={`flex items-center gap-2 px-4 pb-3 text-sm font-semibold transition-colors relative whitespace-nowrap ${
-              tab === t.key ? 'text-ledger' : 'text-muted hover:text-ink'
-            }`}
+            className={`tab-pill flex items-center gap-2 ${tab === t.key ? 'tab-pill-active' : 'tab-pill-inactive'}`}
           >
             {t.icon} {t.label}
-            {tab === t.key && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-ledger rounded-t-full animate-slideUp" />}
           </button>
         ))}
       </div>

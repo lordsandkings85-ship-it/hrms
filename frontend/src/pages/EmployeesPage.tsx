@@ -10,10 +10,15 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Modal } from '../components/ui/Modal';
 import { DataTable, Column } from '../components/ui/DataTable';
 
-function EmployeeAvatar({ firstName, lastName }: { firstName: string; lastName: string }) {
-  const initials = `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase();
+function EmployeeAvatar({ firstName, lastName }: { firstName?: string; lastName?: string }) {
+  const fName = firstName || '?';
+  const lName = lastName || '';
+  const initials = `${fName[0]}${lName[0] ?? ''}`.toUpperCase();
   const colors = ['bg-ledger/20 text-ledgerDark', 'bg-info-light text-info-dark', 'bg-warning-light text-warning-dark', 'bg-rust/10 text-rust'];
-  const idx = (firstName.charCodeAt(0) + (lastName?.charCodeAt(0) ?? 0)) % colors.length;
+  const fCode = fName.charCodeAt(0) || 0;
+  const lCode = lName ? lName.charCodeAt(0) : 0;
+  const idx = (fCode + lCode) % colors.length;
+  
   return (
     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${colors[idx]}`}>
       {initials}
@@ -92,7 +97,7 @@ export default function EmployeesPage() {
       )}
 
       {/* TABS for Actions */}
-      <div className="flex border-b border-line gap-4 animate-slideUp overflow-x-auto" style={{ animationDelay: '0.1s' }}>
+      <div className="tab-container animate-slideUp" style={{ animationDelay: '0.1s' }}>
         {[
           { key: 'list', label: 'Employee List', icon: <Users size={16} /> },
           { key: 'transfer', label: 'Transfer', icon: <ArrowLeftRight size={16} />, adminOnly: true },
@@ -103,12 +108,11 @@ export default function EmployeesPage() {
           <button
             key={t.key}
             onClick={() => navigate(t.key === 'list' ? '/employees' : `/employees/${t.key}`)}
-            className={`flex items-center gap-2 px-4 pb-3 text-sm font-semibold transition-colors relative whitespace-nowrap ${
-              action === t.key ? 'text-ledger' : 'text-muted hover:text-ink'
+            className={`tab-pill flex items-center gap-2 ${
+              action === t.key ? 'tab-pill-active' : 'tab-pill-inactive'
             }`}
           >
             {t.icon} {t.label}
-            {action === t.key && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-ledger rounded-t-full animate-slideUp" />}
           </button>
         ))}
       </div>

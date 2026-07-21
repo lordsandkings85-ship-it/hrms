@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+﻿import { useQuery } from '@tanstack/react-query';
 import { ShieldCheck, HardDrive, Cpu, Terminal, Building } from 'lucide-react';
 import { superAdminApi } from '../api/client';
+import { PageHeader } from '../components/ui/PageHeader';
 
 export default function SuperAdminPage() {
   // Fetch platform tenants/companies list
@@ -22,15 +23,18 @@ export default function SuperAdminPage() {
   });
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="font-display text-2xl font-semibold">Super Admin Console</h1>
-        <p className="text-sm text-muted mt-1">Global platform telemetry control. Audit database tenants, analyze system runtime health checks, and inspect action logs.</p>
-      </header>
+    <div className="page-container max-w-7xl space-y-6">
+      <div className="animate-slideUp mb-2">
+        <PageHeader
+          title="Super Admin"
+          subtitle="Global company management, tenant overview, and system configuration."
+          icon={ShieldCheck}
+        />
+      </div>
 
       {/* Roster widgets for system health metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white border border-line rounded-lg p-5 flex items-center gap-4">
+        <div className="section-card p-5 flex items-center gap-4">
           <div className="p-3 bg-ledger/10 text-ledger rounded">
             <Cpu size={24} />
           </div>
@@ -40,7 +44,7 @@ export default function SuperAdminPage() {
           </div>
         </div>
 
-        <div className="bg-white border border-line rounded-lg p-5 flex items-center gap-4">
+        <div className="section-card p-5 flex items-center gap-4">
           <div className="p-3 bg-ledger/10 text-ledger rounded">
             <HardDrive size={24} />
           </div>
@@ -50,7 +54,7 @@ export default function SuperAdminPage() {
           </div>
         </div>
 
-        <div className="bg-white border border-line rounded-lg p-5 flex items-center gap-4">
+        <div className="section-card p-5 flex items-center gap-4">
           <div className="p-3 bg-ledger/10 text-ledger rounded">
             <ShieldCheck size={24} />
           </div>
@@ -63,7 +67,7 @@ export default function SuperAdminPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Tenants List Column */}
-        <div className="bg-white border border-line rounded-lg overflow-hidden h-fit">
+        <div className="section-card overflow-hidden h-fit">
           <div className="px-6 py-4 border-b border-line bg-paper/20">
             <h3 className="text-sm font-semibold flex items-center gap-2">
               <Building size={16} /> Platform Workspace Tenants
@@ -112,3 +116,4 @@ export default function SuperAdminPage() {
     </div>
   );
 }
+

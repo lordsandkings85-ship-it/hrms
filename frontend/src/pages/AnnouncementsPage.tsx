@@ -1,7 +1,8 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Megaphone, Send, Bell } from 'lucide-react';
 import { announcementsApi } from '../api/client';
+import { PageHeader } from '../components/ui/PageHeader';
 
 export default function AnnouncementsPage() {
   const [title, setTitle] = useState('');
@@ -31,15 +32,18 @@ export default function AnnouncementsPage() {
   };
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="font-display text-2xl font-semibold">Announcements</h1>
-        <p className="text-sm text-muted mt-1">Publish notices, pin company news, and update workspace bulletins.</p>
-      </header>
+    <div className="page-container max-w-7xl space-y-6">
+      <div className="animate-slideUp mb-2">
+        <PageHeader
+          title="Announcements"
+          subtitle="Publish notices, pin company news, and update workspace bulletins."
+          icon={Megaphone}
+        />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Publish form */}
-        <div className="bg-white border border-line rounded-lg p-6 h-fit">
+        <div className="section-card p-6 h-fit">
           <h2 className="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
             <Megaphone className="text-ledger" size={18} /> Publish Notice
           </h2>
@@ -103,3 +107,4 @@ export default function AnnouncementsPage() {
     </div>
   );
 }
+
