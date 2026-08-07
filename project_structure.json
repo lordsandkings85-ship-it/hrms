@@ -1,0 +1,1954 @@
+{
+  "name": "HRMS",
+  "type": "directory",
+  "children": [
+    {
+      "name": ".gitignore",
+      "type": "file"
+    },
+    {
+      "name": "backend",
+      "type": "directory",
+      "children": [
+        {
+          "name": ".env",
+          "type": "file"
+        },
+        {
+          "name": ".env.example",
+          "type": "file"
+        },
+        {
+          "name": "backend.zip",
+          "type": "file"
+        },
+        {
+          "name": "check-db.ts",
+          "type": "file"
+        },
+        {
+          "name": "check.js",
+          "type": "file"
+        },
+        {
+          "name": "check_emails.js",
+          "type": "file"
+        },
+        {
+          "name": "check_perms.js",
+          "type": "file"
+        },
+        {
+          "name": "check_user.js",
+          "type": "file"
+        },
+        {
+          "name": "clean.js",
+          "type": "file"
+        },
+        {
+          "name": "clear_all.js",
+          "type": "file"
+        },
+        {
+          "name": "clear_employees.js",
+          "type": "file"
+        },
+        {
+          "name": "create-hr.js",
+          "type": "file"
+        },
+        {
+          "name": "debug-salaries.ts",
+          "type": "file"
+        },
+        {
+          "name": "fetch-dashboard.ts",
+          "type": "file"
+        },
+        {
+          "name": "fix-salaries.ts",
+          "type": "file"
+        },
+        {
+          "name": "fix-statuses.ts",
+          "type": "file"
+        },
+        {
+          "name": "fix.js",
+          "type": "file"
+        },
+        {
+          "name": "fix2.js",
+          "type": "file"
+        },
+        {
+          "name": "fix3.js",
+          "type": "file"
+        },
+        {
+          "name": "nest-cli.json",
+          "type": "file"
+        },
+        {
+          "name": "package-lock.json",
+          "type": "file"
+        },
+        {
+          "name": "package.json",
+          "type": "file"
+        },
+        {
+          "name": "prisma",
+          "type": "directory",
+          "children": [
+            {
+              "name": "migrations",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "20260713063918_init",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "migration.sql",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "20260713103118_init",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "migration.sql",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "advanced_features.sql",
+                  "type": "file"
+                },
+                {
+                  "name": "migration_lock.toml",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "schema.prisma",
+              "type": "file"
+            }
+          ]
+        },
+        {
+          "name": "README.md",
+          "type": "file"
+        },
+        {
+          "name": "seed_org.js",
+          "type": "file"
+        },
+        {
+          "name": "seed_remote.js",
+          "type": "file"
+        },
+        {
+          "name": "src",
+          "type": "directory",
+          "children": [
+            {
+              "name": "app.module.ts",
+              "type": "file"
+            },
+            {
+              "name": "common",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "decorators",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "current-user.decorator.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "permissions.decorator.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "guards",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "jwt-auth.guard.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "permissions.guard.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "super-admin.guard.ts",
+                      "type": "file"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "main.ts",
+              "type": "file"
+            },
+            {
+              "name": "modules",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "announcements",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "announcements.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "announcements.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "announcements.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "assets",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "assets.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "assets.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "assets.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "attendance",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "attendance.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "attendance.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "attendance.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "auth",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "auth.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "auth.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "auth.service.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "dto",
+                      "type": "directory",
+                      "children": [
+                        {
+                          "name": "login.dto.ts",
+                          "type": "file"
+                        },
+                        {
+                          "name": "register.dto.ts",
+                          "type": "file"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "jwt.strategy.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "billing",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "billing.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "billing.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "billing.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "companies",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "companies.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "companies.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "companies.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "dashboard",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "dashboard.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "dashboard.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "dashboard.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "documents",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "documents.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "documents.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "documents.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "employees",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "dto",
+                      "type": "directory",
+                      "children": [
+                        {
+                          "name": "create-employee.dto.ts",
+                          "type": "file"
+                        },
+                        {
+                          "name": "update-employee.dto.ts",
+                          "type": "file"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "employees.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "employees.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "employees.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "exit",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "exit.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "exit.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "exit.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "expenses",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "expenses.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "expenses.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "expenses.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "fnf",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "fnf.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "fnf.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "fnf.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "helpdesk",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "helpdesk.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "helpdesk.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "helpdesk.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "integrations",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "integrations.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "integrations.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "integrations.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "leave",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "leave-accrual.service.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "leave.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "leave.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "leave.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "payroll",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "payroll.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "payroll.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "payroll.service.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "tax.calculator.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "performance",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "performance.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "performance.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "performance.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "projects",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "projects.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "projects.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "projects.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "recruitment",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "recruitment.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "recruitment.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "recruitment.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "reports",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "reports.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "reports.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "reports.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "shifts",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "shifts.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "shifts.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "shifts.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "super-admin",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "super-admin.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "super-admin.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "super-admin.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "timesheets",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "timesheets.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "timesheets.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "timesheets.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "training",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "training.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "training.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "training.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "travel",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "travel.controller.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "travel.module.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "travel.service.ts",
+                      "type": "file"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "prisma",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "prisma.module.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "prisma.service.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "seeder.service.ts",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "utils",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "crypto.util.ts",
+                  "type": "file"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "src.zip",
+          "type": "file"
+        },
+        {
+          "name": "test-del-ashok.js",
+          "type": "file"
+        },
+        {
+          "name": "test-del.js",
+          "type": "file"
+        },
+        {
+          "name": "test-del2.js",
+          "type": "file"
+        },
+        {
+          "name": "test-del3.js",
+          "type": "file"
+        },
+        {
+          "name": "test-del4.js",
+          "type": "file"
+        },
+        {
+          "name": "test-del5.js",
+          "type": "file"
+        },
+        {
+          "name": "test-del6.js",
+          "type": "file"
+        },
+        {
+          "name": "test-del7.js",
+          "type": "file"
+        },
+        {
+          "name": "test-emp.js",
+          "type": "file"
+        },
+        {
+          "name": "test-emps.js",
+          "type": "file"
+        },
+        {
+          "name": "test-roles.js",
+          "type": "file"
+        },
+        {
+          "name": "test.js",
+          "type": "file"
+        },
+        {
+          "name": "tsconfig.json",
+          "type": "file"
+        },
+        {
+          "name": "update_admin.js",
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "name": "docker-compose.yml",
+      "type": "file"
+    },
+    {
+      "name": "electron",
+      "type": "directory",
+      "children": [
+        {
+          "name": "build",
+          "type": "directory",
+          "children": [
+            {
+              "name": "icon.png",
+              "type": "file"
+            }
+          ]
+        },
+        {
+          "name": "build-installer.js",
+          "type": "file"
+        },
+        {
+          "name": "electron-builder.json",
+          "type": "file"
+        },
+        {
+          "name": "main.js",
+          "type": "file"
+        },
+        {
+          "name": "main.ts",
+          "type": "file"
+        },
+        {
+          "name": "package-lock.json",
+          "type": "file"
+        },
+        {
+          "name": "package.json",
+          "type": "file"
+        },
+        {
+          "name": "preload.mjs",
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "name": "frontend",
+      "type": "directory",
+      "children": [
+        {
+          "name": ".env",
+          "type": "file"
+        },
+        {
+          "name": ".zip",
+          "type": "file"
+        },
+        {
+          "name": "frontend.zip",
+          "type": "file"
+        },
+        {
+          "name": "index.html",
+          "type": "file"
+        },
+        {
+          "name": "package-lock.json",
+          "type": "file"
+        },
+        {
+          "name": "package.json",
+          "type": "file"
+        },
+        {
+          "name": "postcss.config.js",
+          "type": "file"
+        },
+        {
+          "name": "public",
+          "type": "directory",
+          "children": [
+            {
+              "name": "assets",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "brand",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "workora-full-logo.jpg",
+                      "type": "file"
+                    },
+                    {
+                      "name": "workora-icon.png",
+                      "type": "file"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "src",
+          "type": "directory",
+          "children": [
+            {
+              "name": "api",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "client.ts",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "App.tsx",
+              "type": "file"
+            },
+            {
+              "name": "assets",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "brand",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "workora-full-logo.jpg",
+                      "type": "file"
+                    },
+                    {
+                      "name": "workora-icon.png",
+                      "type": "file"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "components",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "dashboard",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "AdminDashboard.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "EmployeeDashboard.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "HrDashboard.tsx",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "employees",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "AddEmployeeModal.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "AdvancedEmployeeForm.tsx",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "Layout.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "ui",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "Badge.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "CommandPalette.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "DataTable.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "EmptyState.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "ErrorBoundary.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "Modal.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "PageHeader.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "Spinner.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "StatCard.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "ThemeProvider.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "ToastProvider.tsx",
+                      "type": "file"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "index.css",
+              "type": "file"
+            },
+            {
+              "name": "main.tsx",
+              "type": "file"
+            },
+            {
+              "name": "pages",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "AnnouncementsPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "ApprovalsPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "AssetsPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "AttendancePage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "BillingPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "CompliancePage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "DashboardPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "DocumentsPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "EmployeeDetailPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "EmployeesPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "ExitPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "ExpensesPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "FnfPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "HelpdeskPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "IntegrationsPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "LeavePage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "LoginPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "OrganizationPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "PayrollPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "PerformancePage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "ProjectsPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "RecruitmentPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "ReportsPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "SettingsPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "ShiftsPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "SuperAdminPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "TaxCalculatorPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "TimesheetsPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "TrainingPage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "TravelPage.tsx",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "store",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "useAuthStore.ts",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "utils",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "taxCalculator.ts",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "vite-env.d.ts",
+              "type": "file"
+            }
+          ]
+        },
+        {
+          "name": "tailwind.config.js",
+          "type": "file"
+        },
+        {
+          "name": "tsconfig.json",
+          "type": "file"
+        },
+        {
+          "name": "tsconfig.tsbuildinfo",
+          "type": "file"
+        },
+        {
+          "name": "vite.config.ts",
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "name": "gen-struct.js",
+      "type": "file"
+    },
+    {
+      "name": "generate-tree.js",
+      "type": "file"
+    },
+    {
+      "name": "HRMS-Setup-Output",
+      "type": "directory",
+      "children": [
+        {
+          "name": "builder-debug.yml",
+          "type": "file"
+        },
+        {
+          "name": "HRMS-Setup.exe",
+          "type": "file"
+        },
+        {
+          "name": "HRMS-Setup.exe.blockmap",
+          "type": "file"
+        },
+        {
+          "name": "win-unpacked",
+          "type": "directory",
+          "children": [
+            {
+              "name": "chrome_100_percent.pak",
+              "type": "file"
+            },
+            {
+              "name": "chrome_200_percent.pak",
+              "type": "file"
+            },
+            {
+              "name": "d3dcompiler_47.dll",
+              "type": "file"
+            },
+            {
+              "name": "Enterprise HRMS.exe",
+              "type": "file"
+            },
+            {
+              "name": "ffmpeg.dll",
+              "type": "file"
+            },
+            {
+              "name": "icudtl.dat",
+              "type": "file"
+            },
+            {
+              "name": "libEGL.dll",
+              "type": "file"
+            },
+            {
+              "name": "libGLESv2.dll",
+              "type": "file"
+            },
+            {
+              "name": "LICENSE.electron.txt",
+              "type": "file"
+            },
+            {
+              "name": "LICENSES.chromium.html",
+              "type": "file"
+            },
+            {
+              "name": "locales",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "af.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "am.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ar.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "bg.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "bn.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ca.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "cs.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "da.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "de.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "el.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "en-GB.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "en-US.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "es-419.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "es.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "et.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "fa.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "fi.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "fil.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "fr.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "gu.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "he.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "hi.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "hr.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "hu.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "id.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "it.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ja.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "kn.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ko.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "lt.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "lv.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ml.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "mr.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ms.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "nb.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "nl.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "pl.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "pt-BR.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "pt-PT.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ro.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ru.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "sk.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "sl.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "sr.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "sv.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "sw.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ta.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "te.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "th.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "tr.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "uk.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ur.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "vi.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "zh-CN.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "zh-TW.pak",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "resources",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "app",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "build-installer.js",
+                      "type": "file"
+                    },
+                    {
+                      "name": "main.js",
+                      "type": "file"
+                    },
+                    {
+                      "name": "main.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "package.json",
+                      "type": "file"
+                    },
+                    {
+                      "name": "preload.mjs",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "elevate.exe",
+                  "type": "file"
+                },
+                {
+                  "name": "frontend",
+                  "type": "directory",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "resources.pak",
+              "type": "file"
+            },
+            {
+              "name": "snapshot_blob.bin",
+              "type": "file"
+            },
+            {
+              "name": "v8_context_snapshot.bin",
+              "type": "file"
+            },
+            {
+              "name": "vk_swiftshader.dll",
+              "type": "file"
+            },
+            {
+              "name": "vk_swiftshader_icd.json",
+              "type": "file"
+            },
+            {
+              "name": "vulkan-1.dll",
+              "type": "file"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "project_structure.json",
+      "type": "file"
+    },
+    {
+      "name": "README.md",
+      "type": "file"
+    },
+    {
+      "name": "render.yaml",
+      "type": "file"
+    },
+    {
+      "name": "Workora-Setup-Output",
+      "type": "directory",
+      "children": [
+        {
+          "name": ".icon-ico",
+          "type": "directory",
+          "children": [
+            {
+              "name": "icon.ico",
+              "type": "file"
+            }
+          ]
+        },
+        {
+          "name": "builder-debug.yml",
+          "type": "file"
+        },
+        {
+          "name": "hrms software.zip",
+          "type": "file"
+        },
+        {
+          "name": "win-unpacked",
+          "type": "directory",
+          "children": [
+            {
+              "name": "chrome_100_percent.pak",
+              "type": "file"
+            },
+            {
+              "name": "chrome_200_percent.pak",
+              "type": "file"
+            },
+            {
+              "name": "d3dcompiler_47.dll",
+              "type": "file"
+            },
+            {
+              "name": "ffmpeg.dll",
+              "type": "file"
+            },
+            {
+              "name": "icudtl.dat",
+              "type": "file"
+            },
+            {
+              "name": "libEGL.dll",
+              "type": "file"
+            },
+            {
+              "name": "libGLESv2.dll",
+              "type": "file"
+            },
+            {
+              "name": "LICENSE.electron.txt",
+              "type": "file"
+            },
+            {
+              "name": "LICENSES.chromium.html",
+              "type": "file"
+            },
+            {
+              "name": "locales",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "af.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "am.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ar.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "bg.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "bn.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ca.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "cs.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "da.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "de.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "el.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "en-GB.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "en-US.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "es-419.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "es.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "et.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "fa.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "fi.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "fil.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "fr.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "gu.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "he.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "hi.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "hr.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "hu.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "id.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "it.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ja.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "kn.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ko.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "lt.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "lv.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ml.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "mr.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ms.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "nb.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "nl.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "pl.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "pt-BR.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "pt-PT.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ro.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ru.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "sk.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "sl.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "sr.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "sv.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "sw.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ta.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "te.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "th.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "tr.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "uk.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "ur.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "vi.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "zh-CN.pak",
+                  "type": "file"
+                },
+                {
+                  "name": "zh-TW.pak",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "resources",
+              "type": "directory",
+              "children": [
+                {
+                  "name": "app",
+                  "type": "directory",
+                  "children": [
+                    {
+                      "name": "build-installer.js",
+                      "type": "file"
+                    },
+                    {
+                      "name": "main.js",
+                      "type": "file"
+                    },
+                    {
+                      "name": "main.ts",
+                      "type": "file"
+                    },
+                    {
+                      "name": "package.json",
+                      "type": "file"
+                    },
+                    {
+                      "name": "preload.mjs",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "elevate.exe",
+                  "type": "file"
+                },
+                {
+                  "name": "frontend",
+                  "type": "directory",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "resources.pak",
+              "type": "file"
+            },
+            {
+              "name": "snapshot_blob.bin",
+              "type": "file"
+            },
+            {
+              "name": "v8_context_snapshot.bin",
+              "type": "file"
+            },
+            {
+              "name": "vk_swiftshader.dll",
+              "type": "file"
+            },
+            {
+              "name": "vk_swiftshader_icd.json",
+              "type": "file"
+            },
+            {
+              "name": "vulkan-1.dll",
+              "type": "file"
+            },
+            {
+              "name": "Workora.exe",
+              "type": "file"
+            }
+          ]
+        },
+        {
+          "name": "Workora-Setup.exe",
+          "type": "file"
+        },
+        {
+          "name": "Workora-Setup.exe.blockmap",
+          "type": "file"
+        }
+      ]
+    }
+  ]
+}
