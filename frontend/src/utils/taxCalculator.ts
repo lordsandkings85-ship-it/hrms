@@ -147,15 +147,21 @@ export function computeESI(grossMonthly: number): number {
 }
 
 /**
- * Professional Tax: slab-based deduction (generic pan-India approximation).
- * Actual PT slabs vary by state. Using Maharashtra slabs as industry default.
- * Monthly Gross → Monthly PT:
- *   ≤ ₹7,500    → ₹0
- *   ₹7,501–10,000 → ₹175
- *   > ₹10,000   → ₹200 (₹2,500/year capped by law, so Feb = ₹300, rest = ₹200)
+ * Professional Tax (PT) — Half-Yearly Slab Rules
+ * Slabs based on 6-Month Total Gross Salary (grossMonthly * 6):
+ *   ₹0 to ₹21,000          → ₹0 (Exempt)
+ *   ₹21,001 to ₹30,000     → ₹135 / half-year  (₹22.50 / mo)
+ *   ₹30,001 to ₹45,000     → ₹315 / half-year  (₹52.50 / mo)
+ *   ₹45,001 to ₹60,000     → ₹690 / half-year  (₹115.00 / mo)
+ *   ₹60,001 to ₹75,000     → ₹1,025 / half-year (₹170.83 / mo)
+ *   ₹75,001+               → ₹1,250 / half-year (₹208.33 / mo)
  */
 export function computePT(grossMonthly: number): number {
-  if (grossMonthly <= 7500) return 0;
-  if (grossMonthly <= 10000) return 175;
-  return 200;
+  const halfYearlyGross = grossMonthly * 6;
+  if (halfYearlyGross <= 21000) return 0;
+  if (halfYearlyGross <= 30000) return Math.round(135 / 6);
+  if (halfYearlyGross <= 45000) return Math.round(315 / 6);
+  if (halfYearlyGross <= 60000) return Math.round(690 / 6);
+  if (halfYearlyGross <= 75000) return Math.round(1025 / 6);
+  return Math.round(1250 / 6); // 208.33 / month
 }

@@ -17,8 +17,36 @@ export class PermissionsGuard implements CanActivate {
     );
     if (!required || required.length === 0) return true;
 
-    const { user } = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest();
+    const { user, params } = request;
+
+    if (user?.isSuperAdmin) return true;
+
+    // Check if user is accessing their own employee record or payroll resources
+    if (user?.userId) {
+      const dbUser = await this.prisma.user.findUnique({
+        where: { id: user.userId },
+        select: { employeeId: true }
+      });
+      const userEmployeeId = dbUser?.employeeId;
+      const bodyEmployeeId = request.body?.employeeId;
+      if (userEmployeeId && (params?.employeeId === userEmployeeId || params?.id === userEmployeeId || bodyEmployeeId === userEmployeeId)) {
+        return true;
+      }
+      // Employees may view their own payslip detail (params.id is the payslip id, not the employee id)
+      if (userEmployeeId && params?.id && request.route?.path?.endsWith('payslip/:id')) {
+        const payslip = await this.prisma.payslip.findUnique({
+          where: { id: params.id },
+          select: { employeeId: true },
+        });
+        if (payslip?.employeeId === userEmployeeId) return true;
+      }
+    }
+
     if (!user?.roleId) throw new ForbiddenException('No role assigned');
+
+    const role = await this.prisma.role.findUnique({ where: { id: user.roleId } });
+    if (role?.isSystem) return true;
 
     const grants = await this.prisma.permission.findMany({
       where: { roleId: user.roleId },

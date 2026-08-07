@@ -1,0 +1,1 @@
+const { PrismaClient } = require("@prisma/client"); const prisma = new PrismaClient(); async function main() { try { const res = await prisma.$executeRaw`DELETE FROM RefreshToken WHERE userId NOT IN (SELECT id FROM User)`; console.log("Cleaned:", res); } catch(e) { console.error("ERROR:", e.message); } } main().finally(() => prisma.$disconnect());

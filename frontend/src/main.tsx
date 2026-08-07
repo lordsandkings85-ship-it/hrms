@@ -11,7 +11,10 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      staleTime: 30_000,
+      staleTime: 15_000,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+      refetchOnMount: 'always',
     },
   },
 });
@@ -21,7 +24,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <ToastProvider>
-          <HashRouter>
+          <HashRouter future={{ v7_startTransition: true }}>
             <App />
           </HashRouter>
         </ToastProvider>

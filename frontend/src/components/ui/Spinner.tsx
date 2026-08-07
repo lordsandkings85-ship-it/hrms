@@ -10,7 +10,7 @@ export function Spinner({ size = 'md', className = '' }: { size?: 'sm' | 'md' | 
 export function FullPageSpinner() {
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-paper gap-4">
-      <div className="font-display text-2xl font-bold text-ink tracking-tight">Ledger HRMS</div>
+      <div className="font-display text-2xl font-bold text-ink tracking-tight">Workora</div>
       <Spinner size="lg" />
       <p className="text-sm text-muted animate-pulse">Authenticating your session...</p>
     </div>

@@ -20,6 +20,7 @@
   --surface-elevated: #FFFFFF;
   --surface-hover:    #F4F6F4;
   --surface-active:   #EBEEEB;
+  --surface-alt:      #F7F8F7;
 
   /* Text */
   --text-primary:    #0B170B;
@@ -101,6 +102,7 @@
   --surface-elevated: #0F1C0F;
   --surface-hover:    #132A13;
   --surface-active:   #1A361A;
+  --surface-alt:      #0D170D;
 
   /* Text */
   --text-primary:     #F4F6F4;
@@ -606,6 +608,31 @@ textarea.input { resize: vertical; }
   from { opacity: 0; transform: translateX(-16px); }
   to   { opacity: 1; transform: translateX(0); }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   SHADCN-STYLE ANIMATION UTILITIES (tailwindcss-animate fallback)
+   ═══════════════════════════════════════════════════════════════ */
+@keyframes fadeInAnim { from { opacity: 0; } to { opacity: 1; } }
+@keyframes zoomInAnim { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+@keyframes slideInBottom { from { opacity: 0; transform: translateY(1rem); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideInLeftAnim { from { opacity: 0; transform: translateX(-1rem); } to { opacity: 1; transform: translateX(0); } }
+@keyframes slideInRightAnim { from { opacity: 0; transform: translateX(1rem); } to { opacity: 1; transform: translateX(0); } }
+@keyframes slideInTop { from { opacity: 0; transform: translateY(-1rem); } to { opacity: 1; transform: translateY(0); } }
+
+.animate-in { animation: fadeInAnim 0.18s ease-out; }
+.fade-in { animation: fadeInAnim 0.18s ease-out; }
+.zoom-in { animation: zoomInAnim 0.16s cubic-bezier(0.16,1,0.3,1); }
+.zoom-in-50 { animation: zoomInAnim 0.16s cubic-bezier(0.16,1,0.3,1); }
+.slide-in-from-bottom { animation: slideInBottom 0.22s cubic-bezier(0.16,1,0.3,1); }
+.slide-in-from-bottom-1 { animation: slideInBottom 0.22s cubic-bezier(0.16,1,0.3,1); }
+.slide-in-from-bottom-2 { animation: slideInBottom 0.22s cubic-bezier(0.16,1,0.3,1); }
+.slide-in-from-bottom-3 { animation: slideInBottom 0.22s cubic-bezier(0.16,1,0.3,1); }
+.slide-in-from-bottom-4 { animation: slideInBottom 0.22s cubic-bezier(0.16,1,0.3,1); }
+.slide-in-from-top { animation: slideInTop 0.18s ease-out; }
+.slide-in-from-left { animation: slideInLeftAnim 0.2s ease-out; }
+.slide-in-from-right { animation: slideInRightAnim 0.2s ease-out; }
+.duration-200 { transition-duration: 200ms; }
+.duration-300 { transition-duration: 300ms; }
 
 /* ═══════════════════════════════════════════════════════════════
    PREMIUM UI COMPONENTS (Deep Forest Theme)

@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect } from 'react';
+import { type ReactNode, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 
 export function Modal({
@@ -14,17 +14,41 @@ export function Modal({
   children: ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
 }) {
-  // Close on Escape
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Close on Escape + focus trap
   useEffect(() => {
     if (!open) return;
-    const handler = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'Tab' && panelRef.current) {
+        const focusables = panelRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [open, onClose]);
 
-  // Lock body scroll
+  // Lock body scroll + focus the dialog on open
   useEffect(() => {
-    document.body.style.overflow = open ? 'hidden' : '';
+    if (open) {
+      document.body.style.overflow = 'hidden';
+      panelRef.current?.focus();
+    } else {
+      document.body.style.overflow = '';
+    }
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
@@ -33,7 +57,12 @@ export function Modal({
   const widths = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-2xl', xl: 'max-w-4xl' };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-ink/40 backdrop-blur-sm"
@@ -41,14 +70,17 @@ export function Modal({
       />
       {/* Panel */}
       <div
-        className={`relative w-full ${widths[size]} bg-white rounded-2xl shadow-popover animate-scaleIn overflow-hidden`}
+        ref={panelRef}
+        tabIndex={-1}
+        className={`relative w-full ${widths[size]} bg-white dark:bg-surface-elevated text-ink dark:text-white rounded-2xl shadow-popover animate-scaleIn overflow-hidden outline-none`}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-line">
-          <h2 className="font-display font-semibold text-base text-ink">{title}</h2>
+          <h2 className="font-display font-semibold text-base text-ink dark:text-white">{title}</h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-muted hover:text-ink hover:bg-paperDim transition-colors"
+            aria-label="Close dialog"
+            className="p-1.5 rounded-lg text-muted hover:text-ink dark:hover:text-white hover:bg-paperDim dark:hover:bg-surface-hover transition-colors"
           >
             <X size={16} />
           </button>

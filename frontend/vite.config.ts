@@ -4,6 +4,22 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: { port: 5173 },
-  // Required for Electron file:// protocol — use './' in production, '/' in dev
-  base: process.env.ELECTRON === 'true' ? './' : '/',
+  build: {
+    target: 'es2022',
+    outDir: 'dist',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          reactquery: ['@tanstack/react-query'],
+          forms: ['react-hook-form', '@hookform/resolvers', 'zod'],
+          charts: ['recharts'],
+          icons: ['lucide-react'],
+        },
+      },
+    },
+  },
+  esbuild: {
+    target: 'es2022',
+  },
 });

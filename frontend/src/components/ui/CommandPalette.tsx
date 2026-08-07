@@ -120,6 +120,7 @@ export default function CommandPalette({ open, onClose }: Props) {
             ref={inputRef}
             type="text"
             placeholder="Search pages, actions, employees…"
+            aria-label="Search pages and actions"
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}

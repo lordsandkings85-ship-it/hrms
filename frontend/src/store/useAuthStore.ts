@@ -24,6 +24,10 @@ export interface UserProfile {
     status: string;
     workingDaysPerWeek?: number;
   };
+  company?: {
+    name: string;
+    address?: string;
+  };
 }
 
 interface AuthState {

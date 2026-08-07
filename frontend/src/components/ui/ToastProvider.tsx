@@ -82,6 +82,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               </div>
               <button
                 onClick={() => dismiss(t.id)}
+                aria-label="Dismiss notification"
                 className="flex-shrink-0"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'; }}

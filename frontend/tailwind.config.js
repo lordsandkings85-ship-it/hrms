@@ -18,6 +18,7 @@ export default {
           elevated: 'var(--surface-elevated)',
           hover:    'var(--surface-hover)',
           active:   'var(--surface-active)',
+          alt:      'var(--surface-alt)',
         },
         text: {
           primary:   'var(--text-primary)',
@@ -75,6 +76,19 @@ export default {
         warning: { DEFAULT: '#F59E0B', dark: '#B45309', light: '#FEF3E2' },
         danger: { DEFAULT: '#EF4444', dark: '#B91C1C', light: '#FDEAEA' },
         info: { DEFAULT: '#3B82F6', dark: '#1D4ED8', light: '#EAF1FE' },
+
+        // ── Extended slate/red shades used across pages ─────────
+        slate: {
+          50: '#F8FAFC', 100: '#F1F5F9', 150: '#ECF1F6', 200: '#E2E8F0',
+          300: '#CBD5E1', 350: '#B6C2D1', 400: '#94A3B8', 450: '#8291A7',
+          500: '#64748B', 600: '#475569', 700: '#334155', 800: '#1E293B',
+          850: '#16233A', 900: '#0F172A', 950: '#020617',
+        },
+        red: {
+          50: '#FEF2F2', 100: '#FEE2E2', 200: '#FECACA', 300: '#FCA5A5',
+          400: '#F87171', 500: '#EF4444', 600: '#DC2626', 650: '#D03F3F',
+          700: '#B91C1C', 800: '#991B1B', 900: '#7F1D1D', 950: '#450A0A',
+        },
       },
       fontFamily: {
         display: ['"Inter"', 'sans-serif'],

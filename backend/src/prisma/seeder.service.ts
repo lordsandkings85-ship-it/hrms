@@ -7,8 +7,9 @@ export class SeederService {
   constructor(private prisma: PrismaService) {}
 
   async autoPopulate(companyId: string, adminEmployeeId: string) {
-    // Disabled auto-population of mock data in production
-    return;
+    // Auto-population of demo data is opt-in via the AUTO_SEED env flag
+    // so production tenants never receive mock records.
+    if (process.env.AUTO_SEED !== 'true') return;
     try {
       // 1. Create Branches
       const branch1 = await this.prisma.branch.create({

@@ -21,6 +21,8 @@ export interface DataTableProps<T> {
   emptyMessage?: string;
   searchable?: boolean;
   searchPlaceholder?: string;
+  showToolbar?: boolean;
+  selectable?: boolean;
   bulkActions?: { label: string; icon?: React.ElementType; danger?: boolean; onClick: (selected: T[]) => void }[];
   pageSize?: number;
   toolbar?: React.ReactNode;
@@ -56,6 +58,7 @@ export function DataTable<T extends object>({
   columns, data, keyField, loading = false,
   emptyTitle = 'No records found', emptyMessage = 'No data matches your current filters.',
   searchable = true, searchPlaceholder = 'Search…', bulkActions = [],
+  showToolbar = true, selectable = true,
   pageSize = 15, toolbar, onRowClick,
   serverPagination = false, totalRecords = 0, currentPage = 1, onPageChange, onSearchChange
 }: DataTableProps<T>) {
@@ -148,6 +151,7 @@ export function DataTable<T extends object>({
   return (
     <div className="section-card">
       {/* Toolbar */}
+      {showToolbar && (
       <div className="flex items-center gap-3 px-4 py-3 border-b border-line dark:border-white/5 flex-wrap">
         {searchable && (
           <div className="relative flex-1 min-w-[200px] max-w-xs">
@@ -157,10 +161,11 @@ export function DataTable<T extends object>({
               value={search}
               onChange={handleSearchChange}
               placeholder={searchPlaceholder}
-              className="input pl-8 h-8 text-xs"
+              aria-label={searchPlaceholder || 'Search'}
+              className="input pl-10 h-8 text-xs"
             />
             {search && (
-              <button onClick={() => handleSearchChange({ target: { value: '' } } as any)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink dark:hover:text-white">
+              <button onClick={() => handleSearchChange({ target: { value: '' } } as any)} aria-label="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink dark:hover:text-white">
                 <X size={13} />
               </button>
             )}
@@ -170,6 +175,8 @@ export function DataTable<T extends object>({
           {toolbar}
           <button
             onClick={() => setShowFilters(f => !f)}
+            aria-pressed={showFilters}
+            aria-label={showFilters ? 'Hide filters' : 'Show filters'}
             className={`btn-ghost py-1.5 px-3 text-xs ${showFilters ? 'bg-line/50 dark:bg-white/10 text-ink dark:text-white' : ''}`}
           >
             <SlidersHorizontal size={13} />
@@ -181,6 +188,7 @@ export function DataTable<T extends object>({
           </button>
         </div>
       </div>
+      )}
 
       {/* Bulk action bar */}
       {hasSelection && bulkActions.length > 0 && (
@@ -210,14 +218,17 @@ export function DataTable<T extends object>({
         <table className="data-table">
           <thead>
             <tr>
+              {selectable && (
               <th className="w-10">
                 <input
                   type="checkbox"
                   checked={paginated.length > 0 && selected.size === paginated.length}
                   onChange={toggleAll}
+                  aria-label="Select all rows"
                   className="rounded border-line dark:border-white/20 accent-action-primary cursor-pointer"
                 />
               </th>
+              )}
               {columns.map(col => (
                 <th
                   key={String(col.key)}
@@ -241,7 +252,7 @@ export function DataTable<T extends object>({
               : paginated.length === 0
               ? (
                 <tr>
-                  <td colSpan={columns.length + 1} className="py-16 text-center">
+                  <td colSpan={columns.length + (selectable ? 1 : 0)} className="py-16 text-center">
                     <div className="text-muted dark:text-white/40">
                       <Search size={28} className="mx-auto mb-3 opacity-30" />
                       <div className="text-sm font-semibold text-ink dark:text-white mb-1">{emptyTitle}</div>
@@ -258,14 +269,17 @@ export function DataTable<T extends object>({
                     onClick={() => onRowClick?.(row)}
                     className={`transition-colors ${onRowClick ? 'cursor-pointer hover:bg-surface-hover' : ''} ${selected.has(id) ? 'bg-action-primary/5 dark:bg-white/5' : ''}`}
                   >
+                    {selectable && (
                     <td className="bg-white dark:bg-transparent" onClick={e => { e.stopPropagation(); toggleRow(id); }}>
                       <input
                         type="checkbox"
                         checked={selected.has(id)}
                         onChange={() => toggleRow(id)}
+                        aria-label={`Select row ${id}`}
                         className="rounded border-line dark:border-white/20 accent-action-primary cursor-pointer"
                       />
                     </td>
+                    )}
                     {columns.map(col => (
                       <td key={String(col.key)} className="dark:bg-transparent dark:text-white/80">
                         {col.render ? col.render(row) : String(row[col.key as keyof T] ?? '—')}
@@ -289,6 +303,7 @@ export function DataTable<T extends object>({
             <button
               onClick={() => isServer && onPageChange ? onPageChange(Math.max(1, activePage - 1)) : setPage(p => Math.max(1, p - 1))}
               disabled={activePage === 1}
+              aria-label="Previous page"
               className="btn-ghost py-1 px-2 text-xs disabled:opacity-30"
             >
               <ChevronLeft size={13} />
@@ -300,6 +315,8 @@ export function DataTable<T extends object>({
                 <button
                   key={p}
                   onClick={() => isServer && onPageChange ? onPageChange(p) : setPage(p)}
+                  aria-label={`Go to page ${p}`}
+                  aria-current={p === activePage ? 'page' : undefined}
                   className={`w-7 h-7 rounded-md text-xs font-medium transition-colors ${
                     p === activePage ? 'bg-action-primary text-white' : 'hover:bg-line/60 dark:hover:bg-white/10 text-ink dark:text-white'
                   }`}
@@ -311,6 +328,7 @@ export function DataTable<T extends object>({
             <button
               onClick={() => isServer && onPageChange ? onPageChange(Math.min(activeTotalPages, activePage + 1)) : setPage(p => Math.min(activeTotalPages, p + 1))}
               disabled={activePage === activeTotalPages}
+              aria-label="Next page"
               className="btn-ghost py-1 px-2 text-xs disabled:opacity-30"
             >
               <ChevronRight size={13} />
