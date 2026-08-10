@@ -30,7 +30,20 @@ export class PermissionsGuard implements CanActivate {
       });
       const userEmployeeId = dbUser?.employeeId;
       const bodyEmployeeId = request.body?.employeeId;
-      if (userEmployeeId && (params?.employeeId === userEmployeeId || params?.id === userEmployeeId || bodyEmployeeId === userEmployeeId)) {
+      const path = request.route?.path || '';
+      const method = request.method || '';
+
+      // Salary data may never be approved via the employee-self bypass, otherwise
+      // an employee could inflate their own salary (salary-structure / salary-revision).
+      const isSalaryMutation =
+        (path.includes('salary-structure') || path.includes('salary-revision')) &&
+        !['GET', 'HEAD', 'OPTIONS'].includes(method);
+
+      if (
+        !isSalaryMutation &&
+        userEmployeeId &&
+        (params?.employeeId === userEmployeeId || params?.id === userEmployeeId || bodyEmployeeId === userEmployeeId)
+      ) {
         return true;
       }
       // Employees may view their own payslip detail (params.id is the payslip id, not the employee id)
@@ -40,6 +53,10 @@ export class PermissionsGuard implements CanActivate {
           select: { employeeId: true },
         });
         if (payslip?.employeeId === userEmployeeId) return true;
+      }
+      // Employees may list their own payslips
+      if (userEmployeeId && method === 'GET' && request.route?.path?.endsWith('payslips/:employeeId') && params?.employeeId === userEmployeeId) {
+        return true;
       }
     }
 

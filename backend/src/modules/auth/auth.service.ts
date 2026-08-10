@@ -77,7 +77,12 @@ export class AuthService {
   async login(dto: LoginDto) {
     const email = dto.email.trim();
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user) {
+      // Equalize timing with the bcrypt.compare path below to avoid a
+      // user-enumeration side channel.
+      await bcrypt.compare(dto.password, '$2b$12$C6UzMDM.H6dfI/f/IKcEeO5rWfKXyP6w3KqHmZBjFpQhVbHcY0E8C');
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Invalid credentials');

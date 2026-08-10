@@ -3,7 +3,12 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import * as bcrypt from 'bcrypt';
-import { encryptPiiFields, decryptPiiFields } from '../../../utils/crypto.util';
+import {
+  encryptPiiFields,
+  decryptPiiFields,
+  encryptNestedPii,
+  decryptEmployeeNested,
+} from '../../../utils/crypto.util';
 
 @Injectable()
 export class EmployeesService {
@@ -22,13 +27,13 @@ export class EmployeesService {
         confirmationDate: dto.confirmationDate ? new Date(dto.confirmationDate) : undefined,
         dob: dto.dob ? new Date(dto.dob) : undefined,
         contactInfo: contactInfo ? { create: contactInfo } : undefined,
-        paymentInfo: paymentInfo ? { create: paymentInfo } : undefined,
-        adminInfo: adminInfo ? { create: adminInfo } : undefined,
-        personalInfo: personalInfo ? { create: personalInfo } : undefined,
+        paymentInfo: paymentInfo ? { create: encryptNestedPii(paymentInfo as any, 'paymentInfo') } : undefined,
+        adminInfo: adminInfo ? { create: encryptNestedPii(adminInfo as any, 'adminInfo') } : undefined,
+        personalInfo: personalInfo ? { create: encryptNestedPii(personalInfo as any, 'personalInfo') } : undefined,
         familyMembers: familyMembers ? { create: normalizeNestedDates(familyMembers as any) } : undefined,
         emergencyContacts: emergencyContacts ? { create: emergencyContacts } : undefined,
         experiences: experiences ? { create: normalizeNestedDates(experiences as any) } : undefined,
-        immigrations: immigrations ? { create: normalizeNestedDates(immigrations as any) } : undefined,
+        immigrations: immigrations ? { create: normalizeNestedDates(immigrations as any).map((i) => encryptNestedPii(i, 'immigrationInfo')) } : undefined,
         documentInfos: documentInfos ? { create: normalizeNestedDates(documentInfos as any) } : undefined,
         certifications: certifications ? { create: normalizeNestedDates(certifications as any) } : undefined,
         qualifications: qualifications ? { create: normalizeNestedDates(qualifications as any) } : undefined,
@@ -184,7 +189,7 @@ export class EmployeesService {
       },
     });
     if (!employee) throw new NotFoundException('Employee not found');
-    const dec = decryptPiiFields(employee);
+    const dec = decryptEmployeeNested(decryptPiiFields(employee));
 
     const userObj = await this.prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
     const isSystemAdmin = userObj?.role?.isSystem;
@@ -200,8 +205,12 @@ export class EmployeesService {
       delete dec.bankIfsc;
       delete dec.passport;
       delete dec.drivingLicense;
-      // also remove salary
+      // also remove salary and nested PII (bank, compliance, immigration)
       delete dec.salaryStructures;
+      delete dec.paymentInfo;
+      delete dec.adminInfo;
+      delete dec.personalInfo;
+      delete dec.immigrations;
     }
 
     return dec;
@@ -221,13 +230,13 @@ export class EmployeesService {
         confirmationDate: dto.confirmationDate ? new Date(dto.confirmationDate) : undefined,
         dob: dto.dob ? new Date(dto.dob) : undefined,
         contactInfo: contactInfo ? { upsert: { create: contactInfo, update: contactInfo } } : undefined,
-        paymentInfo: paymentInfo ? { upsert: { create: paymentInfo, update: paymentInfo } } : undefined,
-        adminInfo: adminInfo ? { upsert: { create: adminInfo, update: adminInfo } } : undefined,
-        personalInfo: personalInfo ? { upsert: { create: personalInfo, update: personalInfo } } : undefined,
+        paymentInfo: paymentInfo ? { upsert: { create: encryptNestedPii(paymentInfo as any, 'paymentInfo'), update: encryptNestedPii(paymentInfo as any, 'paymentInfo') } } : undefined,
+        adminInfo: adminInfo ? { upsert: { create: encryptNestedPii(adminInfo as any, 'adminInfo'), update: encryptNestedPii(adminInfo as any, 'adminInfo') } } : undefined,
+        personalInfo: personalInfo ? { upsert: { create: encryptNestedPii(personalInfo as any, 'personalInfo'), update: encryptNestedPii(personalInfo as any, 'personalInfo') } } : undefined,
         familyMembers: familyMembers ? { deleteMany: {}, create: normalizeNestedDates(familyMembers.map(f => { const { id, ...rest } = f as any; return rest; })) } : undefined,
         emergencyContacts: emergencyContacts ? { deleteMany: {}, create: emergencyContacts.map(e => { const { id, ...rest } = e as any; return rest; }) } : undefined,
         experiences: experiences ? { deleteMany: {}, create: normalizeNestedDates(experiences.map(e => { const { id, ...rest } = e as any; return rest; })) } : undefined,
-        immigrations: immigrations ? { deleteMany: {}, create: normalizeNestedDates(immigrations.map(i => { const { id, ...rest } = i as any; return rest; })) } : undefined,
+        immigrations: immigrations ? { deleteMany: {}, create: normalizeNestedDates(immigrations.map(i => { const { id, ...rest } = i as any; return rest; })).map((i) => encryptNestedPii(i, 'immigrationInfo')) } : undefined,
         documentInfos: documentInfos ? { deleteMany: {}, create: normalizeNestedDates(documentInfos.map(d => { const { id, ...rest } = d as any; return rest; })) } : undefined,
         certifications: certifications ? { deleteMany: {}, create: normalizeNestedDates(certifications.map(c => { const { id, ...rest } = c as any; return rest; })) } : undefined,
         qualifications: qualifications ? { deleteMany: {}, create: normalizeNestedDates(qualifications.map(q => { const { id, ...rest } = q as any; return rest; })) } : undefined,
@@ -235,7 +244,7 @@ export class EmployeesService {
     });
 
     await this.audit(companyId, userId, 'update', id);
-    return decryptPiiFields(employee);
+    return decryptEmployeeNested(decryptPiiFields(employee));
   }
 
   async archive(companyId: string, userId: string, id: string) {
@@ -281,9 +290,9 @@ export class EmployeesService {
 
     const employee = await this.prisma.employee.update({
       where: { id: user.employeeId },
-      data: dto,
+      data: encryptPiiFields(dto as any),
     });
-    return employee;
+    return decryptPiiFields(employee);
   }
 
   private async audit(companyId: string, userId: string, action: string, entityId: string) {

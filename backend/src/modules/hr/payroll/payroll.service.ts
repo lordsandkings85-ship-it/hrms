@@ -1,12 +1,15 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { computeIncomeTax, computePF, computeESI, TaxInput } from './tax.calculator';
+import { decryptPiiFields, decryptNestedPii } from '../../../utils/crypto.util';
 
 @Injectable()
 export class PayrollService {
   constructor(private prisma: PrismaService) {}
 
-  setSalaryStructure(employeeId: string, data: any) {
+  async setSalaryStructure(companyId: string, employeeId: string, data: any) {
+    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+    if (!employee) throw new NotFoundException('Employee not found in this company');
     const { effectiveFrom, ...rest } = data || {};
     return this.prisma.salaryStructure.create({
       data: {
@@ -17,7 +20,9 @@ export class PayrollService {
     });
   }
 
-  getSalaryStructure(employeeId: string) {
+  async getSalaryStructure(companyId: string, employeeId: string) {
+    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+    if (!employee) throw new NotFoundException('Employee not found in this company');
     return this.prisma.salaryStructure.findFirst({
       where: { employeeId },
       orderBy: { createdAt: 'desc' },
@@ -32,8 +37,8 @@ export class PayrollService {
     });
   }
 
-  async lockCycle(cycleId: string) {
-    const cycle = await this.prisma.payrollCycle.findUnique({ where: { id: cycleId } });
+  async lockCycle(companyId: string, cycleId: string) {
+    const cycle = await this.prisma.payrollCycle.findFirst({ where: { id: cycleId, companyId } });
     if (!cycle) throw new NotFoundException('Payroll cycle not found');
     if (cycle.status === 'locked') throw new BadRequestException('Cycle already locked');
     return this.prisma.payrollCycle.update({ where: { id: cycleId }, data: { status: 'locked' } });
@@ -198,7 +203,9 @@ export class PayrollService {
     return { cycle: updated, payslipCount };
   }
 
-  getPayslips(employeeId: string) {
+  async getPayslips(companyId: string, employeeId: string) {
+    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+    if (!employee) throw new NotFoundException('Employee not found in this company');
     return this.prisma.payslip.findMany({
       where: { employeeId },
       include: { payrollCycle: true },
@@ -206,22 +213,28 @@ export class PayrollService {
     });
   }
 
-  getPayslipDetail(payslipId: string) {
-    return this.prisma.payslip.findUnique({
-      where: { id: payslipId },
+  async getPayslipDetail(companyId: string, payslipId: string) {
+    const payslip = await this.prisma.payslip.findFirst({
+      where: { id: payslipId, employee: { companyId } },
       include: {
         payrollCycle: true,
         employee: {
           select: {
-            firstName: true, lastName: true, employeeCode: true, email: true, pan: true,
-            pfNumber: true, uan: true, joiningDate: true, paymentInfo: true,
-            bankAccountNumber: true, bankIfsc: true,
+            firstName: true, lastName: true, employeeCode: true, email: true,
+            aadhaar: true, pan: true, uan: true, pfNumber: true, joiningDate: true,
+            paymentInfo: true, bankAccountNumber: true, bankIfsc: true,
             department: { select: { name: true } },
             designation: { select: { title: true } },
           },
         },
       },
     });
+    if (!payslip) throw new NotFoundException('Payslip not found');
+    if (payslip.employee) {
+      payslip.employee = decryptPiiFields(payslip.employee);
+      payslip.employee.paymentInfo = decryptNestedPii(payslip.employee.paymentInfo as any, 'paymentInfo');
+    }
+    return payslip;
   }
 
   /** Compute tax preview without running payroll — used by frontend calculator */

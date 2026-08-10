@@ -1,9 +1,11 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../../common/guards/permissions.guard';
+import { Permissions } from '../../../common/decorators/permissions.decorator';
 import { CurrentUser, AuthUser } from '../../../common/decorators/current-user.decorator';
 import { EmployeeServicesService } from './employee-services.service';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('employee-services')
 export class EmployeeServicesController {
   constructor(private service: EmployeeServicesService) {}
@@ -124,6 +126,7 @@ export class EmployeeServicesController {
 
   // ---------- Salary Revisions ----------
   @Post('salary-revisions')
+  @Permissions({ module: 'payroll', action: 'edit' })
   addSalaryRevision(@CurrentUser() user: AuthUser, @Body() body: { employeeId: string; effectiveFrom: string; revisedCtc: number; previousCtc?: number; reason?: string; remarks?: string }) {
     return this.service.addSalaryRevision(user.companyId, body.employeeId, body);
   }

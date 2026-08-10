@@ -12,20 +12,20 @@ export class PayrollController {
 
   @Post('salary-structure/:employeeId')
   @Permissions({ module: 'payroll', action: 'edit' })
-  setSalaryStructure(@Param('employeeId') employeeId: string, @Body() body: any) {
-    return this.payrollService.setSalaryStructure(employeeId, body);
+  setSalaryStructure(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string, @Body() body: any) {
+    return this.payrollService.setSalaryStructure(user.companyId, employeeId, body);
   }
 
   @Get('salary-structure/:employeeId')
   @Permissions({ module: 'payroll', action: 'view' })
-  getSalaryStructure(@Param('employeeId') employeeId: string) {
-    return this.payrollService.getSalaryStructure(employeeId);
+  getSalaryStructure(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string) {
+    return this.payrollService.getSalaryStructure(user.companyId, employeeId);
   }
 
   @Get('structure/:employeeId')
   @Permissions({ module: 'payroll', action: 'view' })
-  getSalaryStructureAlias(@Param('employeeId') employeeId: string) {
-    return this.payrollService.getSalaryStructure(employeeId);
+  getSalaryStructureAlias(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string) {
+    return this.payrollService.getSalaryStructure(user.companyId, employeeId);
   }
 
   @Post('run')
@@ -42,20 +42,20 @@ export class PayrollController {
 
   @Post('cycles/:id/lock')
   @Permissions({ module: 'payroll', action: 'approve' })
-  lockCycle(@Param('id') id: string) {
-    return this.payrollService.lockCycle(id);
+  lockCycle(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.payrollService.lockCycle(user.companyId, id);
   }
 
   @Get('payslips/:employeeId')
   @Permissions({ module: 'payroll', action: 'view' })
-  getPayslips(@Param('employeeId') employeeId: string) {
-    return this.payrollService.getPayslips(employeeId);
+  getPayslips(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string) {
+    return this.payrollService.getPayslips(user.companyId, employeeId);
   }
 
   @Get('payslip/:id')
   @Permissions({ module: 'payroll', action: 'view' })
-  getPayslipDetail(@Param('id') id: string) {
-    return this.payrollService.getPayslipDetail(id);
+  getPayslipDetail(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.payrollService.getPayslipDetail(user.companyId, id);
   }
 
   @Post('tax-preview')
