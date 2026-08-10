@@ -55,6 +55,8 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3000;
   await app.listen(port);
-  console.log(`HRMS backend running on http://localhost:${port}/api/v1`);
+  // console.log(`HRMS backend running on http://localhost:${port}/api/v1`);
+  console.log(`HRMS backend running on https://hrms-backend-rl2c.onrender.com/api/v1`);
+
 }
 bootstrap();
