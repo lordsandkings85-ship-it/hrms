@@ -368,7 +368,7 @@ export class DashboardService {
       attendanceTrend: Object.values(trendMap),
       departmentMix,
       headcountTrend,
-      leaveStatistics: leaveStatistics.length ? leaveStatistics : [{ name: 'Sick', value: 10 }, { name: 'Casual', value: 5 }],
+      leaveStatistics,
       monthlyPayrollCost: payrollCost,
       attritionRate,
       genderDistribution,

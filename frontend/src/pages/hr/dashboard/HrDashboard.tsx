@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { dashboardApi, leaveApi, shiftsApi } from '../../../api/client';
 import { useAuthStore } from '../../../store/useAuthStore';
 import FullCalendar from '@fullcalendar/react';
@@ -38,6 +38,7 @@ function LiveClock() {
 }
 
 export default function HrDashboard() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const name = user?.employee ? user.employee.firstName : user?.email?.split('@')[0] ?? 'HR';
@@ -51,6 +52,13 @@ export default function HrDashboard() {
 
   const approveMutation = useMutation({
     mutationFn: leaveApi.approve,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+    }
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: leaveApi.reject,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
     }
@@ -189,7 +197,14 @@ export default function HrDashboard() {
               <div className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider mb-2 flex items-center gap-2">
                 <Search size={12} className="text-indigo-500" /> Employee Directory
               </div>
-              <div className="relative">
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (dirSearch.trim()) {
+                  navigate(`/employees?search=${encodeURIComponent(dirSearch.trim())}`);
+                } else {
+                  navigate('/employees');
+                }
+              }} className="relative">
                 <input
                   type="text"
                   placeholder="Search by ID, Name, Email..."
@@ -197,10 +212,10 @@ export default function HrDashboard() {
                   onChange={(e) => setDirSearch(e.target.value)}
                   className="w-full bg-[var(--surface)] text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] pr-9 pl-3 py-2.5 rounded-xl border border-[var(--border)] focus:outline-none focus:border-indigo-500/50 transition-colors shadow-sm"
                 />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
+                <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-indigo-500 transition-colors">
                   <ArrowRight size={16} />
-                </div>
-              </div>
+                </button>
+              </form>
             </div>
 
           </div>
@@ -324,8 +339,21 @@ export default function HrDashboard() {
                           {new Date(req.startDate).toLocaleDateString('en-IN', {day:'numeric', month:'short'})} - {new Date(req.endDate).toLocaleDateString('en-IN', {day:'numeric', month:'short'})}
                         </div>
                         <div className="flex gap-2 mt-4 pt-3 border-t border-[var(--border)]">
-                          <button onClick={() => approveMutation.mutate(req.id)} className="flex-1 text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white py-1.5 rounded-lg uppercase font-bold tracking-wider transition-colors">Approve</button>
-                          <Link to="/leave/requests" className="flex-1 text-center text-[10px] bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border)] hover:bg-[var(--surface-active)] py-1.5 rounded-lg uppercase font-bold tracking-wider transition-colors">View Details</Link>
+                          <button
+                            onClick={() => approveMutation.mutate(req.id)}
+                            disabled={approveMutation.isPending}
+                            className="flex-1 text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white py-1.5 rounded-lg uppercase font-bold tracking-wider transition-colors disabled:opacity-50"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => rejectMutation.mutate(req.id)}
+                            disabled={rejectMutation.isPending}
+                            className="flex-1 text-[10px] bg-rose-500/10 text-rose-500 border border-rose-500/20 hover:bg-rose-500 hover:text-white py-1.5 rounded-lg uppercase font-bold tracking-wider transition-colors disabled:opacity-50"
+                          >
+                            Reject
+                          </button>
+                          <Link to="/leave/requests" className="flex-1 text-center text-[10px] bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border)] hover:bg-[var(--surface-active)] py-1.5 rounded-lg uppercase font-bold tracking-wider transition-colors">Details</Link>
                         </div>
                       </div>
                     ))
