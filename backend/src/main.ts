@@ -37,7 +37,7 @@ async function bootstrap() {
         allowedOrigins.includes(origin) ||
         /\.vercel\.app$/.test(origin)
       ) {
-        return callback(null, true);
+        return callback(null, origin);
       }
       return callback(null, false);
     },
