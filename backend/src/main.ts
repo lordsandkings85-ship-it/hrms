@@ -13,13 +13,36 @@ async function bootstrap() {
   // Security headers: X-Content-Type-Options, X-Frame-Options, HSTS, etc.
   app.use(helmet());
 
-  // Explicit CORS allow-list from CORS_ORIGINS (comma separated). Never reflect
-  // arbitrary origins while credentials are enabled.
-  const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:3000')
+  // Explicit CORS allow-list from CORS_ORIGINS (comma separated) + default frontends
+  const envOrigins = (process.env.CORS_ORIGINS || '')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
-  app.enableCors({ origin: allowedOrigins, credentials: true });
+
+  const defaultOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:4173',
+    'http://localhost:5000',
+    'https://workora-neon.vercel.app',
+  ];
+
+  const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
+
+  app.enableCors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+
+      if (
+        allowedOrigins.includes(origin) ||
+        /\.vercel\.app$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
+    credentials: true,
+  });
 
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(
