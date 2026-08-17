@@ -10,12 +10,12 @@ export default function LeaveApprovalPage() {
 
   const approveMutation = useMutation({
     mutationFn: (id: string) => leaveApi.approve(id),
-    onSuccess: () => { success('Approved!', 'Request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['leave-approvals'] }); }
+    onSuccess: () => { success('Approved!', 'Request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['leave-approvals'] }); queryClient.invalidateQueries({ queryKey: ['leave-history'] }); queryClient.invalidateQueries({ queryKey: ['leave-balances'] }); queryClient.invalidateQueries({ queryKey: ['leave-balances-dash'] }); queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] }); }
   });
 
   const rejectMutation = useMutation({
     mutationFn: (id: string) => leaveApi.reject(id),
-    onSuccess: () => { success('Rejected!', 'Request was rejected.'); queryClient.invalidateQueries({ queryKey: ['leave-approvals'] }); }
+    onSuccess: () => { success('Rejected!', 'Request was rejected.'); queryClient.invalidateQueries({ queryKey: ['leave-approvals'] }); queryClient.invalidateQueries({ queryKey: ['leave-history'] }); queryClient.invalidateQueries({ queryKey: ['leave-balances'] }); queryClient.invalidateQueries({ queryKey: ['leave-balances-dash'] }); queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] }); }
   });
 
   return (
@@ -24,7 +24,7 @@ export default function LeaveApprovalPage() {
       icon={Calendar}
       queryKey={['leave-approvals']}
       queryFn={async () => {
-        const res = await leaveApi.listAll();
+        const res = await leaveApi.listAll({ status: 'pending' });
         return res || [];
       }}
       onApprove={(id) => approveMutation.mutate(id)}

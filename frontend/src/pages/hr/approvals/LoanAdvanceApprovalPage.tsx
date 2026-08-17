@@ -10,12 +10,12 @@ export default function LoanAdvanceApprovalPage() {
 
   const approveMutation = useMutation({
     mutationFn: (id: string) => employeeServicesApi.approveLoan(id),
-    onSuccess: () => { success('Approved!', 'Request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['loan-approvals'] }); }
+    onSuccess: () => { success('Approved!', 'Request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['loan-approvals'] }); queryClient.invalidateQueries({ queryKey: ['my-loans'] }); queryClient.invalidateQueries({ queryKey: ['company-loans'] }); }
   });
 
   const rejectMutation = useMutation({
     mutationFn: (id: string) => employeeServicesApi.rejectLoan(id),
-    onSuccess: () => { success('Rejected!', 'Request was rejected.'); queryClient.invalidateQueries({ queryKey: ['loan-approvals'] }); }
+    onSuccess: () => { success('Rejected!', 'Request was rejected.'); queryClient.invalidateQueries({ queryKey: ['loan-approvals'] }); queryClient.invalidateQueries({ queryKey: ['my-loans'] }); queryClient.invalidateQueries({ queryKey: ['company-loans'] }); }
   });
 
   return (

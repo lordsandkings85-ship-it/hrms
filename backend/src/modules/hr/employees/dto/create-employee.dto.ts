@@ -43,14 +43,31 @@ export class ContactInfoDto {
 }
 
 export class AdminInfoDto {
-  @IsOptional() @IsString() legalEntity?: string;
-  @IsOptional() @IsString() groupEntity?: string;
-  @IsOptional() @IsString() site?: string;
-  @IsOptional() @IsString() customId?: string;
-  @IsOptional() @IsString() accessCard?: string;
-  @IsOptional() @IsString() employmentStatus?: string;
-  @IsOptional() @IsString() defaultShift?: string;
-  @IsOptional() @IsString() band?: string;
+  @IsOptional() @IsString() salaryOn?: string;
+  @IsOptional() ptApplicable?: boolean;
+  @IsOptional() esicApplicable?: boolean;
+  @IsOptional() @IsString() esiNo?: string;
+  @IsOptional() pfAsPerGovt?: boolean;
+  @IsOptional() pfOnTotalBasic?: boolean;
+  @IsOptional() employerPfAsPerGovt?: boolean;
+  @IsOptional() pensionNotApplicable?: boolean;
+  @IsOptional() @IsString() otApplicable?: string;
+  @IsOptional() attendancePolicy?: boolean;
+  @IsOptional() @IsString() rfidCardNo?: string;
+  @IsOptional() @IsString() resignationNoticePeriod?: string;
+  @IsOptional() geoTagging?: boolean;
+  @IsOptional() tdsApplicable?: boolean;
+  @IsOptional() compOffApplicable?: boolean;
+  @IsOptional() employerEsicApplicable?: boolean;
+  @IsOptional() @IsString() vpfPercentage?: string;
+  @IsOptional() @IsString() pfNo?: string;
+  @IsOptional() @IsString() uan?: string;
+  @IsOptional() employerPfOnTotalBasic?: boolean;
+  @IsOptional() gratuityApplicable?: boolean;
+  @IsOptional() @IsString() gratuityNo?: string;
+  @IsOptional() @IsString() aadhaarCardNo?: string;
+  @IsOptional() @IsString() fingerPrintId?: string;
+  @IsOptional() @IsString() voterCardNo?: string;
 }
 
 export class PersonalInfoDto {
@@ -59,7 +76,14 @@ export class PersonalInfoDto {
   @IsOptional() @IsString() bloodGroup?: string;
   @IsOptional() @IsString() religion?: string;
   @IsOptional() @IsString() nationality?: string;
-  @IsOptional() @IsString() physicallyHandicapped?: string;
+  @IsOptional() @IsString() drivingLicenseNo?: string;
+  @IsOptional() @IsString() panNo?: string;
+  @IsOptional() @IsString() height?: string;
+  @IsOptional() @IsString() weight?: string;
+  @IsOptional() @IsString() identificationMark?: string;
+  @IsOptional() @IsString() nomineeName?: string;
+  @IsOptional() @IsString() nss?: string;
+  @IsOptional() @IsString() relationship?: string;
 }
 
 export class FamilyMemberDto {
@@ -75,10 +99,9 @@ export class FamilyMemberDto {
 export class EmergencyContactDto {
   @IsOptional() @IsString() id?: string;
   @IsString() name: string;
-  @IsOptional() @IsString() relation?: string;
+  @IsOptional() @IsString() address?: string;
   @IsString() mobileNo: string;
   @IsOptional() @IsString() telNo?: string;
-  @IsOptional() @IsString() address?: string;
 }
 
 export class ExperienceInfoDto {
@@ -87,42 +110,43 @@ export class ExperienceInfoDto {
   @IsString() designation: string;
   @IsOptional() @IsISO8601() startDate?: string;
   @IsOptional() @IsISO8601() endDate?: string;
+  @IsOptional() @IsString() lastSalary?: string;
+  @IsOptional() @IsString() reasonForLeaving?: string;
 }
 
 export class ImmigrationInfoDto {
   @IsOptional() @IsString() id?: string;
-  @IsString() documentNumber: string;
   @IsString() type: string;
-  @IsOptional() @IsString() country?: string;
-  @IsOptional() @IsISO8601() issueDate?: string;
+  @IsString() documentNumber: string;
+  @IsOptional() @IsString() citizenship?: string;
+  @IsOptional() @IsISO8601() issuedDate?: string;
   @IsOptional() @IsISO8601() expiryDate?: string;
-  @IsOptional() @IsString() status?: string;
+  @IsOptional() @IsString() comments?: string;
 }
 
 export class DocumentInfoDto {
   @IsOptional() @IsString() id?: string;
   @IsString() documentName: string;
-  @IsOptional() @IsString() type?: string;
-  @IsOptional() @IsString() number?: string;
-  @IsOptional() @IsISO8601() issueDate?: string;
-  @IsOptional() @IsISO8601() expiryDate?: string;
+  @IsOptional() @IsString() documentFile?: string;
 }
 
 export class CertificationInfoDto {
   @IsOptional() @IsString() id?: string;
   @IsString() certification: string;
-  @IsOptional() @IsString() authority?: string;
-  @IsOptional() @IsISO8601() issueDate?: string;
-  @IsOptional() @IsISO8601() expiryDate?: string;
-  @IsOptional() @IsString() status?: string;
+  @IsOptional() @IsString() certifiedBy?: string;
+  @IsOptional() @IsString() year?: string;
+  @IsOptional() @IsString() score?: string;
 }
 
 export class QualificationInfoDto {
   @IsOptional() @IsString() id?: string;
   @IsString() qualification: string;
-  @IsOptional() @IsString() university?: string;
-  @IsOptional() @IsISO8601() startDate?: string;
-  @IsOptional() @IsISO8601() endDate?: string;
+  @IsOptional() @IsString() boardUniversity?: string;
+  @IsOptional() @IsString() subject?: string;
+  @IsOptional() @IsString() score?: string;
+  @IsOptional() @IsString() schoolCollege?: string;
+  @IsOptional() @IsString() passingYear?: string;
+  @IsOptional() @IsString() description?: string;
 }
 
 export class CreateEmployeeDto {
@@ -131,7 +155,7 @@ export class CreateEmployeeDto {
   @IsOptional() @IsString() middleName?: string;
   @IsString() lastName: string;
   @IsEmail() email: string;
-  
+
   @IsOptional() @IsString() status?: string;
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() address?: string;
@@ -160,11 +184,12 @@ export class CreateEmployeeDto {
   @IsOptional() @IsString() reportingManager2?: string;
   @IsOptional() @IsString() probation?: string;
   @IsOptional() @IsArray() skills?: string[];
-  
+
   @IsOptional() @IsString() password?: string;
   @IsOptional() workingDaysPerWeek?: number;
   @IsOptional() ctc?: number;
   @IsOptional() roleName?: string;
+  @IsOptional() experience?: any;
 
   @IsOptional()
   @ValidateNested()
@@ -228,4 +253,3 @@ export class CreateEmployeeDto {
   @Type(() => QualificationInfoDto)
   qualifications?: QualificationInfoDto[];
 }
-

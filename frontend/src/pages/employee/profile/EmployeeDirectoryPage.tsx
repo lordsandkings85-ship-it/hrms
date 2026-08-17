@@ -32,7 +32,7 @@ export default function EmployeeDirectoryPage() {
     const fullName = `${e.firstName} ${e.lastName}`.toLowerCase();
     const matchSearch = !searchTerm || fullName.includes(searchTerm.toLowerCase()) ||
       e.employeeId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      e.designation?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+      e.designation?.title?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchDept = deptFilter === 'all' || e.department?.name === deptFilter;
     return matchSearch && matchDept;
   });
@@ -69,7 +69,7 @@ export default function EmployeeDirectoryPage() {
               </div>
               <div className="pb-2">
                 <h2 className="text-xl font-bold text-[var(--text-primary)]">{selectedEmp.firstName} {selectedEmp.lastName}</h2>
-                <p className="text-sm text-[var(--text-muted)]">{selectedEmp.designation?.name || 'Employee'}</p>
+                <p className="text-sm text-[var(--text-muted)]">{selectedEmp.designation?.title || 'Employee'}</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -142,7 +142,7 @@ export default function EmployeeDirectoryPage() {
               </div>
               <div>
                 <div className="font-semibold text-sm text-[var(--text-primary)]">{emp.firstName} {emp.lastName}</div>
-                <div className="text-xs text-[var(--text-muted)] mt-0.5">{emp.designation?.name || 'Employee'}</div>
+                <div className="text-xs text-[var(--text-muted)] mt-0.5">{emp.designation?.title || 'Employee'}</div>
                 {emp.department?.name && (
                   <div className="text-xs text-indigo-400 mt-1">{emp.department.name}</div>
                 )}
@@ -160,7 +160,7 @@ export default function EmployeeDirectoryPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-sm text-[var(--text-primary)]">{emp.firstName} {emp.lastName}</div>
-                <div className="text-xs text-[var(--text-muted)] mt-0.5">{emp.designation?.name} · {emp.department?.name || 'No Department'}</div>
+                <div className="text-xs text-[var(--text-muted)] mt-0.5">{emp.designation?.title} · {emp.department?.name || 'No Department'}</div>
               </div>
               <div className="text-xs text-[var(--text-muted)] hidden sm:block">{emp.employeeId}</div>
               <ChevronRight size={16} className="text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors flex-shrink-0" />

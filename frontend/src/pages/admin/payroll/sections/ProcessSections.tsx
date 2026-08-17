@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, FileClock, BadgeIndianRupee, Send, Loader2, Lock, CheckCircle2 } from 'lucide-react';
-import { payrollApiExt } from '../../../../api/client';
+import { CalendarClock, FileClock, BadgeIndianRupee, Send, Loader2, Lock, Calculator, FileText } from 'lucide-react';
+import { payrollApi, payrollApiExt } from '../../../../api/client';
 import { DataTable, Column } from '../../../../components/ui/DataTable';
+import { Modal } from '../../../../components/ui/Modal';
 import { useToast } from '../../../../components/ui/ToastProvider';
-import { MONTHS, currentMonthYear, fmtINR, SectionCard, MonthYearControls } from './shared';
+import { MONTHS, currentMonthYear, fmtINR, SectionCard, MonthYearControls, EmployeeSelect } from './shared';
 
 export function AttendanceProcessSection() {
   const { month: m, year: y } = currentMonthYear();
@@ -28,6 +29,15 @@ export function AttendanceProcessSection() {
   );
 }
 
+function PreviewStat({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+      <p className="text-[10px] uppercase font-bold text-[var(--text-muted)]">{label}</p>
+      <p className={`text-base font-black mt-0.5 ${accent ?? 'text-[var(--text-primary)]'}`}>{value}</p>
+    </div>
+  );
+}
+
 export function RunPayrollSection() {
   const { month: m, year: y } = currentMonthYear();
   const [month, setMonth] = useState(m);
@@ -43,6 +53,38 @@ export function RunPayrollSection() {
     },
     onError: (e: any) => error(e.message || 'Failed to run payroll'),
   });
+
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewEmployeeId, setPreviewEmployeeId] = useState('');
+  const [previewForm, setPreviewForm] = useState({ basic: 0, hra: 0, da: 0, conveyance: 0, medical: 0, specialAllowance: 0, section80C: 0, section80D: 0 });
+  const { data: previewStructure } = useQuery({
+    queryKey: ['preview-salary-structure', previewEmployeeId],
+    queryFn: () => payrollApi.getSalaryStructure(previewEmployeeId),
+    enabled: previewOpen && !!previewEmployeeId,
+  });
+  useEffect(() => {
+    const s = previewStructure as any;
+    if (!s) return;
+    setPreviewForm((prev) => ({
+      basic: s.basic ?? 0, hra: s.hra ?? 0, da: s.da ?? 0, conveyance: s.conveyance ?? 0,
+      medical: s.medical ?? 0, specialAllowance: s.specialAllowance ?? 0,
+      section80C: prev.section80C, section80D: prev.section80D,
+    }));
+  }, [previewStructure]);
+  const previewMutation = useMutation({
+    mutationFn: () => payrollApiExt.taxPreview({ ...previewForm, regime }),
+    onError: (e: any) => error(e.message || 'Failed to compute tax preview'),
+  });
+  const previewFields = [
+    { key: 'basic', label: 'Basic Pay' },
+    { key: 'hra', label: 'HRA' },
+    { key: 'da', label: 'DA' },
+    { key: 'conveyance', label: 'Conveyance' },
+    { key: 'medical', label: 'Medical' },
+    { key: 'specialAllowance', label: 'Special Allowance' },
+  ] as const;
+  const tax = previewMutation.data as any;
+
   return (
     <SectionCard
       title="Run Payroll"
@@ -54,6 +96,12 @@ export function RunPayrollSection() {
             <option value="old">Old Regime</option>
             <option value="new">New Regime</option>
           </select>
+          <button
+            onClick={() => setPreviewOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] text-[var(--text-muted)] rounded-xl hover:text-indigo-500 hover:border-indigo-500/30 text-xs font-bold uppercase tracking-wider"
+          >
+            <Calculator size={14} /> Preview Tax
+          </button>
           <button
             onClick={() => runMutation.mutate()}
             disabled={runMutation.isPending}
@@ -78,6 +126,79 @@ export function RunPayrollSection() {
           <p className="text-lg font-black text-[var(--text-primary)] mt-1">PF · ESI · PT · TDS · LOP</p>
         </div>
       </div>
+
+      <Modal open={previewOpen} onClose={() => setPreviewOpen(false)} title={`Tax Preview — ${MONTHS[month - 1]} ${year}`} size="lg">
+        <div className="space-y-4">
+          <EmployeeSelect value={previewEmployeeId} onChange={setPreviewEmployeeId} label="Select employee to pre-fill salary…" />
+          <div className="grid grid-cols-2 gap-3">
+            {previewFields.map((f) => (
+              <label key={f.key} className="block">
+                <span className="text-xs font-bold text-[var(--text-primary)]">{f.label}</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={previewForm[f.key] || ''}
+                  onChange={(e) => setPreviewForm({ ...previewForm, [f.key]: Number(e.target.value) })}
+                  className="mt-1 w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm font-mono text-right focus:outline-none focus:border-indigo-500"
+                />
+              </label>
+            ))}
+            <label className="block">
+              <span className="text-xs font-bold text-[var(--text-primary)]">Section 80C (annual)</span>
+              <input
+                type="number"
+                min={0}
+                value={previewForm.section80C || ''}
+                onChange={(e) => setPreviewForm({ ...previewForm, section80C: Number(e.target.value) })}
+                className="mt-1 w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm font-mono text-right focus:outline-none focus:border-indigo-500"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-bold text-[var(--text-primary)]">Section 80D (annual)</span>
+              <input
+                type="number"
+                min={0}
+                value={previewForm.section80D || ''}
+                onChange={(e) => setPreviewForm({ ...previewForm, section80D: Number(e.target.value) })}
+                className="mt-1 w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm font-mono text-right focus:outline-none focus:border-indigo-500"
+              />
+            </label>
+          </div>
+          <button
+            onClick={() => previewMutation.mutate()}
+            disabled={previewMutation.isPending}
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 text-xs font-bold uppercase tracking-wider disabled:opacity-50"
+          >
+            {previewMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Calculator size={14} />} Compute Preview
+          </button>
+          {tax && (
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-5">
+              <p className="text-[10px] uppercase font-bold text-[var(--text-muted)] mb-3">Tax Summary — {regime} regime</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <PreviewStat label="Gross Annual" value={fmtINR(tax.grossAnnual)} />
+                <PreviewStat label="Taxable Income" value={fmtINR(tax.taxableIncome)} />
+                <PreviewStat label="Standard Deduction" value={fmtINR(tax.standardDeduction)} />
+                <PreviewStat label="HRA Exemption" value={fmtINR(tax.hraExemption)} />
+                <PreviewStat label="Total Deductions" value={fmtINR(tax.totalDeductions)} />
+                <PreviewStat label="Total Annual Tax" value={fmtINR(tax.totalAnnualTax)} accent="text-rose-500" />
+                <PreviewStat label="TDS / Month" value={fmtINR(tax.tdsPerMonth)} accent="text-emerald-500" />
+                <PreviewStat label="Effective Rate" value={tax.effectiveRate || '—'} />
+              </div>
+              {(tax.taxSlabs ?? []).length > 0 && (
+                <div className="mt-4">
+                  <p className="text-[10px] uppercase font-bold text-[var(--text-muted)] mb-1">Tax Slabs</p>
+                  {(tax.taxSlabs ?? []).map((s: any) => (
+                    <div key={s.slab} className="flex items-center justify-between py-1 border-b border-[var(--border)] last:border-0 text-xs">
+                      <span className="text-[var(--text-muted)]">{s.slab}</span>
+                      <span className="font-mono font-semibold text-[var(--text-primary)]">{fmtINR(s.tax)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </Modal>
     </SectionCard>
   );
 }
@@ -102,6 +223,27 @@ export function ProcessedSection() {
     onSuccess: () => { success('Payroll cycle locked'); queryClient.invalidateQueries({ queryKey: ['payroll-cycles'] }); },
     onError: (e: any) => error(e.message || 'Failed to lock cycle'),
   });
+  const [viewCycle, setViewCycle] = useState<any>(null);
+  const { data: cyclePayslips, isLoading: loadingPayslips } = useQuery({
+    queryKey: ['cycle-payslips', viewCycle?.id],
+    queryFn: () => payrollApiExt.getCyclePayslips(viewCycle.id),
+    enabled: !!viewCycle,
+  });
+  const payslipColumns: Column<any>[] = [
+    {
+      key: 'employee', header: 'Employee', render: (r: any) => (
+        <div>
+          <div className="font-bold text-[var(--text-primary)]">{r.employee?.firstName} {r.employee?.lastName}</div>
+          <div className="text-xs text-[var(--text-muted)]">{r.employee?.employeeCode}</div>
+        </div>
+      ),
+    },
+    { key: 'gross', header: 'Gross Pay', render: (r: any) => <span className="font-mono font-semibold">{fmtINR(r.grossPay)}</span> },
+    { key: 'deductions', header: 'Deductions', render: (r: any) => <span className="font-mono text-rose-500">− {fmtINR(r.totalDeductions)}</span> },
+    { key: 'net', header: 'Net Pay', render: (r: any) => <span className="font-mono font-bold text-emerald-500">{fmtINR(r.netPay)}</span> },
+    { key: 'tds', header: 'TDS', render: (r: any) => <span className="font-mono text-[var(--text-muted)]">{fmtINR(r.breakdown?.tdsMonthly)}</span> },
+    { key: 'generated', header: 'Generated', render: (r: any) => <span className="text-xs text-[var(--text-muted)]">{new Date(r.generatedAt).toLocaleDateString('en-IN')}</span> },
+  ];
   const columns: Column<any>[] = [
     { key: 'label', header: 'Period', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{MONTHS[(r.month || 1) - 1]} {r.year}</span> },
     { key: 'status', header: 'Status', render: (r: any) => <CycleStatusBadge status={r.status} /> },
@@ -109,19 +251,44 @@ export function ProcessedSection() {
     { key: 'net', header: 'Net Pay', render: (r: any) => <span className="font-mono font-bold text-emerald-500">{fmtINR(r.netPayTotal ?? r.netPay)}</span> },
     {
       key: 'actions', header: '', render: (r: any) => (
-        <button
-          onClick={() => lockMutation.mutate(r.id)}
-          disabled={lockMutation.isPending || r.status === 'locked' || r.status === 'processed'}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs font-bold text-[var(--text-muted)] hover:text-indigo-500 hover:border-indigo-500/30 disabled:opacity-40"
-        >
-          <Lock size={12} /> {r.status === 'locked' ? 'Locked' : 'Lock'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setViewCycle(r)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs font-bold text-[var(--text-muted)] hover:text-indigo-500 hover:border-indigo-500/30"
+          >
+            <FileText size={12} /> View Payslips
+          </button>
+          <button
+            onClick={() => lockMutation.mutate(r.id)}
+            disabled={lockMutation.isPending || r.status === 'locked' || r.status === 'processed'}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs font-bold text-[var(--text-muted)] hover:text-indigo-500 hover:border-indigo-500/30 disabled:opacity-40"
+          >
+            <Lock size={12} /> {r.status === 'locked' ? 'Locked' : 'Lock'}
+          </button>
+        </div>
       ),
     },
   ];
   return (
     <SectionCard title="View Processed Salary" icon={BadgeIndianRupee}>
       <DataTable columns={columns} data={cycles ?? []} loading={isLoading} keyField="id" emptyTitle="No payroll cycles" emptyMessage="Run payroll to generate a cycle." />
+      <Modal
+        open={!!viewCycle}
+        onClose={() => setViewCycle(null)}
+        title={viewCycle ? `Payslips — ${MONTHS[(viewCycle.month || 1) - 1]} ${viewCycle.year} — ${viewCycle.status || ''}` : ''}
+        size="xl"
+      >
+        <DataTable
+          columns={payslipColumns}
+          data={cyclePayslips ?? []}
+          loading={loadingPayslips}
+          keyField="id"
+          showToolbar={false}
+          selectable={false}
+          emptyTitle="No payslips"
+          emptyMessage="No payslips for this cycle yet."
+        />
+      </Modal>
     </SectionCard>
   );
 }

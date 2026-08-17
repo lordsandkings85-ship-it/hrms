@@ -203,10 +203,10 @@ export class SeederService {
 
       // 10. Training courses & LMS seed
       const course1 = await this.prisma.trainingCourse.create({
-        data: { title: 'OWASP Security Protocols for Backend APIs', description: 'Mandatory standard compliance training regarding server injection vulnerability protections.' },
+        data: { companyId, title: 'OWASP Security Protocols for Backend APIs', description: 'Mandatory standard compliance training regarding server injection vulnerability protections.' },
       });
       await this.prisma.courseEnrollment.create({
-        data: { courseId: course1.id, employeeId: createdEmployees[0].id, progress: 60 },
+        data: { companyId, courseId: course1.id, employeeId: createdEmployees[0].id, progress: 60 },
       });
 
       // 11. Announcements Bulletin

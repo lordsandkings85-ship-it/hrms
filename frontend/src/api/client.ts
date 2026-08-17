@@ -197,10 +197,24 @@ export interface Employee {
   emergencyContacts?: any[];
 }
 
+export interface LoginStatus {
+  employeeId: string;
+  employeeCode: string;
+  employeeName: string;
+  email: string;
+  hasLogin: boolean;
+  isActive: boolean;
+  loginEmail: string | null;
+  roleName: string | null;
+  lastLoginAt: string | null;
+  accountCreatedAt: string | null;
+}
+
 export const employeesApi = {
-  list: (params: { page?: number; search?: string } = {}) => {
+  list: (params: { page?: number; pageSize?: number; search?: string } = {}) => {
     const qs = new URLSearchParams();
     if (params.page) qs.set('page', String(params.page));
+    if (params.pageSize) qs.set('pageSize', String(params.pageSize));
     if (params.search) qs.set('search', params.search);
     return api<{ items: Employee[]; total: number; page: number; totalPages: number }>(
       `/employees?${qs.toString()}`,
@@ -215,6 +229,28 @@ export const employeesApi = {
     api<Employee>('/employees/me/compliance', { method: 'PATCH', body: JSON.stringify(data) }),
   remove: (id: string) =>
     api<void>(`/employees/${id}`, { method: 'DELETE' }),
+  sendCredentials: (employeeIds: string[]) =>
+    api<any>('/employees/send-credentials', { method: 'POST', body: JSON.stringify({ employeeIds }) }),
+  bulkCompliance: (items: { employeeId: string; uan?: string; pfNumber?: string; esic?: string; pan?: string; aadhaar?: string }[]) =>
+    api<any>('/employees/bulk-compliance', { method: 'POST', body: JSON.stringify({ items }) }),
+  importManagers: (items: { employeeCode: string; managerCode?: string; companyEmail?: string }[]) =>
+    api<any>('/employees/import-managers', { method: 'POST', body: JSON.stringify({ items }) }),
+  loginStatus: () => api<LoginStatus[]>('/employees/login-status'),
+  createLogin: (employeeId: string, data?: { password?: string }) =>
+    api<{ success: boolean; generatedPassword: string; email: string }>(
+      `/employees/${employeeId}/create-login`,
+      { method: 'POST', body: JSON.stringify(data || {}) },
+    ),
+  toggleLogin: (employeeId: string, active: boolean) =>
+    api<{ success: boolean; isActive: boolean }>(
+      `/employees/${employeeId}/toggle-login`,
+      { method: 'PATCH', body: JSON.stringify({ active }) },
+    ),
+  resetPassword: (employeeId: string, sendEmail?: boolean) =>
+    api<{ success: boolean; newPassword: string; email: string }>(
+      `/employees/${employeeId}/reset-password`,
+      { method: 'POST', body: JSON.stringify({ sendEmail: !!sendEmail }) },
+    ),
 };
 
 export const attendanceApi = {
@@ -260,7 +296,6 @@ export const leaveApi = {
   approveCancellation: (id: string) => api<any>(`/leave/cancellations/${id}/approve`, { method: 'POST' }),
   rejectCancellation: (id: string) => api<any>(`/leave/cancellations/${id}/reject`, { method: 'POST' }),
   listForEmployee: (employeeId: string) => api<any[]>(`/leave/employee/${employeeId}`),
-   listPending: () => api<any[]>('/leave/pending'),
    balances: (employeeId: string, year?: number) => {
     const qs = new URLSearchParams();
     if (year) qs.set('year', String(year));
@@ -303,8 +338,8 @@ export const payrollApi = {
   getSalaryStructure: (employeeId: string) => api<any>(`/payroll/structure/${employeeId}`),
   getSalaryRevisions: (employeeId: string) =>
     api<any[]>(`/employee-services/salary-revisions/employee/${employeeId}`),
-  runPayroll: (data: { month: number; year: number }) =>
-    api<any>('/payroll/run', { method: 'POST', body: JSON.stringify(data) }),
+  getAllSalaryRevisions: () =>
+    api<any[]>('/employee-services/salary-revisions'),
 };
 
 export const recruitmentApi = {
@@ -349,6 +384,7 @@ export const documentsApi = {
   upload: (data: { employeeId: string; type: string; fileUrl: string }) =>
     api<any>('/documents', { method: 'POST', body: JSON.stringify(data) }),
   listForEmployee: (employeeId: string) => api<any[]>(`/documents/employee/${employeeId}`),
+  listAll: () => api<any[]>('/documents/all'),
 };
 
 export const assetsApi = {
@@ -397,8 +433,6 @@ export const shiftsApi = {
     api<any>('/shifts/assign', { method: 'POST', body: JSON.stringify(data) }),
   listAssignments: () => api<any[]>('/shifts/assignments'),
   listHolidays: () => api<any[]>('/shifts/holidays'),
-  addHoliday: (data: { name: string; date: string }) =>
-    api<any>('/shifts/holidays', { method: 'POST', body: JSON.stringify(data) }),
   requestChange: (data: { employeeId: string; shiftId: string; requestedShiftId: string; reason: string; effectiveFrom: string }) =>
     api<any>('/shifts/request-change', { method: 'POST', body: JSON.stringify(data) }),
   listChangeRequests: () => api<any[]>('/shifts/change-requests'),
@@ -480,11 +514,6 @@ export const reportsApi = {
     if (year) qs.set('year', String(year));
     return api<any[]>(`/reports/leave-summary?${qs.toString()}`);
   },
-};
-
-export const integrationApi = {
-  getGoogleConfig: () => api<any>('/integrations/google'),
-  updateGoogleConfig: (data: any) => api<any>('/integrations/google', { method: 'POST', body: JSON.stringify(data) }),
 };
 
 export const taxApi = {
@@ -665,7 +694,6 @@ export const configApi = {
   list: () => api<any[]>('/settings/config'),
   upsert: (key: string, value: unknown) =>
     api<any>(`/settings/config/${key}`, { method: 'PUT', body: JSON.stringify({ value }) }),
-  remove: (key: string) => api<any>(`/settings/config/${key}`, { method: 'DELETE' }),
 };
 
 export const billingApi = {
@@ -755,7 +783,8 @@ export const payrollApiExt = {
 
 export const helpdeskApi = {
   list: () => api<any[]>('/helpdesk'),
-  create: (data: { subject: string; description: string; priority: string; category: string }) =>
+  mine: () => api<any[]>('/helpdesk/mine'),
+  create: (data: { subject: string; description: string; priority: string; category: string; ratings?: any }) =>
     api<any>('/helpdesk', { method: 'POST', body: JSON.stringify(data) }),
   updateStatus: (id: string, status: string) =>
     api<any>(`/helpdesk/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),

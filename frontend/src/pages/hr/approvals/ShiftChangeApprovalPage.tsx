@@ -10,12 +10,12 @@ export default function ShiftChangeApprovalPage() {
 
   const approveMutation = useMutation({
     mutationFn: (id: string) => shiftsApi.approveChangeRequest(id),
-    onSuccess: () => { success('Approved!', 'Request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['shift-approvals'] }); }
+    onSuccess: () => { success('Approved!', 'Request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['shift-approvals'] }); queryClient.invalidateQueries({ queryKey: ['shifts-list'] }); queryClient.invalidateQueries({ queryKey: ['my-profile'] }); queryClient.invalidateQueries({ queryKey: ['attendance-today'] }); queryClient.invalidateQueries({ queryKey: ['attendance-history'] }); }
   });
 
   const rejectMutation = useMutation({
     mutationFn: (id: string) => shiftsApi.rejectChangeRequest(id),
-    onSuccess: () => { success('Rejected!', 'Request was rejected.'); queryClient.invalidateQueries({ queryKey: ['shift-approvals'] }); }
+    onSuccess: () => { success('Rejected!', 'Request was rejected.'); queryClient.invalidateQueries({ queryKey: ['shift-approvals'] }); queryClient.invalidateQueries({ queryKey: ['shifts-list'] }); queryClient.invalidateQueries({ queryKey: ['my-profile'] }); queryClient.invalidateQueries({ queryKey: ['attendance-today'] }); queryClient.invalidateQueries({ queryKey: ['attendance-history'] }); }
   });
 
   return (

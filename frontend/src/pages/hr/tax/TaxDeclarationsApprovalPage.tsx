@@ -18,6 +18,7 @@ export default function TaxDeclarationsApprovalPage() {
     onSuccess: () => {
       toastSuccess('Tax declaration approved');
       qc.invalidateQueries({ queryKey: ['tax-declarations-all'] });
+      qc.invalidateQueries({ queryKey: ['tax-declarations'] });
     },
     onError: (e: any) => toastError(e?.message || 'Failed to approve declaration'),
   });
@@ -27,6 +28,7 @@ export default function TaxDeclarationsApprovalPage() {
     onSuccess: () => {
       toastSuccess('Tax declaration rejected');
       qc.invalidateQueries({ queryKey: ['tax-declarations-all'] });
+      qc.invalidateQueries({ queryKey: ['tax-declarations'] });
     },
     onError: (e: any) => toastError(e?.message || 'Failed to reject declaration'),
   });

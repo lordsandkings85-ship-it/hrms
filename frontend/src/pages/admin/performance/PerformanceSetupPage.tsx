@@ -87,6 +87,7 @@ export default function PerformanceSetupPage() {
           <ApiTableEditor title="Key Performance Areas" icon={Target} subtitle="KPA definitions"
             load={() => performanceSetupApi.list('kpas')}
             create={(d) => performanceSetupApi.create('kpas', d)}
+            update={(id, d) => performanceSetupApi.update('kpas', id, d)}
             remove={(id) => performanceSetupApi.remove('kpas', id)}
             fields={[
               { key: 'name', label: 'KPA Name', placeholder: 'e.g. Delivery' },
@@ -98,6 +99,7 @@ export default function PerformanceSetupPage() {
           <ApiTableEditor title="Key Responsibility Areas" icon={Layers} subtitle="KRA definitions"
             load={() => performanceSetupApi.list('kras')}
             create={(d) => performanceSetupApi.create('kras', d)}
+            update={(id, d) => performanceSetupApi.update('kras', id, d)}
             remove={(id) => performanceSetupApi.remove('kras', id)}
             fields={[
               { key: 'name', label: 'KRA Name', placeholder: 'e.g. Project Delivery' },
@@ -109,6 +111,7 @@ export default function PerformanceSetupPage() {
           <ApiTableEditor title="Key Performance Indicators" icon={Gauge} subtitle="KPI metric definitions"
             load={() => performanceSetupApi.list('kpis')}
             create={(d) => performanceSetupApi.create('kpis', d)}
+            update={(id, d) => performanceSetupApi.update('kpis', id, d)}
             remove={(id) => performanceSetupApi.remove('kpis', id)}
             fields={[
               { key: 'name', label: 'KPI', placeholder: 'Metric name' },
@@ -121,6 +124,7 @@ export default function PerformanceSetupPage() {
           <ApiTableEditor title="KRA / KPI List" icon={ListChecks} subtitle="Combined KRA-to-KPI mapping"
             load={() => performanceSetupApi.list('kpi-targets')}
             create={(d) => performanceSetupApi.create('kpi-targets', d)}
+            update={(id, d) => performanceSetupApi.update('kpi-targets', id, d)}
             remove={(id) => performanceSetupApi.remove('kpi-targets', id)}
             fields={[
               { key: 'employeeId', label: 'Employee ID', placeholder: 'Employee UUID' },
@@ -133,6 +137,7 @@ export default function PerformanceSetupPage() {
           <ApiTableEditor title="Assign KPI" icon={UserCheck} subtitle="KPI assignments per employee"
             load={() => performanceSetupApi.list('kpi-assignments')}
             create={(d) => performanceSetupApi.create('kpi-assignments', d)}
+            update={(id, d) => performanceSetupApi.update('kpi-assignments', id, d)}
             remove={(id) => performanceSetupApi.remove('kpi-assignments', id)}
             fields={[
               { key: 'employeeId', label: 'Employee ID', placeholder: 'Employee UUID' },
@@ -144,6 +149,7 @@ export default function PerformanceSetupPage() {
           <ApiTableEditor title="Appraisal Year Target Setup" icon={CalendarRange} subtitle="Annual targets per employee"
             load={() => performanceSetupApi.list('kpi-targets')}
             create={(d) => performanceSetupApi.create('kpi-targets', { ...d, type: 'annual' })}
+            update={(id, d) => performanceSetupApi.update('kpi-targets', id, { ...d, type: 'annual' })}
             remove={(id) => performanceSetupApi.remove('kpi-targets', id)}
             fields={[
               { key: 'employeeId', label: 'Employee ID', placeholder: 'Employee UUID' },
@@ -156,6 +162,7 @@ export default function PerformanceSetupPage() {
           <ApiTableEditor title="Periodic Target Setup" icon={Repeat} subtitle="Quarterly / periodic targets"
             load={() => performanceSetupApi.list('kpi-targets')}
             create={(d) => performanceSetupApi.create('kpi-targets', { ...d, type: 'periodic' })}
+            update={(id, d) => performanceSetupApi.update('kpi-targets', id, { ...d, type: 'periodic' })}
             remove={(id) => performanceSetupApi.remove('kpi-targets', id)}
             fields={[
               { key: 'employeeId', label: 'Employee ID', placeholder: 'Employee UUID' },
@@ -168,6 +175,7 @@ export default function PerformanceSetupPage() {
           <ApiTableEditor title="Peer Evaluation Setup" icon={Users2} subtitle="Peer reviewers per employee"
             load={() => performanceSetupApi.list('evaluation-setups')}
             create={(d) => performanceSetupApi.create('evaluation-setups', { ...d, type: 'peer' })}
+            update={(id, d) => performanceSetupApi.update('evaluation-setups', id, { ...d, type: 'peer' })}
             remove={(id) => performanceSetupApi.remove('evaluation-setups', id)}
             fields={[
               { key: 'employeeId', label: 'Employee ID', placeholder: 'Employee UUID' },
@@ -178,6 +186,7 @@ export default function PerformanceSetupPage() {
           <ApiTableEditor title="External Evaluation Setup" icon={ExternalLink} subtitle="External reviewers per employee"
             load={() => performanceSetupApi.list('evaluation-setups')}
             create={(d) => performanceSetupApi.create('evaluation-setups', { ...d, type: 'external' })}
+            update={(id, d) => performanceSetupApi.update('evaluation-setups', id, { ...d, type: 'external' })}
             remove={(id) => performanceSetupApi.remove('evaluation-setups', id)}
             fields={[
               { key: 'employeeId', label: 'Employee ID', placeholder: 'Employee UUID' },
@@ -188,6 +197,7 @@ export default function PerformanceSetupPage() {
           <ApiTableEditor title="360 Evaluation Summary" icon={Star} subtitle="Aggregated 360 scores"
             load={() => performanceSetupApi.list('evaluation-360')}
             create={(d) => performanceSetupApi.create('evaluation-360', d)}
+            update={(id, d) => performanceSetupApi.update('evaluation-360', id, d)}
             remove={(id) => performanceSetupApi.remove('evaluation-360', id)}
             fields={[
               { key: 'employeeId', label: 'Employee ID', placeholder: 'Employee UUID' },

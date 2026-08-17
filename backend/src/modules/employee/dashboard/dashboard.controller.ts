@@ -8,9 +8,9 @@ import { DashboardService } from './dashboard.service';
 export class DashboardController {
   constructor(private dashboardService: DashboardService) {}
 
-  @Get('summary')
+@Get('summary')
   getSummary(@CurrentUser() user: AuthUser) {
-    return this.dashboardService.getSummary(user.companyId);
+    return this.dashboardService.getSummary(user.companyId, user);
   }
 }
 

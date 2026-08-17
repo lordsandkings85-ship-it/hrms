@@ -227,15 +227,17 @@ export default function EmployeeDashboard() {
                </div>
                {leaveBalances && leaveBalances.length > 0 ? (
                   <div className="space-y-3 flex-1">
-                     {leaveBalances.slice(0, 5).map((bal: any) => {
-                        const used = bal.used ?? 0;
-                        const total = bal.leaveType?.daysPerYear ?? bal.balance + used;
-                        const pct = total > 0 ? (used / total) * 100 : 0;
-                        return (
-                           <div key={bal.id}>
-                              <div className="flex justify-between mb-1">
-                                 <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{bal.leaveType?.name}</span>
-                                 <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>{bal.balance} left</span>
+                      {leaveBalances.slice(0, 5).map((bal: any) => {
+                         const used = bal.used ?? 0;
+                         const allotted = bal.allotted ?? 0;
+                         const balance = allotted - used;
+                         const total = bal.leaveType?.daysPerYear ?? allotted;
+                         const pct = total > 0 ? (used / total) * 100 : 0;
+                         return (
+                            <div key={bal.id}>
+                               <div className="flex justify-between mb-1">
+                                  <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{bal.leaveType?.name}</span>
+                                  <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>{balance} left</span>
                               </div>
                               <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-active)' }}>
                                  <div

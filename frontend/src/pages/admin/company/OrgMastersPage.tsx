@@ -66,6 +66,7 @@ export default function OrgMastersPage() {
           <ApiTableEditor title="HR Masters" icon={Boxes} subtitle="Common HR master values (marital status, blood group, bank, etc.)"
             load={() => orgMastersApi.list('masters')}
             create={(d) => orgMastersApi.create('masters', d)}
+            update={(id, d) => orgMastersApi.update('masters', id, d)}
             remove={(id) => orgMastersApi.remove('masters', id)}
             fields={[
               { key: 'master', label: 'Master', placeholder: 'Master name' },
@@ -76,6 +77,7 @@ export default function OrgMastersPage() {
           <ApiTableEditor title="Import Reporting Managers & Email IDs" icon={Upload} subtitle="Track imported reporting-manager mappings"
             load={() => orgMastersApi.list('import')}
             create={(d) => orgMastersApi.create('import', d)}
+            update={(id, d) => orgMastersApi.update('import', id, d)}
             remove={(id) => orgMastersApi.remove('import', id)}
             fields={[
               { key: 'employee', label: 'Employee', placeholder: 'Employee name' },
@@ -87,6 +89,7 @@ export default function OrgMastersPage() {
           <ApiTableEditor title="More Forms" icon={FormInput} subtitle="Additional HR form templates"
             load={() => orgMastersApi.list('forms')}
             create={(d) => orgMastersApi.create('forms', d)}
+            update={(id, d) => orgMastersApi.update('forms', id, d)}
             remove={(id) => orgMastersApi.remove('forms', id)}
             fields={[
               { key: 'formName', label: 'Form', placeholder: 'Form name' },

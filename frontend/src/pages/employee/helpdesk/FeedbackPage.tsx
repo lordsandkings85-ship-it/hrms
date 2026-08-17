@@ -91,6 +91,7 @@ export default function FeedbackPage() {
         description: message,
         priority: feedbackType === 'complaint' ? 'high' : 'medium',
         category,
+        ratings: feedbackType === 'feedback' ? ratings : undefined,
       });
       setSubmitted(true);
       toastSuccess('Thank you for your feedback!');

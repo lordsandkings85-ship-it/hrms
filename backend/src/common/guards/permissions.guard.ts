@@ -39,10 +39,20 @@ export class PermissionsGuard implements CanActivate {
         (path.includes('salary-structure') || path.includes('salary-revision')) &&
         !['GET', 'HEAD', 'OPTIONS'].includes(method);
 
+      // Employees may never mutate their own employee record (status, bank details,
+      // manager, admin fields) — PATCH/PUT/DELETE on /employees/:id requires HR edit.
+      const isEmployeeRecordMutation =
+        /^\/employees\/[^/]+$/.test(path.replace(/^\/api\/v1/, '')) &&
+        !['GET', 'HEAD', 'OPTIONS'].includes(method);
+
       if (
         !isSalaryMutation &&
+        !isEmployeeRecordMutation &&
         userEmployeeId &&
-        (params?.employeeId === userEmployeeId || params?.id === userEmployeeId || bodyEmployeeId === userEmployeeId)
+        (params?.employeeId === userEmployeeId ||
+          params?.id === userEmployeeId ||
+          bodyEmployeeId === userEmployeeId ||
+          request.query?.employeeId === userEmployeeId)
       ) {
         return true;
       }

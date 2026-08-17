@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { taxApi } from '../../../api/client';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { generateForm16PDF } from '../../../utils/form16PDF';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Spinner } from '../../../components/ui/Spinner';
 
@@ -24,14 +25,9 @@ export default function Form16Page() {
   const selectedData = form16List?.find((d: any) => d.financialYear === selectedYear) || form16List?.[0];
 
   const handleDownload = () => {
-    const content = `Form 16\nYear: ${selectedData?.financialYear}\nTotal Tax Deducted: ${selectedData?.partA?.totalTaxDeducted}`;
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Form16_${selectedData?.financialYear}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (!selectedData) return;
+    const name = [user?.employee?.firstName, user?.employee?.lastName].filter(Boolean).join(' ') || user?.email || '';
+    generateForm16PDF(selectedData, { name, code: user?.employee?.employeeCode, pan: user?.employee?.pan });
   };
 
   return (
@@ -105,7 +101,7 @@ export default function Form16Page() {
                       </span>
                     )}
                     <span className="text-xs font-medium text-[var(--text-muted)] flex items-center gap-1">
-                      <Shield size={12} /> Digitally Signed
+                      <Shield size={12} /> Generated from payroll records
                     </span>
                   </div>
                 </div>

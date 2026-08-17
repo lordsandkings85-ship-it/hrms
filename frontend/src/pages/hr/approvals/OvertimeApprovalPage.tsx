@@ -10,12 +10,12 @@ export default function OvertimeApprovalPage() {
 
   const approveMutation = useMutation({
     mutationFn: (id: string) => employeeServicesApi.approveOvertime(id),
-    onSuccess: () => { success('Approved!', 'Request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['overtime-approvals'] }); }
+    onSuccess: () => { success('Approved!', 'Request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['overtime-approvals'] }); queryClient.invalidateQueries({ queryKey: ['employee-overtime-logs'] }); }
   });
 
   const rejectMutation = useMutation({
     mutationFn: (id: string) => employeeServicesApi.rejectOvertime(id),
-    onSuccess: () => { success('Rejected!', 'Request was rejected.'); queryClient.invalidateQueries({ queryKey: ['overtime-approvals'] }); }
+    onSuccess: () => { success('Rejected!', 'Request was rejected.'); queryClient.invalidateQueries({ queryKey: ['overtime-approvals'] }); queryClient.invalidateQueries({ queryKey: ['employee-overtime-logs'] }); }
   });
 
   return (

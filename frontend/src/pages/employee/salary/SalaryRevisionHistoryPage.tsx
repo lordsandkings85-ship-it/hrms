@@ -5,10 +5,12 @@ import {
   Award, ChevronRight, BarChart3, Clock, CheckCircle, Building2,
   Sparkles, Info, User, Briefcase, Loader2
 } from 'lucide-react';
-import { payrollApi } from '../../../api/client';
+import { payrollApi, employeesApi } from '../../../api/client';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { downloadHtmlDoc } from '../../../utils/htmlDoc';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Spinner } from '../../../components/ui/Spinner';
+import { isAdminOrHr } from '../../../utils/role';
 
 interface SalaryRevision {
   id: string;
@@ -38,12 +40,37 @@ const REASON_CFG = {
 export default function SalaryRevisionHistoryPage() {
   const { user } = useAuthStore();
   const myEmpId = user?.employee?.id || '';
+  const isStaff = isAdminOrHr(user) ? false : true;
 
-  const { data: revisions, isLoading } = useQuery({
+  const [selectedEmployee, setSelectedEmployee] = useState<string>(isStaff ? myEmpId : '');
+
+  const { data: allEmployees } = useQuery({
+    queryKey: ['employees-list-for-revisions'],
+    queryFn: () => employeesApi.list({ pageSize: 500 }),
+    enabled: !isStaff,
+  });
+
+  const employeeList = allEmployees?.items || [];
+
+  const { data: allRevisions, isLoading: isLoadingAll } = useQuery({
+    queryKey: ['all-salary-revisions'],
+    queryFn: () => payrollApi.getAllSalaryRevisions(),
+    enabled: !isStaff,
+  });
+
+  const { data: myRevisions, isLoading: isLoadingMine } = useQuery({
     queryKey: ['salary-revisions', myEmpId],
     queryFn: () => payrollApi.getSalaryRevisions(myEmpId),
-    enabled: !!myEmpId,
+    enabled: isStaff && !!myEmpId,
   });
+
+  const isLoading = isStaff ? isLoadingMine : isLoadingAll;
+
+  const revisions = isStaff
+    ? myRevisions || []
+    : selectedEmployee
+      ? (allRevisions || []).filter((r: any) => r.employeeId === selectedEmployee)
+      : allRevisions || [];
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -53,23 +80,59 @@ export default function SalaryRevisionHistoryPage() {
 
   const handleDownloadLetter = (rev: any) => {
     const cfg = REASON_CFG[rev.reason as keyof typeof REASON_CFG] || REASON_CFG.annual_appraisal;
-    const content = `Increment Letter\nEffective Date: ${rev.effectiveFrom}\nRevised CTC: ₹${rev.revisedCTC.toLocaleString('en-IN')}\nReason: ${cfg.label}`;
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Increment_Letter_${rev.effectiveFrom}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const name = [user?.employee?.firstName, user?.employee?.lastName].filter(Boolean).join(' ') || user?.email || '';
+    const rows = (rev.components || [])
+      .map(
+        (c: any) =>
+          `<tr><td>${c.label}</td><td class="right">${c.previous > 0 ? 'Rs. ' + c.previous.toLocaleString('en-IN') : '-'}</td><td class="right">Rs. ${c.revised.toLocaleString('en-IN')}</td></tr>`,
+      )
+      .join('');
+    const html = `
+      <h1>Compensation Revision Letter</h1>
+      <div class="muted">Confidential — for the employee only</div>
+      <br/>
+      <p>Date: ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+      <p>Dear ${name},</p>
+      <p>We are pleased to inform you that your compensation has been revised, effective <b>${new Date(rev.effectiveFrom).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</b>, on account of <b>${cfg.label}</b>.</p>
+      <p>Your annual CTC stands revised from <b>Rs. ${(rev.previousCTC || 0).toLocaleString('en-IN')}</b> to <b>Rs. ${rev.revisedCTC.toLocaleString('en-IN')}</b>, an increment of <b>Rs. ${(rev.incrementAmount || 0).toLocaleString('en-IN')} (${rev.incrementPercent || 0}%)</b>.</p>
+      <p>The revised salary structure is as follows:</p>
+      <table><thead><tr><th>Component</th><th class="right">Previous (Rs.)</th><th class="right">Revised (Rs.)</th></tr></thead>
+      <tbody>${rows}
+      <tr class="total"><td>Total (CTC)</td><td class="right">${(rev.previousCTC || 0) > 0 ? 'Rs. ' + rev.previousCTC.toLocaleString('en-IN') : '-'}</td><td class="right">Rs. ${rev.revisedCTC.toLocaleString('en-IN')}</td></tr>
+      </tbody></table>
+      ${rev.remarks ? `<p>Remarks: ${rev.remarks}</p>` : ''}
+      <p>This revision supersedes your earlier compensation structure and takes effect from the date mentioned above.</p>
+      <div class="sig">Yours sincerely,<br/>${rev.approvedBy || 'Human Resources'}<br/>${user?.company?.name || 'Lords & Kings'}</div>`;
+    downloadHtmlDoc(`Increment_Letter_${rev.effectiveFrom}.doc`, html);
   };
 
   return (
     <div className="page-container max-w-5xl space-y-6">
       <PageHeader 
-        title="Salary Revision History" 
-        subtitle="Track your compensation growth, increments, and download increment letters."
+        title={isStaff ? "Salary Revision History" : "Salary Revision History — All Employees"} 
+        subtitle={isStaff ? "Track your compensation growth, increments, and download increment letters." : "View and manage salary revision history across the company."}
         icon={TrendingUp}
       />
+
+      {!isStaff && (
+        <div className="flex items-center gap-3">
+          <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Filter by Employee</label>
+          <select
+            aria-label="Select employee"
+            value={selectedEmployee}
+            onChange={(e) => setSelectedEmployee(e.target.value)}
+            className="px-4 py-2.5 border border-[var(--border)] rounded-xl text-sm font-semibold text-[var(--text-primary)] bg-[var(--surface)] focus:outline-none focus:border-indigo-500/50 transition-colors min-w-[280px]"
+          >
+            <option value="">All Employees</option>
+            {employeeList.map((emp: any) => (
+              <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName} ({emp.employeeCode})</option>
+            ))}
+          </select>
+          {selectedEmployee && (
+            <button onClick={() => setSelectedEmployee('')} className="text-xs font-bold text-indigo-500 hover:underline">Clear</button>
+          )}
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner /></div>
@@ -77,7 +140,7 @@ export default function SalaryRevisionHistoryPage() {
         <div className="bg-[var(--surface-alt)] border border-[var(--border)] rounded-2xl p-12 flex flex-col items-center justify-center text-center">
           <Briefcase size={48} className="text-[var(--text-muted)] opacity-50 mb-4" />
           <h3 className="text-lg font-bold text-[var(--text-primary)] mb-1">No Revisions Found</h3>
-          <p className="text-sm text-[var(--text-muted)]">No salary revisions are recorded for your profile yet.</p>
+          <p className="text-sm text-[var(--text-muted)]">{isStaff ? 'No salary revisions are recorded for your profile yet.' : selectedEmployee ? 'No salary revisions found for this employee.' : 'No salary revisions are recorded in the system yet.'}</p>
         </div>
       ) : (
         <div className="space-y-6 animate-in fade-in zoom-in-95 duration-300">
@@ -128,6 +191,11 @@ export default function SalaryRevisionHistoryPage() {
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         
                         <div className="space-y-1">
+                          {!isStaff && rev.employee && (
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-500 mb-1">
+                              <User size={12} /> {rev.employee.firstName} {rev.employee.lastName} ({rev.employee.employeeCode})
+                            </div>
+                          )}
                           <div className="flex items-center gap-2">
                             <h3 className="text-lg font-black text-[var(--text-primary)] font-mono flex items-center gap-1">
                               <IndianRupee size={16} className="text-[var(--text-muted)]" />

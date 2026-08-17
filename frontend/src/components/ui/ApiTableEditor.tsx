@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Edit3 } from 'lucide-react';
 import { DataTable, Column } from './DataTable';
 import { AdminSection, StatusBadge } from './AdminSection';
 
 export type ApiFieldDef = { key: string; label: string; placeholder?: string; type?: 'text' | 'select'; options?: string[]; numeric?: boolean };
 
-export function ApiTableEditor({ title, icon: Icon, subtitle, fields, load, create, remove, idKey = 'id', note, refreshKey }: {
+export function ApiTableEditor({ title, icon: Icon, subtitle, fields, load, create, remove, update, idKey = 'id', note, refreshKey }: {
   title: string;
   icon: React.ElementType;
   subtitle: string;
@@ -13,6 +13,7 @@ export function ApiTableEditor({ title, icon: Icon, subtitle, fields, load, crea
   load: () => Promise<any[]>;
   create: (data: Record<string, any>) => Promise<any>;
   remove: (id: string) => Promise<any>;
+  update?: (id: string, data: Record<string, any>) => Promise<any>;
   idKey?: string;
   note?: string;
   refreshKey?: string;
@@ -22,6 +23,7 @@ export function ApiTableEditor({ title, icon: Icon, subtitle, fields, load, crea
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const loadRef = useRef(load);
   loadRef.current = load;
@@ -61,6 +63,38 @@ export function ApiTableEditor({ title, icon: Icon, subtitle, fields, load, crea
     }
   };
 
+  const save = async () => {
+    if (fields.some((f) => f.type !== 'select' && !(form[f.key] || '').trim())) return;
+    if (!editingId) return;
+    setSaving(true);
+    setError('');
+    try {
+      const payload: Record<string, any> = {};
+      fields.forEach((f) => {
+        const raw = form[f.key]?.trim() || (f.type === 'select' ? (f.options?.[0] || '') : '');
+        payload[f.key] = f.numeric ? Number(raw) || 0 : raw;
+      });
+      await update!(editingId, payload);
+      setForm({});
+      setEditingId(null);
+      await fetchData();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const startEdit = (r: any) => {
+    const next: Record<string, string> = {};
+    fields.forEach((f) => {
+      const v = r[f.key];
+      next[f.key] = v == null ? '' : String(v);
+    });
+    setForm(next);
+    setEditingId(r.id ?? r[idKey]);
+  };
+
   const handleRemove = async (id: string) => {
     setError('');
     try {
@@ -81,7 +115,12 @@ export function ApiTableEditor({ title, icon: Icon, subtitle, fields, load, crea
     })),
     {
       key: 'actions', header: '', render: (r: any) => (
-        <button onClick={() => handleRemove(r.id ?? r[idKey])} aria-label="Remove row" className="p-1.5 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 size={14} /></button>
+        <div className="flex gap-1.5 justify-end">
+          {update && (
+            <button onClick={() => startEdit(r)} aria-label="Edit row" className="p-1.5 text-[var(--text-muted)] hover:text-indigo-500 hover:bg-indigo-500/10 rounded-lg transition-colors"><Edit3 size={14} /></button>
+          )}
+          <button onClick={() => handleRemove(r.id ?? r[idKey])} aria-label="Remove row" className="p-1.5 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 size={14} /></button>
+        </div>
       ),
     },
   ];
@@ -105,8 +144,8 @@ export function ApiTableEditor({ title, icon: Icon, subtitle, fields, load, crea
               )}
             </div>
           ))}
-          <button onClick={add} disabled={saving || fields.some((f) => f.type !== 'select' && !(form[f.key] || '').trim())} className="flex items-center gap-1.5 px-4 py-2 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 text-xs font-bold uppercase tracking-wider disabled:opacity-50">
-            <Plus size={14} /> {saving ? 'Saving…' : 'Add'}
+          <button onClick={editingId ? save : add} disabled={saving || fields.some((f) => f.type !== 'select' && !(form[f.key] || '').trim())} className="flex items-center gap-1.5 px-4 py-2 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 text-xs font-bold uppercase tracking-wider disabled:opacity-50">
+            <Plus size={14} /> {saving ? 'Saving…' : editingId ? 'Save' : 'Add'}
           </button>
         </div>
       }

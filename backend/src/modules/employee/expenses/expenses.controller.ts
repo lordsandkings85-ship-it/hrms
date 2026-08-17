@@ -3,12 +3,13 @@ import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CompanyScopeGuard } from '../../../common/guards/company-scope.guard';
 import { CurrentUser, AuthUser } from '../../../common/decorators/current-user.decorator';
 import { ExpensesService } from './expenses.service';
+import { SubmitExpenseDto } from './dto/expenses.dto';
 
 @UseGuards(JwtAuthGuard, CompanyScopeGuard)
 @Controller('expenses')
 export class ExpensesController {
   constructor(private service: ExpensesService) {}
-  @Post() submit(@Body() body: { employeeId: string; category: string; amount: number; receiptUrl?: string }) {
+  @Post() submit(@Body() body: SubmitExpenseDto) {
     return this.service.submit(body.employeeId, body.category, body.amount, body.receiptUrl);
   }
   @Get('company') listForCompany(@CurrentUser() user: AuthUser) { return this.service.listForCompany(user.companyId); }

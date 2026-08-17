@@ -33,6 +33,8 @@ export interface DataTableProps<T> {
   currentPage?: number;
   onPageChange?: (page: number) => void;
   onSearchChange?: (search: string) => void;
+  exportable?: boolean;
+  exportFilename?: string;
 }
 
 type SortDir = 'asc' | 'desc' | null;
@@ -60,7 +62,8 @@ export function DataTable<T extends object>({
   searchable = true, searchPlaceholder = 'Search…', bulkActions = [],
   showToolbar = true, selectable = true,
   pageSize = 15, toolbar, onRowClick,
-  serverPagination = false, totalRecords = 0, currentPage = 1, onPageChange, onSearchChange
+  serverPagination = false, totalRecords = 0, currentPage = 1, onPageChange, onSearchChange,
+  exportable = true, exportFilename = 'export.csv'
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -139,6 +142,39 @@ export function DataTable<T extends object>({
   const selectedRows = data.filter(r => selected.has(getKey(r)));
   const hasSelection = selected.size > 0;
 
+  const exportCsv = () => {
+    const rows = sorted.length > 0 ? sorted : data;
+    if (rows.length === 0) return;
+    const visibleCols = columns.filter(col => col.key !== 'actions');
+    const esc = (v: unknown) => {
+      const s = v == null ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [
+      visibleCols.map(col => esc(String(col.header ?? ''))).join(','),
+      ...rows.map(row =>
+        visibleCols
+          .map(col => {
+            const raw = (row as Record<string, unknown>)[col.key as string];
+            if (col.render) {
+              const rendered = col.render(row);
+              if (typeof rendered === 'string' || typeof rendered === 'number') return rendered;
+            }
+            return raw;
+          })
+          .map(esc)
+          .join(',')
+      ),
+    ];
+    const blob = new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = exportFilename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const SortIcon = ({ col }: { col: Column<T> }) => {
     if (!col.sortable) return null;
     const key = col.key as string;
@@ -182,10 +218,12 @@ export function DataTable<T extends object>({
             <SlidersHorizontal size={13} />
             Filters
           </button>
-          <button className="btn-ghost py-1.5 px-3 text-xs">
+          {exportable && (
+          <button onClick={exportCsv} className="btn-ghost py-1.5 px-3 text-xs" aria-label="Export as CSV">
             <Download size={13} />
             Export
           </button>
+          )}
         </div>
       </div>
       )}

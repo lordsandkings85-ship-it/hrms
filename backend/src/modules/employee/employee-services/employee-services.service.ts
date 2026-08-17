@@ -24,11 +24,45 @@ export class EmployeeServicesService {
       orderBy: { createdAt: 'desc' },
     });
   }
-  setCompOffStatus(id: string, companyId: string, status: string, approverId: string) {
-    return this.prisma.compOffRequest.updateMany({
+  async setCompOffStatus(id: string, companyId: string, status: string, approverId: string) {
+    const res = await this.prisma.compOffRequest.updateMany({
       where: { id, companyId },
       data: { status, approvedBy: approverId },
-    }).then(() => this.prisma.compOffRequest.findFirst({ where: { id, companyId } }));
+    });
+    if (!res.count) throw new NotFoundException('Comp-off request not found');
+    const compOff = await this.prisma.compOffRequest.findFirst({ where: { id, companyId } });
+
+    // On approval, credit 1 day to a "Compensatory Off" leave balance
+    if (compOff && status === 'approved') {
+      const year = compOff.date.getFullYear();
+      let leaveType = await this.prisma.leaveType.findFirst({
+        where: { companyId, name: { contains: 'ompensatory' } },
+      });
+      if (!leaveType) {
+        leaveType = await this.prisma.leaveType.create({
+          data: { companyId, name: 'Compensatory Off', paid: true },
+        });
+      }
+      await this.prisma.leaveBalance.upsert({
+        where: {
+          employeeId_leaveTypeId_year: {
+            employeeId: compOff.employeeId,
+            leaveTypeId: leaveType.id,
+            year,
+          },
+        },
+        update: { allotted: { increment: 1 } },
+        create: {
+          employeeId: compOff.employeeId,
+          leaveTypeId: leaveType.id,
+          year,
+          allotted: 1,
+          used: 0,
+        },
+      });
+    }
+
+    return compOff;
   }
 
   // ---------- Flexible Holiday ----------
@@ -151,17 +185,17 @@ export class EmployeeServicesService {
     // Scale the latest salary structure proportionally to the new CTC (or seed a default split)
     const base =
       existing
-        ? existing.basic + existing.hra + existing.da + existing.conveyance + existing.medical + existing.specialAllowance
+        ? Number(existing.basic) + Number(existing.hra) + Number(existing.da) + Number(existing.conveyance) + Number(existing.medical) + Number(existing.specialAllowance)
         : 0;
     const scale = base > 0 ? data.revisedCtc / base : 1;
     const defaultSplit = data.revisedCtc * 0.6;
     const salaryData = {
-      basic: existing ? Math.round(existing.basic * scale) : Math.round(defaultSplit),
-      hra: existing ? Math.round(existing.hra * scale) : Math.round(data.revisedCtc * 0.2),
-      da: existing ? Math.round(existing.da * scale) : 0,
-      conveyance: existing ? Math.round(existing.conveyance * scale) : 0,
-      medical: existing ? Math.round(existing.medical * scale) : Math.round(data.revisedCtc * 0.1),
-      specialAllowance: existing ? Math.round(existing.specialAllowance * scale) : Math.round(data.revisedCtc * 0.1),
+      basic: existing ? Math.round(Number(existing.basic) * scale) : Math.round(defaultSplit),
+      hra: existing ? Math.round(Number(existing.hra) * scale) : Math.round(data.revisedCtc * 0.2),
+      da: existing ? Math.round(Number(existing.da) * scale) : 0,
+      conveyance: existing ? Math.round(Number(existing.conveyance) * scale) : 0,
+      medical: existing ? Math.round(Number(existing.medical) * scale) : Math.round(data.revisedCtc * 0.1),
+      specialAllowance: existing ? Math.round(Number(existing.specialAllowance) * scale) : Math.round(data.revisedCtc * 0.1),
     };
 
     const [revision] = await this.prisma.$transaction([

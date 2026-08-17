@@ -93,7 +93,7 @@ export default function MyHelpdeskPage() {
 
   const { data: tickets, isLoading } = useQuery({
     queryKey: ['my-tickets', myEmpId],
-    queryFn: () => helpdeskApi.list(),
+    queryFn: () => helpdeskApi.mine(),
     enabled: !!myEmpId,
     refetchInterval: 30_000,
   });

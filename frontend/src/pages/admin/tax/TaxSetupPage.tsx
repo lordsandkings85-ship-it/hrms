@@ -66,6 +66,7 @@ export default function TaxSetupPage() {
           <ApiTableEditor title="TDS Income Slabs" icon={Landmark} subtitle="Income tax slabs and rates"
             load={() => taxSetupApi.list('slabs')}
             create={(d) => taxSetupApi.create('slabs', d)}
+            update={(id, d) => taxSetupApi.update('slabs', id, d)}
             remove={(id) => taxSetupApi.remove('slabs', id)}
             fields={[
               { key: 'regime', label: 'Regime', type: 'select', options: ['Old', 'New'] },
@@ -78,6 +79,7 @@ export default function TaxSetupPage() {
           <ApiTableEditor title="TDS Sec. Category" icon={Scale} subtitle="Section 80C, 80D, 24(b) categories"
             load={() => taxSetupApi.list('sections')}
             create={(d) => taxSetupApi.create('sections', d)}
+            update={(id, d) => taxSetupApi.update('sections', id, d)}
             remove={(id) => taxSetupApi.remove('sections', id)}
             fields={[
               { key: 'section', label: 'Section', placeholder: 'e.g. 80C' },
@@ -89,6 +91,7 @@ export default function TaxSetupPage() {
           <ApiTableEditor title="TDS Income Slab Category" icon={FolderTree} subtitle="Slab categories and applicability"
             load={() => taxSetupApi.list('income-slab-categories')}
             create={(d) => taxSetupApi.create('income-slab-categories', d)}
+            update={(id, d) => taxSetupApi.update('income-slab-categories', id, d)}
             remove={(id) => taxSetupApi.remove('income-slab-categories', id)}
             fields={[
               { key: 'category', label: 'Category', placeholder: 'e.g. General' },

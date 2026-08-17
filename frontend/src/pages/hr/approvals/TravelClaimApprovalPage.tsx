@@ -10,12 +10,12 @@ export default function TravelClaimApprovalPage() {
 
   const approveMutation = useMutation({
     mutationFn: (id: string) => travelApi.updateStatus(id, 'approved'),
-    onSuccess: () => { success('Approved!', 'Request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['travel-approvals'] }); }
+    onSuccess: () => { success('Approved!', 'Request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['travel-approvals'] }); queryClient.invalidateQueries({ queryKey: ['my-travel-requests'] }); }
   });
 
   const rejectMutation = useMutation({
     mutationFn: (id: string) => travelApi.updateStatus(id, 'rejected'),
-    onSuccess: () => { success('Rejected!', 'Request was rejected.'); queryClient.invalidateQueries({ queryKey: ['travel-approvals'] }); }
+    onSuccess: () => { success('Rejected!', 'Request was rejected.'); queryClient.invalidateQueries({ queryKey: ['travel-approvals'] }); queryClient.invalidateQueries({ queryKey: ['my-travel-requests'] }); }
   });
 
   return (

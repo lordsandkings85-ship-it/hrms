@@ -30,40 +30,42 @@ export class LeaveAccrualService {
       select: { id: true, companyId: true },
     });
 
-    for (const employee of employees) {
-      // Find the leave types for this employee's company
-      const companyLeaveTypes = leaveTypes.filter(lt => lt.companyId === employee.companyId);
-      
-      for (const leaveType of companyLeaveTypes) {
-        // Upsert leave balance for the year
-        const existingBalance = await this.prisma.leaveBalance.findUnique({
-          where: {
-            employeeId_leaveTypeId_year: {
-              employeeId: employee.id,
-              leaveTypeId: leaveType.id,
-              year,
+    await this.prisma.$transaction(async (tx) => {
+      for (const employee of employees) {
+        // Find the leave types for this employee's company
+        const companyLeaveTypes = leaveTypes.filter(lt => lt.companyId === employee.companyId);
+        
+        for (const leaveType of companyLeaveTypes) {
+          // Upsert leave balance for the year
+          const existingBalance = await tx.leaveBalance.findUnique({
+            where: {
+              employeeId_leaveTypeId_year: {
+                employeeId: employee.id,
+                leaveTypeId: leaveType.id,
+                year,
+              },
             },
-          },
-        });
+          });
 
-        if (existingBalance) {
-          await this.prisma.leaveBalance.update({
-            where: { id: existingBalance.id },
-            data: { allotted: { increment: leaveType.accrualRate } },
-          });
-        } else {
-          await this.prisma.leaveBalance.create({
-            data: {
-              employeeId: employee.id,
-              leaveTypeId: leaveType.id,
-              year,
-              allotted: leaveType.accrualRate,
-              used: 0,
-            },
-          });
+          if (existingBalance) {
+            await tx.leaveBalance.update({
+              where: { id: existingBalance.id },
+              data: { allotted: { increment: leaveType.accrualRate } },
+            });
+          } else {
+            await tx.leaveBalance.create({
+              data: {
+                employeeId: employee.id,
+                leaveTypeId: leaveType.id,
+                year,
+                allotted: leaveType.accrualRate,
+                used: 0,
+              },
+            });
+          }
         }
       }
-    }
+    });
     
     this.logger.log(`Completed leave accrual for ${employees.length} employees.`);
   }

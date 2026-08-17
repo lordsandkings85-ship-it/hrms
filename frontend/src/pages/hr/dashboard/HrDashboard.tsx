@@ -54,6 +54,9 @@ export default function HrDashboard() {
     mutationFn: leaveApi.approve,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-history'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances-dash'] });
     }
   });
 
@@ -61,6 +64,9 @@ export default function HrDashboard() {
     mutationFn: leaveApi.reject,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-history'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances-dash'] });
     }
   });
 
@@ -83,9 +89,12 @@ export default function HrDashboard() {
     queryFn: () => shiftsApi.listHolidays(),
   });
 
-  const casualLeave = leaveBalances?.find((b: any) => b.leaveType?.code === 'CL' || b.leaveType?.name?.includes('Casual'))?.balance ?? (leaveBalances?.[0]?.balance || 0);
-  const earnedLeave = leaveBalances?.find((b: any) => b.leaveType?.code === 'EL' || b.leaveType?.name?.includes('Earned'))?.balance ?? (leaveBalances?.[1]?.balance || 0);
-  const sickLeave = leaveBalances?.find((b: any) => b.leaveType?.code === 'SL' || b.leaveType?.name?.includes('Sick'))?.balance ?? (leaveBalances?.[2]?.balance || 0);
+  const casualLeave = leaveBalances?.find((b: any) => b.leaveType?.code === 'CL' || b.leaveType?.name?.includes('Casual'));
+  const earnedLeave = leaveBalances?.find((b: any) => b.leaveType?.code === 'EL' || b.leaveType?.name?.includes('Earned'));
+  const sickLeave = leaveBalances?.find((b: any) => b.leaveType?.code === 'SL' || b.leaveType?.name?.includes('Sick'));
+  const clBalance = casualLeave ? (casualLeave.allotted ?? 0) - (casualLeave.used ?? 0) : 0;
+  const elBalance = earnedLeave ? (earnedLeave.allotted ?? 0) - (earnedLeave.used ?? 0) : 0;
+  const slBalance = sickLeave ? (sickLeave.allotted ?? 0) - (sickLeave.used ?? 0) : 0;
 
   const calendarEvents = (holidays || []).map((h: any) => ({
     title: h.name,

@@ -66,6 +66,13 @@ function mockPrisma(opts: {
         job: { findFirst: jest.fn(async () => null) },
         holiday: { findFirst: jest.fn(async () => null) },
         shift: { findFirst: jest.fn(async () => null) },
+        compOffRequest: { findFirst: jest.fn(async () => null) },
+        flexibleHolidayRequest: { findFirst: jest.fn(async () => null) },
+        overtimeRequest: { findFirst: jest.fn(async () => null) },
+        optionalHolidayRequest: { findFirst: jest.fn(async () => null) },
+        loanRequest: { findFirst: jest.fn(async () => null) },
+        taxDeclaration: { findFirst: jest.fn(async () => null) },
+        leaveCancellationRequest: { findFirst: jest.fn(async () => null) },
       }),
     ),
   };

@@ -25,7 +25,7 @@ model Asset {
   condition     String?           @default("good")
   name          String?
   purchaseDate  DateTime?
-  purchasePrice Float?
+  purchasePrice Decimal?          @db.Decimal(10, 2)
   serialNumber  String?
   warrantyUntil DateTime?
   company       Company           @relation(fields: [companyId], references: [id])
@@ -112,17 +112,17 @@ model Candidate {
 }
 
 model Company {
-  id                   String           @id @default(uuid())
-  name                 String
-  logoUrl              String?
-  timezone             String           @default("Asia/Kolkata")
-  currency             String           @default("INR")
-  planId               String?
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
-  geofenceLat          Float?
-  geofenceLng          Float?
-  geofenceRadius       Float?           @default(500)
+  id             String   @id @default(uuid())
+  name           String
+  logoUrl        String?
+  timezone       String   @default("Asia/Kolkata")
+  currency       String   @default("INR")
+  planId         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  geofenceLat    Float?
+  geofenceLng    Float?
+  geofenceRadius Float?   @default(500)
 
   address              String?
   phone                String?
@@ -136,64 +136,70 @@ model Company {
   financialYearEnd     Int?
   payrollEffectiveFrom Int?
 
-announcements Announcement[]
-  assets Asset[]
-  auditLog AuditLog[]
-  branch Branch[]
-  department Department[]
-  designation Designation[]
-  employees Employee[]
-  exitRequest ExitRequest[]
-  holiday Holiday[]
-  invoice Invoice[]
-  job Job[]
-  leaveType LeaveType[]
-  project Project[]
-  role Role[]
-  setting Setting[]
-  shift Shift[]
-  reviewCycle ReviewCycle[]
-  subscription Subscription[]
-  users User[]
-  tickets HelpdeskTicket[]
-  loanRequests LoanRequest[]
-  shiftChangeRequests ShiftChangeRequest[]
-  compOffRequests CompOffRequest[]
+  announcements           Announcement[]
+  assets                  Asset[]
+  auditLog                AuditLog[]
+  branch                  Branch[]
+  department              Department[]
+  designation             Designation[]
+  employees               Employee[]
+  exitRequest             ExitRequest[]
+  holiday                 Holiday[]
+  invoice                 Invoice[]
+  job                     Job[]
+  leaveType               LeaveType[]
+  project                 Project[]
+  role                    Role[]
+  setting                 Setting[]
+  shift                   Shift[]
+  reviewCycle             ReviewCycle[]
+  subscription            Subscription[]
+  users                   User[]
+  tickets                 HelpdeskTicket[]
+  loanRequests            LoanRequest[]
+  shiftChangeRequests     ShiftChangeRequest[]
+  compOffRequests         CompOffRequest[]
   flexibleHolidayRequests FlexibleHolidayRequest[]
-  overtimeRequests OvertimeRequest[]
+  overtimeRequests        OvertimeRequest[]
   optionalHolidayRequests OptionalHolidayRequest[]
-  leaveCancellations LeaveCancellationRequest[]
-  salaryRevisions SalaryRevision[]
-  taxDeclarations TaxDeclaration[]
-  kpas KPA[]
-  kras KRA[]
-  kpis KPI[]
-  kpiAssignments KPIAssignment[]
-  kpiTargets KPITarget[]
-  evaluationSetups EvaluationSetup[]
-  evaluation360s Evaluation360[]
-  professionalTaxSlabs ProfessionalTaxSlab[]
-  pfConfigs PFConfig[]
-  esicConfigs ESICConfig[]
-  lwfConfigs LWFConfig[]
-  complianceForms ComplianceForm[]
-  tdsSlabs TDSSlab[]
-  tdsSections TDSSection[]
-  incomeSlabCategories IncomeSlabCategory[]
-  attendancePolicies AttendancePolicy[]
-  hrMasters HRMaster[]
-  importMappings ImportMapping[]
-  hrForms HRForm[]
+  leaveCancellations      LeaveCancellationRequest[]
+  salaryRevisions         SalaryRevision[]
+  taxDeclarations         TaxDeclaration[]
+  kpas                    KPA[]
+  kras                    KRA[]
+  kpis                    KPI[]
+  kpiAssignments          KPIAssignment[]
+  kpiTargets              KPITarget[]
+  evaluationSetups        EvaluationSetup[]
+  evaluation360s          Evaluation360[]
+  professionalTaxSlabs    ProfessionalTaxSlab[]
+  pfConfigs               PFConfig[]
+  esicConfigs             ESICConfig[]
+  lwfConfigs              LWFConfig[]
+  complianceForms         ComplianceForm[]
+  tdsSlabs                TDSSlab[]
+  tdsSections             TDSSection[]
+  incomeSlabCategories    IncomeSlabCategory[]
+  attendancePolicies      AttendancePolicy[]
+  hrMasters               HRMaster[]
+  importMappings          ImportMapping[]
+  hrForms                 HRForm[]
+  trainingCourses         TrainingCourse[]
+  courseEnrollments       CourseEnrollment[]
 }
 
 model CourseEnrollment {
   id             String         @id @default(uuid())
+  companyId      String
   courseId       String
   employeeId     String
   progress       Float          @default(0)
   completedAt    DateTime?
   trainingCourse TrainingCourse @relation(fields: [courseId], references: [id])
   employee       Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@index([companyId])
 }
 
 model Department {
@@ -214,104 +220,104 @@ model Designation {
 }
 
 model Employee {
-  id                    String                     @id @default(uuid())
-  companyId             String
-  employeeCode          String
-  photoUrl              String?
-  firstName             String
-  middleName            String?
-  lastName              String
-  email                 String
-  phone                 String?
-  emergencyContact      String?
-  address               String?
-  aadhaar               String?
-  pan                   String?
-  passport              String?
-  drivingLicense        String?
-  uan                   String?
-  esic                  String?
-  pfNumber              String?
-  bankAccountNumber     String?
-  bankIfsc              String?
-  joiningDate           DateTime?
-  confirmationDate      DateTime?
-  branchId              String?
-  departmentId          String?
-  designationId         String?
-  managerId             String?
-  employmentType        String?
-  workLocation          String?
-  status                String                     @default("active")
-  skills                Json?
-  education             Json?
-  experience            Json?
-  dob                   DateTime?
-  state                 String?
-  subDepartment         String?
-  subDepartment1        String?
-  subDepartment2        String?
-  category              String?
-  subCategory           String?
-  grade                 String?
-  reportingManager      String?
-  reportingManager2     String?
-  probation             String?
-  notes                 String?
-  workingDaysPerWeek    Int                        @default(5)
-  createdAt             DateTime                   @default(now())
-  updatedAt             DateTime                   @updatedAt
-  assignments           AssetAssignment[]
-  attendanceLog         AttendanceLog[]
-  enrollments           CourseEnrollment[]
-  branch                Branch?                    @relation(fields: [branchId], references: [id])
-  company               Company                    @relation(fields: [companyId], references: [id])
-  department            Department?                @relation(fields: [departmentId], references: [id])
-  designation           Designation?               @relation(fields: [designationId], references: [id])
-  manager               Employee?                  @relation("EmployeeToEmployee", fields: [managerId], references: [id])
-  directReports         Employee[]                 @relation("EmployeeToEmployee")
-  documents             EmployeeDocument[]
-  exitRequest           ExitRequest?
-  expense               Expense[]
-  fnfSettlement         FnfSettlement?
-  goal                  Goal[]
-  leaveBalances         LeaveBalance[]
-  leaveRequest          LeaveRequest[]
-  payslips              Payslip[]
-  performanceReviews    PerformanceReview[]        @relation("Reviewee")
-  reviewsGiven          PerformanceReview[]        @relation("Reviewer")
-  salaryStructures      SalaryStructure[]
-  additionalPayouts     AdditionalPayout[]
-  shiftAssignment       ShiftAssignment[]
-  timesheet             Timesheet[]
-  travelRequest         TravelRequest[]
-  user                  User?
-  RegularizationRequest RegularizationRequest[]
-  tickets               HelpdeskTicket[]
-  loanRequests          LoanRequest[]
-  shiftChangeRequests   ShiftChangeRequest[]
-  compOffRequests       CompOffRequest[]
+  id                      String                      @id @default(uuid())
+  companyId               String
+  employeeCode            String
+  photoUrl                String?
+  firstName               String
+  middleName              String?
+  lastName                String
+  email                   String
+  phone                   String?
+  emergencyContact        String?
+  address                 String?
+  aadhaar                 String?
+  pan                     String?
+  passport                String?
+  drivingLicense          String?
+  uan                     String?
+  esic                    String?
+  pfNumber                String?
+  bankAccountNumber       String?
+  bankIfsc                String?
+  joiningDate             DateTime?
+  confirmationDate        DateTime?
+  branchId                String?
+  departmentId            String?
+  designationId           String?
+  managerId               String?
+  employmentType          String?
+  workLocation            String?
+  status                  String                      @default("active")
+  skills                  Json?
+  education               Json?
+  experience              Json?
+  dob                     DateTime?
+  state                   String?
+  subDepartment           String?
+  subDepartment1          String?
+  subDepartment2          String?
+  category                String?
+  subCategory             String?
+  grade                   String?
+  reportingManager        String?
+  reportingManager2       String?
+  probation               String?
+  notes                   String?
+  workingDaysPerWeek      Int                         @default(5)
+  createdAt               DateTime                    @default(now())
+  updatedAt               DateTime                    @updatedAt
+  assignments             AssetAssignment[]
+  attendanceLog           AttendanceLog[]
+  enrollments             CourseEnrollment[]
+  branch                  Branch?                     @relation(fields: [branchId], references: [id])
+  company                 Company                     @relation(fields: [companyId], references: [id])
+  department              Department?                 @relation(fields: [departmentId], references: [id])
+  designation             Designation?                @relation(fields: [designationId], references: [id])
+  manager                 Employee?                   @relation("EmployeeToEmployee", fields: [managerId], references: [id])
+  directReports           Employee[]                  @relation("EmployeeToEmployee")
+  documents               EmployeeDocument[]
+  exitRequest             ExitRequest?
+  expense                 Expense[]
+  fnfSettlement           FnfSettlement?
+  goal                    Goal[]
+  leaveBalances           LeaveBalance[]
+  leaveRequest            LeaveRequest[]
+  payslips                Payslip[]
+  performanceReviews      PerformanceReview[]         @relation("Reviewee")
+  reviewsGiven            PerformanceReview[]         @relation("Reviewer")
+  salaryStructures        SalaryStructure[]
+  additionalPayouts       AdditionalPayout[]
+  shiftAssignment         ShiftAssignment[]
+  timesheet               Timesheet[]
+  travelRequest           TravelRequest[]
+  user                    User?
+  RegularizationRequest   RegularizationRequest[]
+  tickets                 HelpdeskTicket[]
+  loanRequests            LoanRequest[]
+  shiftChangeRequests     ShiftChangeRequest[]
+  compOffRequests         CompOffRequest[]
   flexibleHolidayRequests FlexibleHolidayRequest[]
-  overtimeRequests      OvertimeRequest[]
+  overtimeRequests        OvertimeRequest[]
   optionalHolidayRequests OptionalHolidayRequest[]
-  leaveCancellations    LeaveCancellationRequest[]
-  salaryRevisions       SalaryRevision[]
-  taxDeclarations       TaxDeclaration[]
-  contactInfo           EmployeeContactInfo?
-  paymentInfo           EmployeePaymentInfo?
-  adminInfo             EmployeeAdminInfo?
-  personalInfo          EmployeePersonalInfo?
-  familyMembers         EmployeeFamilyMember[]
-  emergencyContacts     EmployeeEmergencyContact[]
-  experiences           EmployeeExperienceInfo[]
-  immigrations          EmployeeImmigrationInfo[]
-  documentInfos         EmployeeDocumentInfo[]
-  certifications        EmployeeCertificationInfo[]
-  qualifications        EmployeeQualificationInfo[]
-  kpiAssignments        KPIAssignment[]
-  kpiTargets            KPITarget[]
-  evaluationSetups      EvaluationSetup[]
-  evaluation360s        Evaluation360[]
+  leaveCancellations      LeaveCancellationRequest[]
+  salaryRevisions         SalaryRevision[]
+  taxDeclarations         TaxDeclaration[]
+  contactInfo             EmployeeContactInfo?
+  paymentInfo             EmployeePaymentInfo?
+  adminInfo               EmployeeAdminInfo?
+  personalInfo            EmployeePersonalInfo?
+  familyMembers           EmployeeFamilyMember[]
+  emergencyContacts       EmployeeEmergencyContact[]
+  experiences             EmployeeExperienceInfo[]
+  immigrations            EmployeeImmigrationInfo[]
+  documentInfos           EmployeeDocumentInfo[]
+  certifications          EmployeeCertificationInfo[]
+  qualifications          EmployeeQualificationInfo[]
+  kpiAssignments          KPIAssignment[]
+  kpiTargets              KPITarget[]
+  evaluationSetups        EvaluationSetup[]
+  evaluation360s          Evaluation360[]
 
   @@unique([companyId, employeeCode])
   @@index([companyId, status])
@@ -357,7 +363,7 @@ model Expense {
   id         String   @id @default(uuid())
   employeeId String
   category   String
-  amount     Float
+  amount     Decimal  @db.Decimal(10, 2)
   status     String   @default("pending")
   receiptUrl String?
   createdAt  DateTime @default(now())
@@ -369,14 +375,14 @@ model FnfSettlement {
   employeeId         String   @unique
   lastWorkingDay     DateTime
   noticePeriodDays   Int      @default(0)
-  noticeRecovery     Float    @default(0)
+  noticeRecovery     Decimal  @default(0) @db.Decimal(10, 2)
   unpaidSalaryDays   Int      @default(0)
-  unpaidSalaryAmt    Float    @default(0)
-  gratuityAmount     Float    @default(0)
+  unpaidSalaryAmt    Decimal  @default(0) @db.Decimal(10, 2)
+  gratuityAmount     Decimal  @default(0) @db.Decimal(10, 2)
   leaveEncashDays    Float    @default(0)
-  leaveEncashAmount  Float    @default(0)
-  otherDeductions    Float    @default(0)
-  netSettlement      Float
+  leaveEncashAmount  Decimal  @default(0) @db.Decimal(10, 2)
+  otherDeductions    Decimal  @default(0) @db.Decimal(10, 2)
+  netSettlement      Decimal  @db.Decimal(10, 2)
   isGratuityEligible Boolean  @default(false)
   status             String   @default("draft")
   createdAt          DateTime @default(now())
@@ -400,6 +406,8 @@ model Holiday {
   name      String
   date      DateTime
   company   Company  @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, date])
 }
 
 model Integration {
@@ -426,8 +434,8 @@ model Invoice {
   id             String        @id @default(uuid())
   companyId      String
   subscriptionId String?
-  amount         Float
-  gstAmount      Float         @default(0)
+  amount         Decimal       @db.Decimal(10, 2)
+  gstAmount      Decimal       @default(0) @db.Decimal(10, 2)
   status         String        @default("unpaid")
   issuedAt       DateTime      @default(now())
   company        Company       @relation(fields: [companyId], references: [id])
@@ -458,19 +466,22 @@ model LeaveBalance {
 }
 
 model LeaveRequest {
-  id          String    @id @default(uuid())
-  employeeId  String
-  leaveTypeId String
-  startDate   DateTime
-  endDate     DateTime
-  isHalfDay   Boolean   @default(false)
-  reason      String?
-  status      String    @default("pending")
-  approverId  String?
-  createdAt   DateTime  @default(now())
-  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id])
+  id            String                     @id @default(uuid())
+  employeeId    String
+  leaveTypeId   String
+  startDate     DateTime
+  endDate       DateTime
+  isHalfDay     Boolean                    @default(false)
+  reason        String?
+  status        String                     @default("pending")
+  approverId    String?
+  createdAt     DateTime                   @default(now())
+  employee      Employee                   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType     LeaveType                  @relation(fields: [leaveTypeId], references: [id])
   cancellations LeaveCancellationRequest[]
+
+  @@index([employeeId, status])
+  @@index([status])
 }
 
 model LeaveType {
@@ -487,8 +498,9 @@ model LeaveType {
 model Offer {
   id          String    @id @default(uuid())
   candidateId String
-  ctc         Float
+  ctc         Decimal   @db.Decimal(10, 2)
   status      String    @default("pending")
+  createdAt   DateTime  @default(now())
   candidate   Candidate @relation(fields: [candidateId], references: [id])
 }
 
@@ -507,15 +519,16 @@ model Payslip {
   id              String       @id @default(uuid())
   employeeId      String
   payrollCycleId  String
-  grossPay        Float
-  totalDeductions Float
-  netPay          Float
+  grossPay        Decimal      @db.Decimal(10, 2)
+  totalDeductions Decimal      @db.Decimal(10, 2)
+  netPay          Decimal      @db.Decimal(10, 2)
   breakdown       Json
   generatedAt     DateTime     @default(now())
   employee        Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   payrollCycle    PayrollCycle @relation(fields: [payrollCycleId], references: [id])
-}
 
+  @@index([employeeId, payrollCycleId])
+}
 
 model AdditionalPayout {
   id         String   @id @default(uuid())
@@ -523,7 +536,7 @@ model AdditionalPayout {
   month      Int
   year       Int
   type       String
-  amount     Float
+  amount     Decimal  @db.Decimal(10, 2)
   notes      String?
   createdAt  DateTime @default(now())
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -568,7 +581,7 @@ model Project {
   name          String
   status        String      @default("active")
   billableHours Float       @default(0)
-  billedAmount  Float       @default(0)
+  billedAmount  Decimal     @default(0) @db.Decimal(10, 2)
   company       Company     @relation(fields: [companyId], references: [id])
   tasks         Task[]
   timesheet     Timesheet[]
@@ -599,15 +612,15 @@ model SalaryStructure {
   employeeId       String
   effectiveFrom    DateTime
   createdAt        DateTime @default(now())
-  basic            Float
-  hra              Float    @default(0)
-  da               Float    @default(0)
-  conveyance       Float    @default(0)
-  medical          Float    @default(0)
-  specialAllowance Float    @default(0)
-  pfDeduction      Float    @default(0)
-  esiDeduction     Float    @default(0)
-  ptDeduction      Float    @default(0)
+  basic            Decimal  @db.Decimal(10, 2)
+  hra              Decimal  @default(0) @db.Decimal(10, 2)
+  da               Decimal  @default(0) @db.Decimal(10, 2)
+  conveyance       Decimal  @default(0) @db.Decimal(10, 2)
+  medical          Decimal  @default(0) @db.Decimal(10, 2)
+  specialAllowance Decimal  @default(0) @db.Decimal(10, 2)
+  pfDeduction      Decimal  @default(0) @db.Decimal(10, 2)
+  esiDeduction     Decimal  @default(0) @db.Decimal(10, 2)
+  ptDeduction      Decimal  @default(0) @db.Decimal(10, 2)
   employee         Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
@@ -622,16 +635,16 @@ model Setting {
 }
 
 model Shift {
-  id              String            @id @default(uuid())
-  companyId       String
-  name            String
-  startTime       String
-  endTime         String
-  type            String            @default("fixed")
-  allowance       Float             @default(0) // Extra pay per shift
-  company         Company           @relation(fields: [companyId], references: [id])
-  shiftAssignment ShiftAssignment[]
-  shiftChangeRequests ShiftChangeRequest[]
+  id                      String               @id @default(uuid())
+  companyId               String
+  name                    String
+  startTime               String
+  endTime                 String
+  type                    String               @default("fixed")
+  allowance               Decimal              @default(0) @db.Decimal(10, 2) // Extra pay per shift
+  company                 Company              @relation(fields: [companyId], references: [id])
+  shiftAssignment         ShiftAssignment[]
+  shiftChangeRequests     ShiftChangeRequest[]
   requestedChangeRequests ShiftChangeRequest[] @relation("RequestedShift")
 }
 
@@ -679,9 +692,13 @@ model Timesheet {
 
 model TrainingCourse {
   id          String             @id @default(uuid())
+  companyId   String
   title       String
   description String?
   enrollments CourseEnrollment[]
+  company     Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@index([companyId])
 }
 
 model TravelRequest {
@@ -690,7 +707,7 @@ model TravelRequest {
   purpose    String?
   fromDate   DateTime
   toDate     DateTime
-  advance    Float    @default(0)
+  advance    Decimal  @default(0) @db.Decimal(10, 2)
   status     String   @default("pending")
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
@@ -722,6 +739,7 @@ model HelpdeskTicket {
   status      String   @default("open")
   priority    String   @default("medium")
   category    String   @default("general")
+  ratings     Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -820,75 +838,75 @@ model EmployeeEmergencyContact {
 }
 
 model EmployeeContactInfo {
-  id                      String   @id @default(uuid())
-  employeeId              String   @unique
-  currentAddress          String?
-  currentCountry          String?
-  currentDistrict         String?
-  currentTaluka           String?
-  currentPost             String?
-  currentPhoneNo          String?
-  currentPersonalEmail    String?
-  currentState            String?
-  currentCity             String?
-  currentVillage          String?
-  currentPostCode         String?
-  currentMobileNo         String?
-  isPermanentSameAsCurrent Boolean @default(true)
-  permanentAddress        String?
-  permanentCountry        String?
-  permanentDistrict       String?
-  permanentTaluka         String?
-  permanentPost           String?
-  permanentPhoneNo        String?
-  permanentState          String?
-  permanentCity           String?
-  permanentVillage        String?
-  permanentPostCode       String?
-  permanentMobileNo       String?
-  employee                Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id                       String   @id @default(uuid())
+  employeeId               String   @unique
+  currentAddress           String?
+  currentCountry           String?
+  currentDistrict          String?
+  currentTaluka            String?
+  currentPost              String?
+  currentPhoneNo           String?
+  currentPersonalEmail     String?
+  currentState             String?
+  currentCity              String?
+  currentVillage           String?
+  currentPostCode          String?
+  currentMobileNo          String?
+  isPermanentSameAsCurrent Boolean  @default(true)
+  permanentAddress         String?
+  permanentCountry         String?
+  permanentDistrict        String?
+  permanentTaluka          String?
+  permanentPost            String?
+  permanentPhoneNo         String?
+  permanentState           String?
+  permanentCity            String?
+  permanentVillage         String?
+  permanentPostCode        String?
+  permanentMobileNo        String?
+  employee                 Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model EmployeeExperienceInfo {
-  id              String   @id @default(uuid())
-  employeeId      String
-  organization    String
-  designation     String
-  startDate       DateTime
-  endDate         DateTime
-  lastSalary      String?
+  id               String   @id @default(uuid())
+  employeeId       String
+  organization     String
+  designation      String
+  startDate        DateTime
+  endDate          DateTime
+  lastSalary       String?
   reasonForLeaving String?
-  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee         Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model EmployeeImmigrationInfo {
-  id              String   @id @default(uuid())
-  employeeId      String
-  type            String
-  documentNumber  String
-  citizenship     String?
-  issuedDate      DateTime
-  expiryDate      DateTime
-  comments        String?
-  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id             String   @id @default(uuid())
+  employeeId     String
+  type           String
+  documentNumber String
+  citizenship    String?
+  issuedDate     DateTime
+  expiryDate     DateTime
+  comments       String?
+  employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model EmployeeDocumentInfo {
-  id              String   @id @default(uuid())
-  employeeId      String
-  documentName    String
-  documentFile    String
-  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id           String   @id @default(uuid())
+  employeeId   String
+  documentName String
+  documentFile String
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model EmployeeCertificationInfo {
-  id              String   @id @default(uuid())
-  employeeId      String
-  certification   String
-  certifiedBy     String
-  year            String?
-  score           String?
-  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id            String   @id @default(uuid())
+  employeeId    String
+  certification String
+  certifiedBy   String
+  year          String?
+  score         String?
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model EmployeeQualificationInfo {
@@ -905,22 +923,22 @@ model EmployeeQualificationInfo {
 }
 
 model LoanRequest {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   companyId    String
   employeeId   String
-  type         String   @default("loan") // loan | advance
+  type         String    @default("loan") // loan | advance
   purpose      String
-  amount       Float
-  emiMonths    Int      @default(0)
-  emi          Float    @default(0)
-  amountRepaid Float    @default(0)
-  status       String   @default("pending") // pending, active, approved, rejected, closed
-  appliedOn    DateTime @default(now())
+  amount       Decimal   @db.Decimal(10, 2)
+  emiMonths    Int       @default(0)
+  emi          Decimal   @default(0) @db.Decimal(10, 2)
+  amountRepaid Decimal   @default(0) @db.Decimal(10, 2)
+  status       String    @default("pending") // pending, active, approved, rejected, closed
+  appliedOn    DateTime  @default(now())
   approvedOn   DateTime?
   approvedBy   String?
   notes        String?
-  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  company      Company  @relation(fields: [companyId], references: [id])
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company      Company   @relation(fields: [companyId], references: [id])
 
   @@index([companyId, status])
 }
@@ -1027,8 +1045,8 @@ model SalaryRevision {
   companyId     String
   employeeId    String
   effectiveFrom DateTime
-  revisedCtc    Float
-  previousCtc   Float    @default(0)
+  revisedCtc    Decimal  @db.Decimal(10, 2)
+  previousCtc   Decimal  @default(0) @db.Decimal(10, 2)
   reason        String   @default("annual_appraisal")
   remarks       String?
   approvedBy    String?
@@ -1047,8 +1065,8 @@ model TaxDeclaration {
   financialYear  String   @default("FY 2025-26")
   section        String
   description    String?
-  declaredAmount Float
-  approvedAmount Float    @default(0)
+  declaredAmount Decimal  @db.Decimal(10, 2)
+  approvedAmount Decimal  @default(0) @db.Decimal(10, 2)
   status         String   @default("pending")
   createdAt      DateTime @default(now())
   employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -1084,119 +1102,119 @@ model KRA {
 }
 
 model KPI {
-  id          String   @id @default(uuid())
+  id          String          @id @default(uuid())
   companyId   String
   kraId       String
   name        String
   category    String
   unit        String
   weight      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  company     Company  @relation(fields: [companyId], references: [id])
-  kra         KRA      @relation(fields: [kraId], references: [id], onDelete: Cascade)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  company     Company         @relation(fields: [companyId], references: [id])
+  kra         KRA             @relation(fields: [kraId], references: [id], onDelete: Cascade)
   assignments KPIAssignment[]
   targets     KPITarget[]
 }
 
 model KPIAssignment {
-  id        String @id @default(uuid())
-  companyId String
+  id         String   @id @default(uuid())
+  companyId  String
   employeeId String
-  kpiId     String
-  weight    String
-  createdAt DateTime @default(now())
-  company   Company @relation(fields: [companyId], references: [id])
-  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  kpi       KPI @relation(fields: [kpiId], references: [id], onDelete: Cascade)
+  kpiId      String
+  weight     String
+  createdAt  DateTime @default(now())
+  company    Company  @relation(fields: [companyId], references: [id])
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  kpi        KPI      @relation(fields: [kpiId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, kpiId])
 }
 
 model KPITarget {
-  id        String   @id @default(uuid())
-  companyId String
+  id         String   @id @default(uuid())
+  companyId  String
   employeeId String
-  kpiId     String
-  period    String // e.g., "2026", "Q1 2026"
-  target    String
-  type      String   // "annual" | "periodic"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  company   Company  @relation(fields: [companyId], references: [id])
-  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  kpi       KPI      @relation(fields: [kpiId], references: [id], onDelete: Cascade)
+  kpiId      String
+  period     String // e.g., "2026", "Q1 2026"
+  target     String
+  type       String // "annual" | "periodic"
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  company    Company  @relation(fields: [companyId], references: [id])
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  kpi        KPI      @relation(fields: [kpiId], references: [id], onDelete: Cascade)
 }
 
 model EvaluationSetup {
-  id           String   @id @default(uuid())
-  companyId    String
-  employeeId   String
-  type         String   // "peer" | "external"
-  reviewers    Json     // Array of { name, role/email }
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  company      Company  @relation(fields: [companyId], references: [id])
-  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  companyId  String
+  employeeId String
+  type       String // "peer" | "external"
+  reviewers  Json // Array of { name, role/email }
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  company    Company  @relation(fields: [companyId], references: [id])
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, type])
 }
 
 model Evaluation360 {
-  id          String   @id @default(uuid())
-  companyId   String
-  employeeId  String
-  cycle       String
-  avgScore    Float
-  rating      String
-  createdAt   DateTime @default(now())
-  company     Company  @relation(fields: [companyId], references: [id])
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  companyId  String
+  employeeId String
+  cycle      String
+  avgScore   Float
+  rating     String
+  createdAt  DateTime @default(now())
+  company    Company  @relation(fields: [companyId], references: [id])
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model ProfessionalTaxSlab {
+  id         String   @id @default(uuid())
+  companyId  String
+  state      String
+  fromAmount Decimal  @db.Decimal(10, 2)
+  toAmount   Decimal  @db.Decimal(10, 2)
+  amount     Decimal  @db.Decimal(10, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  company    Company  @relation(fields: [companyId], references: [id])
+}
+
+model PFConfig {
   id        String   @id @default(uuid())
   companyId String
-  state     String
-  fromAmount Float
-  toAmount   Float
-  amount     Float
+  component String
+  rate      String
+  cap       String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   company   Company  @relation(fields: [companyId], references: [id])
 }
 
-model PFConfig {
-  id          String   @id @default(uuid())
-  companyId   String
-  component   String
-  rate        String
-  cap         String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  company     Company  @relation(fields: [companyId], references: [id])
-}
-
 model ESICConfig {
-  id          String   @id @default(uuid())
-  companyId   String
-  component   String
-  rate        String
-  wageLimit   String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  company     Company  @relation(fields: [companyId], references: [id])
+  id        String   @id @default(uuid())
+  companyId String
+  component String
+  rate      String
+  wageLimit String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  company   Company  @relation(fields: [companyId], references: [id])
 }
 
 model LWFConfig {
-  id          String   @id @default(uuid())
-  companyId   String
-  state       String
-  employeeShare Float
-  employerShare Float
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  company     Company  @relation(fields: [companyId], references: [id])
+  id            String   @id @default(uuid())
+  companyId     String
+  state         String
+  employeeShare Decimal  @db.Decimal(10, 2)
+  employerShare Decimal  @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  company       Company  @relation(fields: [companyId], references: [id])
 }
 
 model ComplianceForm {
@@ -1210,21 +1228,21 @@ model ComplianceForm {
 }
 
 model TDSSlab {
-  id        String   @id @default(uuid())
-  companyId String
-  regime    String   // "Old" | "New"
-  fromAmount Float
-  toAmount   Float
+  id         String   @id @default(uuid())
+  companyId  String
+  regime     String // "Old" | "New"
+  fromAmount Decimal  @db.Decimal(10, 2)
+  toAmount   Decimal  @db.Decimal(10, 2)
   rate       String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  company   Company  @relation(fields: [companyId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  company    Company  @relation(fields: [companyId], references: [id])
 }
 
 model TDSSection {
   id        String   @id @default(uuid())
   companyId String
-  section   String   // e.g., "80C", "80D", "24(b)"
+  section   String // e.g., "80C", "80D", "24(b)"
   name      String
   limit     String
   createdAt DateTime @default(now())
@@ -1233,14 +1251,14 @@ model TDSSection {
 }
 
 model IncomeSlabCategory {
-  id           String   @id @default(uuid())
-  companyId    String
-  category     String
+  id            String   @id @default(uuid())
+  companyId     String
+  category      String
   applicability String
-  regime       String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  company      Company  @relation(fields: [companyId], references: [id])
+  regime        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  company       Company  @relation(fields: [companyId], references: [id])
 }
 
 model AttendancePolicy {
@@ -1285,6 +1303,3 @@ model HRForm {
   updatedAt DateTime @updatedAt
   company   Company  @relation(fields: [companyId], references: [id])
 }
-
-
-

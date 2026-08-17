@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 
+/** Default SaaS pricing used when a company has no custom BILLING_PRICING config.
+ *  Admins can override per company via the `BILLING_PRICING` setting
+ *  (e.g. { "Pro": 500, "Enterprise": 1200, "gstRate": 0.18 }). */
+const DEFAULT_PRICING = { Pro: 500, Enterprise: 1200, gstRate: 0.18 };
+
 @Injectable()
 export class BillingService {
   constructor(private prisma: PrismaService) {}
@@ -27,33 +32,40 @@ export class BillingService {
     });
 
     let invoiceCount = 0;
-    for (const company of companies) {
-      const activeEmployees = company._count.employees;
-      if (activeEmployees === 0) continue;
+    await this.prisma.$transaction(async (tx) => {
+      for (const company of companies) {
+        const activeEmployees = company._count.employees;
+        if (activeEmployees === 0) continue;
 
-      // Price per active user based on tier (mock SaaS pricing)
-      const sub = company.subscription[0];
-      const planName = sub?.planName || 'Free';
-      let perUserRate = 0;
-      if (planName === 'Pro') perUserRate = 500;
-      else if (planName === 'Enterprise') perUserRate = 1200;
+        const sub = company.subscription[0];
+        const planName = sub?.planName || 'Free';
 
-      if (perUserRate === 0) continue; // Free plan
+        // Pricing is read from the company's BILLING_PRICING setting (config-driven),
+        // falling back to the documented default table.
+        const setting = await tx.setting.findUnique({
+          where: { companyId_key: { companyId: company.id, key: 'BILLING_PRICING' } },
+        });
+        const pricing = (setting?.value as any) ?? DEFAULT_PRICING;
+        const perUserRate = Number(pricing?.[planName] ?? 0);
+        const gstRate = Number(pricing?.gstRate ?? 0.18);
 
-      const amount = activeEmployees * perUserRate;
-      const gstAmount = amount * 0.18; // 18% GST
+        if (perUserRate <= 0) continue; // Free plan / no price configured
 
-      await this.prisma.invoice.create({
-        data: {
-          companyId: company.id,
-          subscriptionId: sub?.id,
-          amount,
-          gstAmount,
-          status: 'unpaid'
-        }
-      });
-      invoiceCount++;
-    }
+        const amount = activeEmployees * perUserRate;
+        const gstAmount = Math.round(amount * gstRate * 100) / 100;
+
+        await tx.invoice.create({
+          data: {
+            companyId: company.id,
+            subscriptionId: sub?.id,
+            amount,
+            gstAmount,
+            status: 'unpaid'
+          }
+        });
+        invoiceCount++;
+      }
+    });
 
     return { success: true, message: `Generated ${invoiceCount} new SaaS invoices for this month.` };
   }

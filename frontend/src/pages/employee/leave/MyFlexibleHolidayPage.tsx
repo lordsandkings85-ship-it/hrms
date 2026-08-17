@@ -86,7 +86,7 @@ export default function MyFlexibleHolidayPage() {
                   <option disabled>Loading holidays...</option>
                 ) : (
                   flexibleHolidays
-                    .filter((h: any) => h.type === 'restricted' || h.type === 'optional' || true)
+                    .filter((h: any) => h.type === 'restricted' || h.type === 'optional')
                     .map((h: any) => (
                       <option key={h.id} value={h.id}>
                         {h.name} ({new Date(h.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})

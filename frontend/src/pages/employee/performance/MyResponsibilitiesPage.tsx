@@ -10,6 +10,7 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Spinner } from '../../../components/ui/Spinner';
 import { DataTable, type Column } from '../../../components/ui/DataTable';
+import { Modal } from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/ToastProvider';
 
 type TabKey = 'kpis' | 'kras' | 'evaluate' | 'scorecard';
@@ -91,6 +92,23 @@ export default function MyResponsibilitiesPage() {
     onError: (err: any) => toastError(err.message || 'Failed to update'),
   });
 
+  const [goalModalOpen, setGoalModalOpen] = useState(false);
+  const [goalForm, setGoalForm] = useState({ title: '', description: '', dueDate: '' });
+  const createGoalMutation = useMutation({
+    mutationFn: () => performanceApi.createGoal(myEmpId, {
+      title: goalForm.title,
+      ...(goalForm.description ? { description: goalForm.description } : {}),
+      ...(goalForm.dueDate ? { dueDate: goalForm.dueDate } : {}),
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-goals', myEmpId] });
+      toastSuccess('KPI added');
+      setGoalModalOpen(false);
+      setGoalForm({ title: '', description: '', dueDate: '' });
+    },
+    onError: (err: any) => toastError(err.message || 'Failed to create KPI'),
+  });
+
   const submitEvalMutation = useMutation({
     mutationFn: (data: any) => performanceApi.submitReview(myEmpId, data),
     onSuccess: () => {
@@ -163,10 +181,19 @@ export default function MyResponsibilitiesPage() {
       {/* KPIs Tab */}
       {tab === 'kpis' && (
         <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-[var(--text-primary)]">KPI Goals</h3>
+            <button
+              onClick={() => setGoalModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-medium transition-colors"
+            >
+              <Plus size={14} /> Add KPI
+            </button>
+          </div>
           {loadingGoals ? <Spinner /> : goalList.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 gap-3 text-[var(--text-muted)]">
               <Target size={32} className="opacity-30" />
-              <p className="text-sm">No KPIs assigned yet. Contact your manager to set goals.</p>
+              <p className="text-sm">No KPIs yet. Add your first KPI to start tracking progress.</p>
             </div>
           ) : (
             <div className="grid gap-4">
@@ -328,6 +355,47 @@ export default function MyResponsibilitiesPage() {
           )}
         </div>
       )}
+
+      <Modal open={goalModalOpen} onClose={() => setGoalModalOpen(false)} title="Add KPI Goal" size="md">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">Title</label>
+            <input
+              value={goalForm.title}
+              onChange={(e) => setGoalForm({ ...goalForm, title: e.target.value })}
+              placeholder="e.g. Achieve 95% attendance this quarter"
+              className="w-full px-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">Description</label>
+            <textarea
+              value={goalForm.description}
+              onChange={(e) => setGoalForm({ ...goalForm, description: e.target.value })}
+              rows={3}
+              placeholder="Optional — add context or expected outcome..."
+              className="w-full px-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 resize-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">Due Date</label>
+            <input
+              type="date"
+              value={goalForm.dueDate}
+              onChange={(e) => setGoalForm({ ...goalForm, dueDate: e.target.value })}
+              className="w-full px-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+            />
+          </div>
+          <button
+            onClick={() => createGoalMutation.mutate()}
+            disabled={!goalForm.title.trim() || createGoalMutation.isPending}
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-xl text-sm font-medium transition-all shadow-lg shadow-indigo-500/20"
+          >
+            {createGoalMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+            {createGoalMutation.isPending ? 'Adding...' : 'Add KPI'}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
-  employeesApi, organizationApi, payrollApi, exitApi 
+  employeesApi, organizationApi, payrollApi, exitApi, orgMastersApi 
 } from '../../api/client';
 import { 
   ArrowLeftRight, TrendingUp, LogOut, Briefcase, CheckCircle2, Circle, ClipboardList, ChevronRight, UserMinus
@@ -37,6 +37,12 @@ export function EmployeeTransferForm() {
     queryKey: ['designations-list'],
     queryFn: () => organizationApi.listDesignations(),
   });
+
+  const { data: allMasters } = useQuery({
+    queryKey: ['org-masters-grades'],
+    queryFn: () => orgMastersApi.list('masters'),
+  });
+  const grades = (allMasters ?? []).filter((m: any) => m.master === 'grade');
 
   const transferMutation = useMutation({
     mutationFn: () => employeesApi.update(empId, {
@@ -105,7 +111,12 @@ export function EmployeeTransferForm() {
           </div>
           <div>
             <label className="block text-slate-500 mb-1">New Pay Cadre/Grade</label>
-            <input type="text" placeholder="e.g. M1, E2" value={grade} onChange={e => setGrade(e.target.value)} className="w-full border border-slate-200 dark:border-slate-700 bg-transparent rounded p-2" />
+            <select value={grade} onChange={e => setGrade(e.target.value)} className="w-full border border-slate-200 dark:border-slate-700 bg-transparent rounded p-2">
+              <option value="">-- No Change --</option>
+              {grades.map((g: any) => (
+                <option key={g.id} value={g.name}>{g.name}</option>
+              ))}
+            </select>
           </div>
         </div>
         <button onClick={() => transferMutation.mutate()} disabled={!empId || transferMutation.isPending} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition-colors disabled:opacity-50">
@@ -126,6 +137,9 @@ export function EmployeePromotionForm() {
   // Salary structure fields
   const [basic, setBasic] = useState('0');
   const [hra, setHra] = useState('0');
+  const [da, setDa] = useState('0');
+  const [conveyance, setConveyance] = useState('0');
+  const [medical, setMedical] = useState('0');
   const [special, setSpecial] = useState('0');
 
   const { data: employees } = useQuery({
@@ -134,9 +148,15 @@ export function EmployeePromotionForm() {
   });
 
   const { data: designations } = useQuery({
-    queryKey: ['designations-list'],
+    queryKey: ['designations-list-promotion'],
     queryFn: () => organizationApi.listDesignations(),
   });
+
+  const { data: promoGrades } = useQuery({
+    queryKey: ['org-masters-grades-promotion'],
+    queryFn: () => orgMastersApi.list('masters'),
+  });
+  const gradeOptions = (promoGrades ?? []).filter((m: any) => m.master === 'grade');
 
   const promotionMutation = useMutation({
     mutationFn: async () => {
@@ -150,8 +170,12 @@ export function EmployeePromotionForm() {
       await payrollApi.setSalaryStructure(empId, {
         basic: Number(basic),
         hra: Number(hra),
+        da: Number(da),
+        conveyance: Number(conveyance),
+        medical: Number(medical),
         specialAllowance: Number(special),
         effectiveFrom: new Date().toISOString(),
+        reason: 'promotion',
       });
     },
     onSuccess: () => {
@@ -161,6 +185,9 @@ export function EmployeePromotionForm() {
       setGrade('');
       setBasic('0');
       setHra('0');
+      setDa('0');
+      setConveyance('0');
+      setMedical('0');
       setSpecial('0');
       qc.invalidateQueries({ queryKey: ['employees'] });
     },
@@ -195,7 +222,12 @@ export function EmployeePromotionForm() {
           </div>
           <div>
             <label className="block text-slate-500 mb-1">New Pay Grade</label>
-            <input type="text" placeholder="e.g. Senior" value={grade} onChange={e => setGrade(e.target.value)} className="w-full border border-slate-200 dark:border-slate-700 bg-transparent rounded p-2" />
+            <select value={grade} onChange={e => setGrade(e.target.value)} className="w-full border border-slate-200 dark:border-slate-700 bg-transparent rounded p-2">
+              <option value="">-- No Change --</option>
+              {gradeOptions.map((g: any) => (
+                <option key={g.id} value={g.name}>{g.name}</option>
+              ))}
+            </select>
           </div>
         </div>
         <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
@@ -208,6 +240,18 @@ export function EmployeePromotionForm() {
             <div>
               <label className="block text-slate-500 mb-1">HRA</label>
               <input type="number" value={hra} onChange={e => setHra(e.target.value)} className="w-full border border-slate-200 dark:border-slate-700 bg-transparent rounded p-2" />
+            </div>
+            <div>
+              <label className="block text-slate-500 mb-1">DA</label>
+              <input type="number" value={da} onChange={e => setDa(e.target.value)} className="w-full border border-slate-200 dark:border-slate-700 bg-transparent rounded p-2" />
+            </div>
+            <div>
+              <label className="block text-slate-500 mb-1">Conveyance</label>
+              <input type="number" value={conveyance} onChange={e => setConveyance(e.target.value)} className="w-full border border-slate-200 dark:border-slate-700 bg-transparent rounded p-2" />
+            </div>
+            <div>
+              <label className="block text-slate-500 mb-1">Medical</label>
+              <input type="number" value={medical} onChange={e => setMedical(e.target.value)} className="w-full border border-slate-200 dark:border-slate-700 bg-transparent rounded p-2" />
             </div>
             <div>
               <label className="block text-slate-500 mb-1">Special Allowance</label>

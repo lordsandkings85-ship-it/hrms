@@ -113,13 +113,13 @@ export function computeIncomeTax(input: TaxInput): TaxOutput {
       prev = limit;
       if (remaining <= 0) break;
     }
-    // Rebate 87A: if taxable ≤ 7L, no tax (new regime)
-    if (taxableIncome <= 700000) baseTax = 0;
+    // Rebate 87A (FY 2025-26): no tax for taxable income up to ₹12L in new regime
+    if (taxableIncome <= 1200000) baseTax = 0;
   }
 
-  // Surcharge
+  // Surcharge (Finance Act 2025, AY 2026-27): max rate 25% for income above ₹5Cr
   let surchargeRate = 0;
-  if (taxableIncome > 50000000) surchargeRate = 0.37;
+  if (taxableIncome > 50000000) surchargeRate = 0.25;
   else if (taxableIncome > 20000000) surchargeRate = 0.25;
   else if (taxableIncome > 10000000) surchargeRate = 0.15;
   else if (taxableIncome > 5000000) surchargeRate = 0.10;

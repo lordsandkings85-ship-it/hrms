@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
@@ -10,7 +10,9 @@ export class IntegrationsService {
   connect(companyId: string, provider: string, config?: any) {
     return this.prisma.integration.create({ data: { companyId, provider, status: 'connected', config } });
   }
-  disconnect(id: string) {
+  async disconnect(id: string, companyId: string) {
+    const integration = await this.prisma.integration.findFirst({ where: { id, companyId } });
+    if (!integration) throw new NotFoundException('Integration not found');
     return this.prisma.integration.update({ where: { id }, data: { status: 'disconnected' } });
   }
 

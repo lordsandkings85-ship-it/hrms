@@ -4,8 +4,12 @@ import { ShieldAlert, Search, Filter, Check, X, Clock, MapPin, RefreshCw } from 
 import { attendanceApi } from '../../../api/client';
 import { useToast } from '../../../components/ui/ToastProvider';
 
+const LOG_STATUS_OPTIONS = ['all', 'present', 'late', 'absent', 'half_day', 'on_leave'];
+
 export default function RegularizationApprovalPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [filterOpen, setFilterOpen] = useState(false);
   const queryClient = useQueryClient();
   const { success: toastSuccess, error: toastError } = useToast();
 
@@ -20,6 +24,10 @@ export default function RegularizationApprovalPage() {
     onSuccess: () => {
       toastSuccess('Regularization request approved');
       queryClient.invalidateQueries({ queryKey: ['regularization-pending'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-today'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-summary-dash'] });
     },
     onError: (err: any) => toastError(err.message || 'Failed to approve request'),
   });
@@ -29,13 +37,19 @@ export default function RegularizationApprovalPage() {
     onSuccess: () => {
       toastSuccess('Regularization request rejected');
       queryClient.invalidateQueries({ queryKey: ['regularization-pending'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-today'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-summary-dash'] });
     },
     onError: (err: any) => toastError(err.message || 'Failed to reject request'),
   });
 
   const filtered = (requests || []).filter((r: any) => {
     const name = `${r.employee?.firstName || ''} ${r.employee?.lastName || ''}`.toLowerCase();
-    return name.includes(searchTerm.toLowerCase());
+    const matchName = name.includes(searchTerm.toLowerCase());
+    const matchStatus = statusFilter === 'all' || r.attendanceLog?.status === statusFilter;
+    return matchName && matchStatus;
   });
 
   const statusBadge = (status: string) => {
@@ -88,9 +102,27 @@ export default function RegularizationApprovalPage() {
                 className="pl-9 pr-4 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 transition-colors w-64"
               />
             </div>
-            <button aria-label="Filter" className="p-2 border border-[var(--border)] rounded-xl text-[var(--text-muted)] hover:text-blue-500 hover:border-blue-500/30 transition-colors bg-[var(--surface-alt)]">
-              <Filter size={16} />
-            </button>
+            <div className="relative">
+              <button aria-label="Filter" onClick={() => setFilterOpen(o => !o)} className="p-2 border border-[var(--border)] rounded-xl text-[var(--text-muted)] hover:text-blue-500 hover:border-blue-500/30 transition-colors bg-[var(--surface-alt)]">
+                <Filter size={16} />
+              </button>
+              {filterOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setFilterOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-40 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-lg z-20 py-1">
+                    {LOG_STATUS_OPTIONS.map(opt => (
+                      <button
+                        key={opt}
+                        onClick={() => { setStatusFilter(opt); setFilterOpen(false); }}
+                        className={`w-full text-left px-4 py-2 text-xs font-semibold capitalize transition-colors ${statusFilter === opt ? 'text-blue-500 bg-blue-500/5' : 'text-[var(--text-primary)] hover:bg-[var(--surface-hover)]'}`}
+                      >
+                        {opt === 'all' ? 'All' : opt.replace('_', ' ')}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 

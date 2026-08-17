@@ -1,36 +1,43 @@
 import { Body, Controller, Get, Param, Post, Delete, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../../common/guards/permissions.guard';
+import { Permissions } from '../../../common/decorators/permissions.decorator';
 import { CurrentUser, AuthUser } from '../../../common/decorators/current-user.decorator';
 import { LeaveService } from './leave.service';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('leave')
 export class LeaveController {
   constructor(private leaveService: LeaveService) {}
 
   @Get('analytics')
+  @Permissions({ module: 'leave', action: 'view' })
   analytics(@CurrentUser() user: AuthUser) {
     return this.leaveService.analytics(user.companyId);
   }
 
   @Get('policies')
+  @Permissions({ module: 'leave', action: 'view' })
   getPolicies(@CurrentUser() user: AuthUser) {
     return this.leaveService.getPolicies(user.companyId);
   }
 
   @Post('policies')
+  @Permissions({ module: 'leave', action: 'edit' })
   setPolicies(@CurrentUser() user: AuthUser, @Body() policies: any) {
     return this.leaveService.setPolicies(user.companyId, policies);
   }
 
   @Post('bulk-approve')
+  @Permissions({ module: 'leave', action: 'approve' })
   bulkApprove(@CurrentUser() user: AuthUser, @Body() body: { ids: string[] }) {
-    return this.leaveService.bulkApprove(body.ids, user.userId);
+    return this.leaveService.bulkApprove(body.ids, user.companyId, user.userId);
   }
 
   @Post('bulk-reject')
+  @Permissions({ module: 'leave', action: 'approve' })
   bulkReject(@CurrentUser() user: AuthUser, @Body() body: { ids: string[] }) {
-    return this.leaveService.bulkReject(body.ids, user.userId);
+    return this.leaveService.bulkReject(body.ids, user.companyId, user.userId);
   }
 
   @Get('types')
@@ -39,17 +46,21 @@ export class LeaveController {
   }
 
   @Post('types')
+  @Permissions({ module: 'leave', action: 'edit' })
   createType(@CurrentUser() user: AuthUser, @Body() body: { name: string; paid: boolean }) {
     return this.leaveService.createType(user.companyId, body.name, body.paid);
   }
 
   @Delete('types/:id')
+  @Permissions({ module: 'leave', action: 'edit' })
   deleteType(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.leaveService.deleteType(user.companyId, id);
   }
 
   @Post('apply')
+  @Permissions({ module: 'leave', action: 'create' })
   apply(
+    @CurrentUser() user: AuthUser,
     @Body()
     body: {
       employeeId: string;
@@ -61,6 +72,7 @@ export class LeaveController {
     },
   ) {
     return this.leaveService.apply(
+      user.companyId,
       body.employeeId,
       body.leaveTypeId,
       body.startDate,
@@ -71,16 +83,19 @@ export class LeaveController {
   }
 
   @Post(':id/approve')
+  @Permissions({ module: 'leave', action: 'approve' })
   approve(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.leaveService.approve(id, user.userId);
+    return this.leaveService.approve(id, user.companyId, user.userId);
   }
 
   @Post(':id/reject')
+  @Permissions({ module: 'leave', action: 'approve' })
   reject(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.leaveService.reject(id, user.userId);
+    return this.leaveService.reject(id, user.companyId, user.userId);
   }
 
   @Post(':id/cancel')
+  @Permissions({ module: 'leave', action: 'edit' })
   cancel(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
@@ -90,36 +105,43 @@ export class LeaveController {
   }
 
   @Get('cancellations/pending')
+  @Permissions({ module: 'leave', action: 'view' })
   listCancellations(@CurrentUser() user: AuthUser) {
     return this.leaveService.listCancellations(user.companyId);
   }
 
   @Post('cancellations/:id/approve')
+  @Permissions({ module: 'leave', action: 'approve' })
   approveCancellation(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.leaveService.approveCancellation(id, user.userId);
+    return this.leaveService.approveCancellation(id, user.companyId, user.userId);
   }
 
   @Post('cancellations/:id/reject')
+  @Permissions({ module: 'leave', action: 'approve' })
   rejectCancellation(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.leaveService.rejectCancellation(id, user.userId);
+    return this.leaveService.rejectCancellation(id, user.companyId, user.userId);
   }
 
   @Get('employee/:employeeId')
-  listForEmployee(@Param('employeeId') employeeId: string) {
-    return this.leaveService.listForEmployee(employeeId);
+  @Permissions({ module: 'leave', action: 'view' })
+  listForEmployee(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string) {
+    return this.leaveService.listForEmployee(employeeId, user.companyId);
   }
 
   @Get('pending')
+  @Permissions({ module: 'leave', action: 'view' })
   listPending(@CurrentUser() user: AuthUser) {
     return this.leaveService.listPendingForCompany(user.companyId);
   }
 
   @Get('balances/:employeeId')
-  balances(@Param('employeeId') employeeId: string, @Query('year') year?: string) {
-    return this.leaveService.balances(employeeId, year ? Number(year) : new Date().getFullYear());
+  @Permissions({ module: 'leave', action: 'view' })
+  balances(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string, @Query('year') year?: string) {
+    return this.leaveService.balances(employeeId, year ? Number(year) : new Date().getFullYear(), user.companyId);
   }
 
   @Get('balances-overview')
+  @Permissions({ module: 'leave', action: 'view' })
   balancesOverview(
     @CurrentUser() user: AuthUser,
     @Query('year') year?: string,
@@ -135,6 +157,7 @@ export class LeaveController {
   }
 
   @Get('all')
+  @Permissions({ module: 'leave', action: 'view' })
   listAll(
     @CurrentUser() user: AuthUser,
     @Query('departmentId') departmentId?: string,
@@ -154,11 +177,13 @@ export class LeaveController {
   }
 
   @Post('holidays')
+  @Permissions({ module: 'leave', action: 'edit' })
   createHoliday(@CurrentUser() user: AuthUser, @Body() body: { name: string; date: string }) {
     return this.leaveService.createHoliday(user.companyId, body.name, body.date);
   }
 
   @Delete('holidays/:id')
+  @Permissions({ module: 'leave', action: 'edit' })
   deleteHoliday(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.leaveService.deleteHoliday(user.companyId, id);
   }

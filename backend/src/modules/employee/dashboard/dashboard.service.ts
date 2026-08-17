@@ -5,7 +5,11 @@ import { PrismaService } from '../../../prisma/prisma.service';
 export class DashboardService {
   constructor(private prisma: PrismaService) {}
 
-  async getSummary(companyId: string) {
+async getSummary(companyId: string, user?: any) {
+    const isPrivileged =
+      user?.isSuperAdmin ||
+      (user?.roleId &&
+        (await this.prisma.permission.count({ where: { roleId: user.roleId } })) > 0);
     const today = new Date();
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
@@ -198,7 +202,7 @@ export class DashboardService {
       let monthlyGross = 0;
       if (emp.salaryStructures && emp.salaryStructures.length > 0) {
         const s = emp.salaryStructures[0];
-        monthlyGross = (s.basic || 0) + (s.hra || 0) + (s.da || 0) + (s.conveyance || 0) + (s.medical || 0) + (s.specialAllowance || 0);
+        monthlyGross = Number(s.basic || 0) + Number(s.hra || 0) + Number(s.da || 0) + Number(s.conveyance || 0) + Number(s.medical || 0) + Number(s.specialAllowance || 0);
       }
       totalAnnualCTC += (monthlyGross * 12);
       return sum + monthlyGross;
@@ -215,7 +219,7 @@ export class DashboardService {
         include: { payslips: true }
       });
       
-      const cost = cycle && cycle.payslips.length > 0 ? cycle.payslips.reduce((acc, p) => acc + p.netPay, 0) : estimatedMonthlyCost;
+      const cost = cycle && cycle.payslips.length > 0 ? cycle.payslips.reduce((acc, p) => acc + Number(p.netPay), 0) : estimatedMonthlyCost;
       
       payrollCost.push({
         month: d.toLocaleString('en-US', { month: 'short' }),
@@ -351,7 +355,7 @@ export class DashboardService {
       });
     }
 
-    return {
+const summary = {
       widgets: {
         totalEmployees,
         presentToday,
@@ -387,6 +391,19 @@ export class DashboardService {
         anniversaries: anniversaries.slice(0, 5)
       }
     };
+
+    if (!isPrivileged) {
+      // Employees do not see company-wide salary/payroll analytics.
+      delete (summary.widgets as any).totalAnnualCTC;
+      delete (summary as any).monthlyPayrollCost;
+      delete (summary as any).departmentMix;
+      delete (summary as any).headcountTrend;
+      delete (summary as any).attritionRate;
+      delete (summary as any).genderDistribution;
+      delete (summary as any).recruitmentPipeline;
+    }
+
+    return summary;
   }
 }
 

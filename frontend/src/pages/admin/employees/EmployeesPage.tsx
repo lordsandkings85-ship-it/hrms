@@ -1,34 +1,101 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { Filter, Calendar, Trash2 } from 'lucide-react';
+import { Filter, Calendar, Trash2, KeyRound, RotateCcw, UserCheck, UserX, ChevronDown } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 import { employeesApi } from '../../../api/client';
+import { LoginStatus } from '../../../api/client';
 import AddEmployeeModal from '../../../features/employee/AddEmployeeModal';
+import CreateLoginModal from '../../../components/CreateLoginModal';
+import ResetPasswordModal from '../../../components/ResetPasswordModal';
 import { Modal } from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { downloadHtmlDoc } from '../../../utils/htmlDoc';
 
-function exportToCsv(items: any[], filename: string, toastError?: (title: string) => void) {
-  if (!items || items.length === 0) { if (toastError) toastError('No employees to export.'); return; }
-  const headers = ['Employee ID', 'Employee Name', 'State', 'Branch', 'Department', 'Category', 'Designation', 'Joining Date', 'Status'];
-  const rows = items.map(emp => [
+const EXPORT_HEADERS = ['Employee ID', 'Employee Name', 'State', 'Branch', 'Department', 'Category', 'Designation', 'Joining Date', 'Status'];
+
+function exportRows(items: any[]) {
+  return items.map(emp => [
     emp.employeeCode || emp.id,
-    `"${emp.firstName} ${emp.lastName}"`,
-    `"${emp.state || 'Tamil Nadu'}"`,
-    `"${emp.branch?.name || 'Chennai'}"`,
-    `"${emp.department?.name || 'IT Department'}"`,
-    `"${emp.category || 'Staff'}"`,
-    `"${emp.designation?.title || 'Team Leader'}"`,
-    `"${emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '12-Apr-2024'}"`,
-    emp.status || 'Active'
+    `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || '-',
+    emp.state || '-',
+    emp.branch?.name || '-',
+    emp.department?.name || '-',
+    emp.category || '-',
+    emp.designation?.title || '-',
+    emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-',
+    emp.status || '-',
   ]);
-  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+}
+
+function exportTableHtml(headers: string[], rows: any[][]): string {
+  const esc = (v: any) => String(v ?? '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
+  const head = headers.map(h => `<th>${esc(h)}</th>`).join('');
+  const body = rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('');
+  return `<table>${head ? `<thead><tr>${head}</tr></thead>` : ''}<tbody>${body}</tbody></table>`;
+}
+
+function exportToWord(items: any[], toastError: (title: string) => void) {
+  if (!items || items.length === 0) { toastError('No employees to export.'); return; }
+  downloadHtmlDoc('Employees_List.doc', exportTableHtml(EXPORT_HEADERS, exportRows(items)));
+}
+
+function exportToExcel(items: any[], toastError: (title: string) => void) {
+  if (!items || items.length === 0) { toastError('No employees to export.'); return; }
+  downloadHtmlDoc('Employees_List.xls', exportTableHtml(EXPORT_HEADERS, exportRows(items)), 'application/vnd.ms-excel');
+}
+
+function exportToPDF(items: any[], toastError: (title: string) => void) {
+  if (!items || items.length === 0) { toastError('No employees to export.'); return; }
+  const doc = new jsPDF('l', 'mm', 'a4');
+  const pageWidth = 297;
+  const left = 10;
+  const rowH = 7;
+  const colW = (pageWidth - 20) / EXPORT_HEADERS.length;
+
+  doc.setFillColor(238, 87, 64);
+  doc.rect(0, 0, pageWidth, 12, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text('EMPLOYEES LIST', pageWidth / 2, 8, { align: 'center' });
+  doc.setFontSize(6);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${items.length} employees | Generated ${new Date().toLocaleDateString('en-IN')}`, pageWidth / 2, 10.5, { align: 'center' });
+
+  let y = 18;
+  doc.setFontSize(6);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(100, 116, 139);
+  doc.setFillColor(248, 250, 252);
+  EXPORT_HEADERS.forEach((h, i) => {
+    doc.rect(left + i * colW, y - 3.5, colW, rowH, 'F');
+    doc.text(h, left + i * colW + 1.5, y);
+  });
+  y += rowH;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(30, 41, 59);
+  items.forEach((emp, idx) => {
+    const row = exportRows([emp])[0];
+    if (y > 280) {
+      doc.addPage('a4', 'l');
+      y = 12;
+    }
+    if (idx % 2 === 0) {
+      doc.setFillColor(248, 250, 252);
+      doc.rect(left, y - 3.5, pageWidth - 20, rowH, 'F');
+    }
+    row.forEach((cell, i) => doc.text(String(cell), left + i * colW + 1.5, y));
+    y += rowH;
+  });
+
+  doc.setFontSize(6);
+  doc.setTextColor(148, 163, 184);
+  doc.setFont('helvetica', 'italic');
+  doc.text('This is a computer-generated export from the HRMS.', left, 290);
+
+  doc.save('Employees_List.pdf');
 }
 
 export default function EmployeesPage() {
@@ -58,12 +125,23 @@ export default function EmployeesPage() {
   const [filterDesig, setFilterDesig] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [createLoginFor, setCreateLoginFor] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [resetPasswordFor, setResetPasswordFor] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
 
   useEffect(() => {
     if (action === 'add' && !isModalOpen) {
       setIsModalOpen(true);
     }
   }, [action, isModalOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = () => setOpenActionMenu(null);
+    if (openActionMenu) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [openActionMenu]);
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
@@ -76,10 +154,29 @@ export default function EmployeesPage() {
     queryFn: () => employeesApi.list({ search: debouncedSearch, page }),
   });
 
+  const { data: loginStatuses } = useQuery({
+    queryKey: ['login-status'],
+    queryFn: () => employeesApi.loginStatus(),
+  });
+
+  const loginMap = useMemo(() => {
+    if (!loginStatuses) return new Map<string, LoginStatus>();
+    return new Map(loginStatuses.map((ls) => [ls.employeeId, ls]));
+  }, [loginStatuses]);
+
   const remove = useMutation({
     mutationFn: (id: string) => employeesApi.remove(id),
     onSuccess: () => { toastSuccess('Employee deleted'); queryClient.invalidateQueries({ queryKey: ['employees'] }); },
     onError: (e: any) => toastError(e.message || 'Failed to delete employee'),
+  });
+
+  const toggleLogin = useMutation({
+    mutationFn: ({ id, active }: { id: string; active: boolean }) => employeesApi.toggleLogin(id, active),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['login-status'] });
+      toastSuccess('Login status updated');
+    },
+    onError: (e: any) => toastError(e.message || 'Failed to update login status'),
   });
 
   function handleModalClose() {
@@ -121,6 +218,28 @@ export default function EmployeesPage() {
         </Modal>
       )}
 
+      {createLoginFor && (
+        <Modal open={!!createLoginFor} onClose={() => setCreateLoginFor(null)} title="Create Employee Login">
+          <CreateLoginModal
+            employeeId={createLoginFor.id}
+            employeeName={createLoginFor.name}
+            employeeEmail={createLoginFor.email}
+            onClose={() => setCreateLoginFor(null)}
+          />
+        </Modal>
+      )}
+
+      {resetPasswordFor && (
+        <Modal open={!!resetPasswordFor} onClose={() => setResetPasswordFor(null)} title="Reset Password">
+          <ResetPasswordModal
+            employeeId={resetPasswordFor.id}
+            employeeName={resetPasswordFor.name}
+            employeeEmail={resetPasswordFor.email}
+            onClose={() => setResetPasswordFor(null)}
+          />
+        </Modal>
+      )}
+
       {(action === 'list' || action === 'add') && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3 space-y-3 shadow-xs">
           
@@ -149,21 +268,21 @@ export default function EmployeesPage() {
               <div className="flex items-center gap-1 ml-2 border-l border-slate-200 dark:border-slate-700 pl-2">
                 <button
                   title="Export to Word"
-                  onClick={() => exportToCsv(filteredEmployees, 'Employees_List.csv', toastError)}
+                  onClick={() => exportToWord(filteredEmployees, toastError)}
                   className="w-7 h-7 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center font-bold text-[10px] shadow-xs cursor-pointer"
                 >
                   W
                 </button>
                 <button
                   title="Export to Excel"
-                  onClick={() => exportToCsv(filteredEmployees, 'Employees_List.csv', toastError)}
+                  onClick={() => exportToExcel(filteredEmployees, toastError)}
                   className="w-7 h-7 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center font-bold text-[10px] shadow-xs cursor-pointer"
                 >
                   X
                 </button>
                 <button
                   title="Export to PDF"
-                  onClick={() => exportToCsv(filteredEmployees, 'Employees_List.csv', toastError)}
+                  onClick={() => exportToPDF(filteredEmployees, toastError)}
                   className="w-7 h-7 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center font-bold text-[10px] shadow-xs cursor-pointer"
                 >
                   PDF
@@ -190,7 +309,9 @@ export default function EmployeesPage() {
                   <th className="p-2 border-r border-sky-400 min-w-[90px]">Grade/Cadre</th>
                   <th className="p-2 border-r border-sky-400 min-w-[130px]">Designation</th>
                   <th className="p-2 border-r border-sky-400 min-w-[110px]">Date of Joining</th>
-                  <th className="p-2 min-w-[90px]">Status</th>
+                  <th className="p-2 border-r border-sky-400 min-w-[90px]">Status</th>
+                  <th className="p-2 border-r border-sky-400 min-w-[100px]">Login Status</th>
+                  <th className="p-2 border-r border-sky-400 min-w-[100px]">Last Login</th>
                   <th className="p-2 min-w-[70px]">Actions</th>
                 </tr>
 
@@ -330,6 +451,8 @@ export default function EmployeesPage() {
                       <option value="Inactive">Inactive</option>
                     </select>
                   </td>
+                  <td className="p-1 border-r border-slate-200 dark:border-slate-700"></td>
+                  <td className="p-1 border-r border-slate-200 dark:border-slate-700"></td>
                   <td className="p-1"></td>
                 </tr>
               </thead>
@@ -338,17 +461,18 @@ export default function EmployeesPage() {
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={12} className="p-6 text-center text-slate-400">
+                    <td colSpan={15} className="p-6 text-center text-slate-400">
                       Loading employees list...
                     </td>
                   </tr>
                 ) : filteredEmployees.length > 0 ? (
                   filteredEmployees.map((emp: any, index: number) => {
-                    const empCodeText = emp.employeeCode || (index === 0 ? '1' : 'LAK1803');
-                    const empNameText = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || (index === 0 ? 'Sathishkumar S' : 'Hari Balaji N');
+                    const empCodeText = emp.employeeCode || '—';
+                    const empNameText = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || '—';
                     const joiningDateText = emp.joiningDate
                       ? new Date(emp.joiningDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-                      : (index === 0 ? '12-Apr-2024' : '23-Jul-2026');
+                      : '—';
+                    const loginInfo = loginMap.get(emp.id);
 
                     return (
                       <tr
@@ -386,7 +510,7 @@ export default function EmployeesPage() {
                           {emp.subCategory || 'NA'}
                         </td>
                         <td className="p-2 border-r border-slate-200 dark:border-slate-800 text-slate-400">
-                          {emp.grade || 'NA'}
+                          {emp.grade || '—'}
                         </td>
                         <td className="p-2 border-r border-slate-200 dark:border-slate-800">
                           {emp.designation?.title || (index === 0 ? 'Team Leader' : 'Technical Support Engineer')}
@@ -394,27 +518,100 @@ export default function EmployeesPage() {
                         <td className="p-2 border-r border-slate-200 dark:border-slate-800 font-mono">
                           {joiningDateText}
                         </td>
-                        <td className="p-2 font-medium">
+                        <td className="p-2 border-r border-slate-200 dark:border-slate-800 font-medium">
                           <span className="text-slate-800 dark:text-slate-200">
-                            {emp.status || 'Active'}
+                            {(emp.status || 'active').charAt(0).toUpperCase() + (emp.status || 'active').slice(1)}
                           </span>
                         </td>
-                        <td className="p-2 text-center">
-                          <button
-                            onClick={() => { if (confirm(`Delete employee ${empNameText} (${empCodeText}) permanently? This removes their profile and all related records.`)) remove.mutate(emp.id); }}
-                            disabled={remove.isPending}
-                            title="Delete employee"
-                            className="inline-flex items-center justify-center w-7 h-7 rounded text-slate-400 hover:text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-30"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+
+                        {/* Login Status */}
+                        <td className="p-2 border-r border-slate-200 dark:border-slate-800">
+                          {loginInfo?.hasLogin ? (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                              loginInfo.isActive
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                            }`}>
+                              {loginInfo.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                              No Account
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Last Login */}
+                        <td className="p-2 border-r border-slate-200 dark:border-slate-800 text-[10px] text-slate-500">
+                          {loginInfo?.lastLoginAt
+                            ? new Date(loginInfo.lastLoginAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                            : '—'}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="p-2 text-center relative">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => { if (confirm(`Delete employee ${empNameText} (${empCodeText}) permanently? This removes their profile and all related records.`)) remove.mutate(emp.id); }}
+                              disabled={remove.isPending}
+                              title="Delete employee"
+                              className="inline-flex items-center justify-center w-7 h-7 rounded text-slate-400 hover:text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-30"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                            <div className="relative">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setOpenActionMenu(openActionMenu === emp.id ? null : emp.id); }}
+                                title="Login actions"
+                                className="inline-flex items-center justify-center w-7 h-7 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-500/10 transition-colors"
+                              >
+                                <KeyRound size={14} />
+                              </button>
+                              {openActionMenu === emp.id && (
+                                <div className="absolute right-0 top-8 z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 min-w-[160px]">
+                                  {!loginInfo?.hasLogin ? (
+                                    <button
+                                      onClick={() => { setOpenActionMenu(null); setCreateLoginFor({ id: emp.id, name: empNameText, email: emp.email || '' }); }}
+                                      className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                                    >
+                                      <KeyRound size={12} className="text-blue-500" /> Create Login
+                                    </button>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => { setOpenActionMenu(null); setResetPasswordFor({ id: emp.id, name: empNameText, email: loginInfo.loginEmail || emp.email || '' }); }}
+                                        className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                                      >
+                                        <RotateCcw size={12} className="text-amber-500" /> Reset Password
+                                      </button>
+                                      {loginInfo.isActive ? (
+                                        <button
+                                          onClick={() => { setOpenActionMenu(null); toggleLogin.mutate({ id: emp.id, active: false }); }}
+                                          className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                                        >
+                                          <UserX size={12} className="text-red-500" /> Deactivate Login
+                                        </button>
+                                      ) : (
+                                        <button
+                                          onClick={() => { setOpenActionMenu(null); toggleLogin.mutate({ id: emp.id, active: true }); }}
+                                          className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                                        >
+                                          <UserCheck size={12} className="text-emerald-500" /> Activate Login
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan={12} className="p-6 text-center text-slate-400">
+                    <td colSpan={15} className="p-6 text-center text-slate-400">
                       No employees match the filter criteria.
                     </td>
                   </tr>

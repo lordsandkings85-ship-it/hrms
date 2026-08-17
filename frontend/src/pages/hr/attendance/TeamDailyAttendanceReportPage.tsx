@@ -4,8 +4,12 @@ import { BarChart2, Search, Filter, Check, X } from 'lucide-react';
 import { attendanceApi } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 
+const STATUS_OPTIONS = ['all', 'present', 'late', 'absent', 'half_day', 'on_leave'];
+
 export default function TeamDailyAttendanceReportPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const { data: logs, isLoading } = useQuery({
     queryKey: ['attendance-team-report'],
@@ -18,7 +22,9 @@ export default function TeamDailyAttendanceReportPage() {
 
   const filteredLogs = (logs || []).filter((log: any) => {
     const name = (log.employee?.firstName + ' ' + log.employee?.lastName).toLowerCase();
-    return name.includes(searchTerm.toLowerCase());
+    const matchName = name.includes(searchTerm.toLowerCase());
+    const matchStatus = statusFilter === 'all' || log.status === statusFilter;
+    return matchName && matchStatus;
   });
 
   const columns: Column<any>[] = [
@@ -111,9 +117,27 @@ export default function TeamDailyAttendanceReportPage() {
                 className="pl-9 pr-4 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 transition-colors w-64"
               />
             </div>
-            <button aria-label="Filter" className="p-2 border border-[var(--border)] rounded-xl text-[var(--text-muted)] hover:text-blue-500 hover:border-blue-500/30 transition-colors bg-[var(--surface-alt)]">
-               <Filter size={16} />
-            </button>
+            <div className="relative">
+              <button aria-label="Filter" onClick={() => setFilterOpen(o => !o)} className="p-2 border border-[var(--border)] rounded-xl text-[var(--text-muted)] hover:text-blue-500 hover:border-blue-500/30 transition-colors bg-[var(--surface-alt)]">
+                 <Filter size={16} />
+              </button>
+              {filterOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setFilterOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-40 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-lg z-20 py-1">
+                    {STATUS_OPTIONS.map(opt => (
+                      <button
+                        key={opt}
+                        onClick={() => { setStatusFilter(opt); setFilterOpen(false); }}
+                        className={`w-full text-left px-4 py-2 text-xs font-semibold capitalize transition-colors ${statusFilter === opt ? 'text-blue-500 bg-blue-500/5' : 'text-[var(--text-primary)] hover:bg-[var(--surface-hover)]'}`}
+                      >
+                        {opt === 'all' ? 'All' : opt.replace('_', ' ')}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
         

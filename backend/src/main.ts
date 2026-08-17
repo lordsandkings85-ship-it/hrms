@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { DecimalToNumberInterceptor } from './common/interceptors/decimal-to-number.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -31,6 +32,7 @@ async function bootstrap() {
   });
 
   app.setGlobalPrefix('api/v1');
+  app.useGlobalInterceptors(new DecimalToNumberInterceptor());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -41,8 +43,8 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3000;
   await app.listen(port);
-  // console.log(`HRMS backend running on http://localhost:${port}/api/v1`);
-  console.log(`HRMS backend running on https://hrms-backend-rl2c.onrender.com/api/v1`);
+  console.log(`HRMS backend running on http://localhost:${port}/api/v1`);
+  // console.log(`HRMS backend running on https://hrms-backend-rl2c.onrender.com/api/v1`);
 
 }
 bootstrap();

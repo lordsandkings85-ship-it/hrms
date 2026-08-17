@@ -38,6 +38,8 @@ export default function MyAttendancePage() {
   // Regularization state
   const [selectedLogId, setSelectedLogId] = useState('');
   const [regularizeReason, setRegularizeReason] = useState('');
+  const [checkInTime, setCheckInTime] = useState('09:00');
+  const [checkOutTime, setCheckOutTime] = useState('18:00');
 
   // GPS Geolocation state
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -145,11 +147,12 @@ export default function MyAttendancePage() {
 
   const regularizeMutation = useMutation({
     mutationFn: ({ logId, reason }: { logId: string; reason: string }) => {
-      const now = new Date().toISOString();
+      const logDate = historyLogs?.find((l: any) => l.id === logId)?.date || new Date().toISOString();
+      const dateStr = new Date(logDate).toISOString().split('T')[0];
       return attendanceApi.regularize(logId, { 
         employeeId: myEmpId, 
-        requestedCheckIn: now, 
-        requestedCheckOut: now, 
+        requestedCheckIn: `${dateStr}T${checkInTime}:00`, 
+        requestedCheckOut: `${dateStr}T${checkOutTime}:00`, 
         reason 
       });
     },
@@ -303,6 +306,19 @@ export default function MyAttendancePage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Actual Check-In Time</label>
+                  <input type="time" value={checkInTime} onChange={e => setCheckInTime(e.target.value)}
+                    className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm text-[var(--text-primary)] font-mono focus:outline-none focus:border-blue-500/50" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Actual Check-Out Time</label>
+                  <input type="time" value={checkOutTime} onChange={e => setCheckOutTime(e.target.value)}
+                    className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm text-[var(--text-primary)] font-mono focus:outline-none focus:border-blue-500/50" />
+                </div>
               </div>
 
               <div>

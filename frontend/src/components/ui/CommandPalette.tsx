@@ -36,7 +36,7 @@ export default function CommandPalette({ open, onClose }: Props) {
   const ALL_COMMANDS: CommandItem[] = [
     { id: 'dashboard',    label: 'Dashboard',       category: 'Navigate', icon: LayoutDashboard, action: () => go('/dashboard') },
     { id: 'employees',   label: 'Employees',        category: 'Navigate', icon: Users,           action: () => go('/employees') },
-    { id: 'attendance',  label: 'Attendance',       category: 'Navigate', icon: Fingerprint,     action: () => go('/attendance') },
+    { id: 'attendance',  label: 'Attendance',       category: 'Navigate', icon: Fingerprint,     action: () => go('/attendance/daily') },
     { id: 'leave',       label: 'Leave',            category: 'Navigate', icon: CalendarDays,    action: () => go('/leave') },
     { id: 'payroll',     label: 'Payroll',          category: 'Navigate', icon: Banknote,        action: () => go('/payroll') },
     { id: 'recruitment', label: 'Recruitment',      category: 'Navigate', icon: Briefcase,       action: () => go('/recruitment') },

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, Download, Search, Filter, BookOpen, CreditCard, ExternalLink, FileOutput } from 'lucide-react';
+import { FileText, Download, Search, BookOpen, CreditCard, ExternalLink, FileOutput } from 'lucide-react';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { documentsApi } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
+import { isAdminOrHr } from '../../../utils/role';
 
 type TabKey = 'hr-forms' | 'payroll-forms';
 
@@ -27,6 +28,8 @@ export default function MyDocumentsPage() {
 
   const initialTab = SUB_TO_TAB[subAction] || 'hr-forms';
   const [tab, setTab] = useState<TabKey>(initialTab);
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
 
   useEffect(() => {
     if (SUB_TO_TAB[subAction]) {
@@ -40,11 +43,12 @@ export default function MyDocumentsPage() {
   };
 
   const myEmpId = user?.employee?.id || '';
+  const isStaff = isAdminOrHr(user) ? false : true;
 
   const { data: dbDocs, isLoading } = useQuery({
-    queryKey: ['my-documents', myEmpId],
-    queryFn: () => documentsApi.listForEmployee(myEmpId),
-    enabled: !!myEmpId
+    queryKey: isStaff ? ['my-documents', myEmpId] : ['all-documents'],
+    queryFn: () => isStaff ? documentsApi.listForEmployee(myEmpId) : documentsApi.listAll(),
+    enabled: isStaff ? !!myEmpId : true,
   });
 
   const rawDocs: any[] = dbDocs || [];
@@ -62,6 +66,11 @@ export default function MyDocumentsPage() {
   const filteredDocs = documents.filter(d => {
     if (tab === 'payroll-forms') return d.category === 'salary_links' || d.title.toLowerCase().includes('payroll');
     return d.category === 'hr_policies' || d.category === 'hr_links' || !d.title.toLowerCase().includes('payroll');
+  }).filter(d => {
+    if (categoryFilter !== 'all' && d.category !== categoryFilter) return false;
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return d.title.toLowerCase().includes(q) || d.description.toLowerCase().includes(q) || d.category.toLowerCase().includes(q);
   });
 
   const TABS = [
@@ -152,13 +161,23 @@ export default function MyDocumentsPage() {
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                 <input 
                   type="text" 
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search forms..." 
                   className="pl-9 pr-4 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] focus:outline-none focus:border-teal-500/50 transition-colors w-64"
                 />
               </div>
-              <button aria-label="Filter" className="p-2 border border-[var(--border)] rounded-xl text-[var(--text-muted)] hover:text-teal-500 hover:border-teal-500/30 transition-colors bg-[var(--surface-alt)]">
-                 <Filter size={16} />
-              </button>
+              <select
+                aria-label="Filter by category"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="px-3 py-2 border border-[var(--border)] rounded-xl text-xs font-bold text-[var(--text-primary)] bg-[var(--surface-alt)] focus:outline-none hover:border-teal-500/30 transition-colors cursor-pointer"
+              >
+                <option value="all">All Categories</option>
+                {[...new Set(documents.map(d => d.category))].map(c => (
+                  <option key={c} value={c}>{c.replace('_', ' ')}</option>
+                ))}
+              </select>
             </div>
           </div>
 

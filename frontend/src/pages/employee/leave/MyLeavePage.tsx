@@ -295,8 +295,10 @@ export default function MyLeavePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 {balances.map((bal: any) => {
                   const used = bal.used ?? 0;
-                  const total = bal.leaveType?.daysPerYear ?? (bal.balance + used);
-                  const pct = total > 0 ? Math.min(100, (bal.balance / total) * 100) : 0;
+                  const allotted = bal.allotted ?? 0;
+                  const balance = allotted - used;
+                  const total = bal.leaveType?.daysPerYear ?? (allotted);
+                  const pct = total > 0 ? Math.min(100, (balance / total) * 100) : 0;
                   return (
                     <div key={bal.id} className="p-4 border border-[var(--border)] rounded-2xl bg-[var(--surface-alt)] space-y-3">
                       <div className="flex justify-between items-start">
@@ -304,7 +306,7 @@ export default function MyLeavePage() {
                           <p className="text-sm font-bold text-[var(--text-primary)]">{bal.leaveType?.name}</p>
                           <p className="text-[10px] text-[var(--text-muted)] font-bold uppercase mt-0.5">Year: {bal.year}</p>
                         </div>
-                        <span className="text-2xl font-black text-indigo-400 font-mono">{bal.balance}</span>
+                        <span className="text-2xl font-black text-indigo-400 font-mono">{balance}</span>
                       </div>
                       <div className="space-y-1">
                         <div className="h-2 rounded-full bg-[var(--surface)] overflow-hidden">

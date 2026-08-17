@@ -10,12 +10,12 @@ export default function AdvanceClaimApprovalPage() {
 
   const approveMutation = useMutation({
     mutationFn: (id: string) => expensesApi.approve(id),
-    onSuccess: () => { success('Approved!', 'Request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['advance-approvals'] }); }
+    onSuccess: () => { success('Approved!', 'Request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['advance-approvals'] }); queryClient.invalidateQueries({ queryKey: ['my-expenses-list'] }); }
   });
 
   const rejectMutation = useMutation({
     mutationFn: (id: string) => expensesApi.reject(id),
-    onSuccess: () => { success('Rejected!', 'Request was rejected.'); queryClient.invalidateQueries({ queryKey: ['advance-approvals'] }); }
+    onSuccess: () => { success('Rejected!', 'Request was rejected.'); queryClient.invalidateQueries({ queryKey: ['advance-approvals'] }); queryClient.invalidateQueries({ queryKey: ['my-expenses-list'] }); }
   });
 
   return (

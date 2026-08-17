@@ -10,7 +10,11 @@ export class ShiftsService {
   create(companyId: string, name: string, startTime: string, endTime: string, type: string) {
     return this.prisma.shift.create({ data: { companyId, name, startTime, endTime, type } });
   }
-  async assign(shiftId: string, employeeId: string, effectiveFrom: string) {
+  async assign(companyId: string, shiftId: string, employeeId: string, effectiveFrom: string) {
+    const shift = await this.prisma.shift.findFirst({ where: { id: shiftId, companyId } });
+    if (!shift) throw new NotFoundException('Shift not found');
+    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+    if (!employee) throw new NotFoundException('Employee not found in this company');
     const effectiveDate = new Date(effectiveFrom);
     const existing = await this.prisma.shiftAssignment.findFirst({
       where: { shiftId, employeeId, effectiveFrom: effectiveDate },
@@ -67,6 +71,8 @@ export class ShiftsService {
       where: { id: body.requestedShiftId, companyId },
     });
     if (!shift) throw new NotFoundException('Requested shift not found');
+    const employee = await this.prisma.employee.findFirst({ where: { id: body.employeeId, companyId } });
+    if (!employee) throw new NotFoundException('Employee not found in this company');
 
     return this.prisma.shiftChangeRequest.create({
       data: {
@@ -125,8 +131,11 @@ export class ShiftsService {
   }
 
   async generateDepartmentRoster(companyId: string, departmentId: string, shiftIds: string[], startDate: string, weeks: number) {
-    if (!shiftIds || shiftIds.length === 0) throw new BadRequestException('At least one shift is required.');
+if (!shiftIds || shiftIds.length === 0) throw new BadRequestException('At least one shift is required.');
     
+    const shifts = await this.prisma.shift.findMany({ where: { id: { in: shiftIds }, companyId }, select: { id: true } });
+    if (shifts.length !== shiftIds.length) throw new NotFoundException('One or more shifts not found in this company');
+
     const employees = await this.prisma.employee.findMany({
       where: { companyId, departmentId, status: 'active' },
       select: { id: true },

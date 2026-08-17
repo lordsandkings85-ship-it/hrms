@@ -2,10 +2,6 @@
  * Application-wide Constants
  */
 
-// ── API ───────────────────────────────────────────────────────────────────────
-
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
 // ── Pagination ────────────────────────────────────────────────────────────────
 
 export const DEFAULT_PAGE_SIZE = 20;

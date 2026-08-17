@@ -30,12 +30,34 @@ export function LeaveRequestsSection() {
   const { success, error } = useToast();
   const approve = useMutation({
     mutationFn: (id: string) => leaveApi.approve(id),
-    onSuccess: () => { success('Leave approved'); queryClient.invalidateQueries({ queryKey: ['leave-all'] }); },
+    onSuccess: () => { success('Leave approved'); queryClient.invalidateQueries({ queryKey: ['leave-all'] }); queryClient.invalidateQueries({ queryKey: ['leave-history'] }); queryClient.invalidateQueries({ queryKey: ['leave-balances'] }); queryClient.invalidateQueries({ queryKey: ['leave-balances-dash'] }); queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] }); },
     onError: (e: any) => error(e.message || 'Failed to approve'),
   });
   const reject = useMutation({
     mutationFn: (id: string) => leaveApi.reject(id),
     onSuccess: () => { success('Leave rejected'); queryClient.invalidateQueries({ queryKey: ['leave-all'] }); },
+    onError: (e: any) => error(e.message || 'Failed to reject'),
+  });
+  const bulkApprove = useMutation({
+    mutationFn: (ids: string[]) => leaveApi.bulkApprove(ids),
+    onSuccess: () => {
+      success('Leave requests approved');
+      queryClient.invalidateQueries({ queryKey: ['leave-all'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-history'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances-dash'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+    },
+    onError: (e: any) => error(e.message || 'Failed to approve'),
+  });
+  const bulkReject = useMutation({
+    mutationFn: (ids: string[]) => leaveApi.bulkReject(ids),
+    onSuccess: () => {
+      success('Leave requests rejected');
+      queryClient.invalidateQueries({ queryKey: ['leave-all'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-analytics'] });
+    },
     onError: (e: any) => error(e.message || 'Failed to reject'),
   });
   const columns: Column<any>[] = [
@@ -62,7 +84,18 @@ export function LeaveRequestsSection() {
           </button>
         ))}
       </div>
-      <DataTable columns={columns} data={data ?? []} loading={isLoading} keyField="id" emptyTitle="No leave requests" emptyMessage="No requests match the selected status." />
+      <DataTable
+        columns={columns}
+        data={data ?? []}
+        loading={isLoading}
+        keyField="id"
+        emptyTitle="No leave requests"
+        emptyMessage="No requests match the selected status."
+        bulkActions={[
+          { label: 'Approve', icon: Check, onClick: (selected) => bulkApprove.mutate(selected.map((r: any) => r.id)) },
+          { label: 'Reject', icon: X, danger: true, onClick: (selected) => bulkReject.mutate(selected.map((r: any) => r.id)) },
+        ]}
+      />
     </AdminSection>
   );
 }
@@ -71,14 +104,14 @@ export function LeaveBalancesSection() {
   const { data, isLoading } = useData('leave-balances', () => leaveApi.balancesOverview({}));
   const rows = (data ?? []).flatMap((e: any) => {
     const balances = Array.isArray(e.balances) ? e.balances : e.leaveBalances && Array.isArray(e.leaveBalances) ? e.leaveBalances : [];
-    if (balances.length === 0) return [{ key: `${e.employeeId}-0`, employee: `${e.employee?.firstName || ''} ${e.employee?.lastName || ''}`.trim() || e.employeeId, leaveType: '—', allocated: e.allocated ?? 0, used: e.used ?? 0, balance: e.balance ?? 0 }];
+    if (balances.length === 0) return [{ key: `${e.employeeId}-0`, employee: `${e.employee?.firstName || ''} ${e.employee?.lastName || ''}`.trim() || e.employeeId, leaveType: '—', allocated: e.allocated ?? 0, used: e.used ?? 0, balance: e.remaining ?? ((e.allotted ?? 0) - (e.used ?? 0)) }];
     return balances.map((b: any) => ({
       key: `${e.employeeId}-${b.leaveTypeId || b.id}`,
       employee: `${e.employee?.firstName || ''} ${e.employee?.lastName || ''}`.trim() || e.employeeId,
       leaveType: b.leaveType?.name || b.leaveType || '—',
       allocated: b.allocated ?? b.annual ?? 0,
       used: b.used ?? 0,
-      balance: b.balance ?? b.remaining ?? 0,
+      balance: b.remaining ?? ((b.allotted ?? 0) - (b.used ?? 0)),
     }));
   });
   const columns: Column<any>[] = [
@@ -97,8 +130,8 @@ export function LeaveBalancesSection() {
 
 export function CompOffSection() {
   const { data, isLoading } = useData('leave-compoff', () => employeeServicesApi.listCompOffAll());
-  const approve = useMutate('compoff', (id: string) => employeeServicesApi.approveCompOff(id), 'Comp off approved', ['leave-compoff']);
-  const reject = useMutate('compoff', (id: string) => employeeServicesApi.rejectCompOff(id), 'Comp off rejected', ['leave-compoff']);
+  const approve = useMutate('compoff', (id: string) => employeeServicesApi.approveCompOff(id), 'Comp off approved', ['leave-compoff', 'comp-off-mine']);
+  const reject = useMutate('compoff', (id: string) => employeeServicesApi.rejectCompOff(id), 'Comp off rejected', ['leave-compoff', 'comp-off-mine']);
   const columns: Column<any>[] = [
     { key: 'employee', header: 'Employee', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.employee?.firstName} {r.employee?.lastName || ''}</span> },
     { key: 'date', header: 'Date', render: (r: any) => <span className="text-xs">{new Date(r.date).toLocaleDateString('en-IN')}</span> },
@@ -210,8 +243,8 @@ export function HolidaysSection() {
 
 export function FlexibleHolidaysSection() {
   const { data, isLoading } = useData('leave-flexible', () => employeeServicesApi.listFlexibleHolidaysAll());
-  const approve = useMutate('flexible', (id: string) => employeeServicesApi.approveFlexibleHoliday(id), 'Flexible holiday approved', ['leave-flexible']);
-  const reject = useMutate('flexible', (id: string) => employeeServicesApi.rejectFlexibleHoliday(id), 'Flexible holiday rejected', ['leave-flexible']);
+  const approve = useMutate('flexible', (id: string) => employeeServicesApi.approveFlexibleHoliday(id), 'Flexible holiday approved', ['leave-flexible', 'flexible-holiday-mine']);
+  const reject = useMutate('flexible', (id: string) => employeeServicesApi.rejectFlexibleHoliday(id), 'Flexible holiday rejected', ['leave-flexible', 'flexible-holiday-mine']);
   const columns: Column<any>[] = [
     { key: 'employee', header: 'Employee', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.employee?.firstName} {r.employee?.lastName || ''}</span> },
     { key: 'date', header: 'Date', render: (r: any) => <span className="text-xs">{new Date(r.date).toLocaleDateString('en-IN')}</span> },

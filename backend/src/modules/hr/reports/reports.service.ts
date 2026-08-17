@@ -26,7 +26,7 @@ export class ReportsService {
     const payslips = await this.prisma.payslip.findMany({
       where: { employee: { companyId }, payrollCycle: { year } },
     });
-    const totalNet = payslips.reduce((sum, p) => sum + p.netPay, 0);
+    const totalNet = payslips.reduce((sum, p) => sum + Number(p.netPay), 0);
     return { year, totalNet, payslipCount: payslips.length };
   }
 
@@ -40,7 +40,7 @@ export class ReportsService {
       year,
       months: months.map((month) => {
         const cycle = cycles.find((c) => c.month === month);
-        const totalNet = cycle?.payslips.reduce((sum, p) => sum + p.netPay, 0) ?? 0;
+        const totalNet = cycle?.payslips.reduce((sum, p) => sum + Number(p.netPay), 0) ?? 0;
         const payslipCount = cycle?.payslips.length ?? 0;
         return { month, totalNet, payslipCount };
       }),

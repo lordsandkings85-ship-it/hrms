@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 /** Haversine formula — returns distance in metres between two GPS points */
@@ -16,12 +16,13 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 export class AttendanceService {
   constructor(private prisma: PrismaService) {}
 
-  async checkIn(employeeId: string, method: string, lat?: number, lng?: number) {
+  async checkIn(companyId: string, employeeId: string, method: string, lat?: number, lng?: number) {
     const employee = await this.prisma.employee.findUnique({
       where: { id: employeeId },
       include: { company: true },
     });
     if (!employee) throw new NotFoundException('Employee not found');
+    if (employee.companyId !== companyId) throw new ForbiddenException('Employee does not belong to this company');
 
     const today = new Date();
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -76,9 +77,15 @@ export class AttendanceService {
     });
   }
 
-  async checkOut(logId: string) {
-    const log = await this.prisma.attendanceLog.findUnique({ where: { id: logId } });
+  async checkOut(companyId: string, logId: string, userId: string) {
+    const log = await this.prisma.attendanceLog.findUnique({ where: { id: logId }, include: { employee: true } });
     if (!log) throw new NotFoundException('Attendance log not found');
+    if (log.employee.companyId !== companyId) throw new ForbiddenException('Attendance log does not belong to this company');
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (user?.employeeId && user.employeeId !== log.employeeId) {
+      throw new ForbiddenException('Cannot check out for another employee');
+    }
 
     const checkIn = log.checkIn ? log.checkIn.getTime() : Date.now();
     const durationMins = (Date.now() - checkIn) / 60000;
@@ -141,7 +148,9 @@ export class AttendanceService {
     });
   }
 
-  async listForEmployee(employeeId: string, from?: string, to?: string) {
+  async listForEmployee(companyId: string, employeeId: string, from?: string, to?: string) {
+    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+    if (!employee) throw new NotFoundException('Employee not found');
     return this.prisma.attendanceLog.findMany({
       where: {
         employeeId,
@@ -170,18 +179,19 @@ export class AttendanceService {
     });
   }
 
-  async getMonthlySummary(employeeId: string, year: number, month: number) {
+  async getMonthlySummary(companyId: string, employeeId: string, year: number, month: number) {
+    const employee = await this.prisma.employee.findFirst({
+      where: { id: employeeId, companyId },
+      select: { workingDaysPerWeek: true },
+    });
+    if (!employee) throw new NotFoundException('Employee not found');
     const start = new Date(year, month - 1, 1);
     const end = new Date(year, month, 1);
     const logs = await this.prisma.attendanceLog.findMany({
       where: { employeeId, date: { gte: start, lt: end } },
     });
 
-    const employee = await this.prisma.employee.findUnique({
-      where: { id: employeeId },
-      select: { workingDaysPerWeek: true }
-    });
-    const workingDaysPerWeek = employee?.workingDaysPerWeek ?? 5;
+    const workingDaysPerWeek = employee.workingDaysPerWeek ?? 5;
 
     // Group logs by date to avoid double counting multiple check-ins per day
     const uniqueDays = new Map<number, any>();
@@ -232,9 +242,12 @@ export class AttendanceService {
     });
   }
 
-  async requestRegularization(logId: string, employeeId: string, requestedCheckIn?: Date, requestedCheckOut?: Date, reason: string = '') {
+  async requestRegularization(companyId: string, logId: string, employeeId: string, requestedCheckIn?: Date, requestedCheckOut?: Date, reason: string = '') {
     const log = await this.prisma.attendanceLog.findUnique({ where: { id: logId } });
     if (!log) throw new NotFoundException('Attendance log not found');
+    if (log.employeeId !== employeeId) throw new ForbiddenException('Attendance log does not belong to this employee');
+    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+    if (!employee) throw new ForbiddenException('Employee does not belong to this company');
 
     // Note-only corrections (no explicit times) keep the log's original times
     const inTime = requestedCheckIn || log.checkIn;
@@ -261,43 +274,49 @@ export class AttendanceService {
     return req;
   }
 
-  async approveRegularization(requestId: string, approverId: string) {
-    const req = await this.prisma.regularizationRequest.findUnique({ where: { id: requestId } });
-    if (!req) throw new NotFoundException('Regularization request not found');
-
-    // 1. Update the request status
-    await this.prisma.regularizationRequest.update({
+  async approveRegularization(requestId: string, companyId: string, approverId: string) {
+    const req = await this.prisma.regularizationRequest.findUnique({
       where: { id: requestId },
-      data: { status: 'approved', approverId },
+      include: { employee: true },
     });
+    if (!req) throw new NotFoundException('Regularization request not found');
+    if (req.employee.companyId !== companyId) throw new ForbiddenException('Request does not belong to this company');
 
-    // 2. Apply the requested times and clear the pending status on the actual log
-    return this.prisma.attendanceLog.update({
-      where: { id: req.attendanceLogId },
-      data: { 
-        checkIn: req.requestedCheckIn ?? undefined,
-        checkOut: req.requestedCheckOut ?? undefined,
-        regularizationStatus: 'approved',
-        status: 'present', // Assume present if regularized
-      },
-    });
+    return this.prisma.$transaction([
+      this.prisma.regularizationRequest.update({
+        where: { id: requestId },
+        data: { status: 'approved', approverId },
+      }),
+      this.prisma.attendanceLog.update({
+        where: { id: req.attendanceLogId },
+        data: {
+          checkIn: req.requestedCheckIn ?? undefined,
+          checkOut: req.requestedCheckOut ?? undefined,
+          regularizationStatus: 'approved',
+          status: 'present',
+        },
+      }),
+    ]);
   }
 
-  async rejectRegularization(requestId: string, approverId: string) {
-    const req = await this.prisma.regularizationRequest.findUnique({ where: { id: requestId } });
-    if (!req) throw new NotFoundException('Regularization request not found');
-
-    // 1. Update the request status
-    await this.prisma.regularizationRequest.update({
+  async rejectRegularization(requestId: string, companyId: string, approverId: string) {
+    const req = await this.prisma.regularizationRequest.findUnique({
       where: { id: requestId },
-      data: { status: 'rejected', approverId },
+      include: { employee: true },
     });
+    if (!req) throw new NotFoundException('Regularization request not found');
+    if (req.employee.companyId !== companyId) throw new ForbiddenException('Request does not belong to this company');
 
-    // 2. Clear the pending status on the actual log
-    return this.prisma.attendanceLog.update({
-      where: { id: req.attendanceLogId },
-      data: { regularizationStatus: 'rejected' },
-    });
+    return this.prisma.$transaction([
+      this.prisma.regularizationRequest.update({
+        where: { id: requestId },
+        data: { status: 'rejected', approverId },
+      }),
+      this.prisma.attendanceLog.update({
+        where: { id: req.attendanceLogId },
+        data: { regularizationStatus: 'rejected' },
+      }),
+    ]);
   }
 
   /** Save geofence config for a company */

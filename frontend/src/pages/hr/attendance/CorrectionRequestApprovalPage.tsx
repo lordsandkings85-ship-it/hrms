@@ -1,76 +1,139 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { RefreshCw, Search, Filter, Check, X } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { RefreshCw, Search, Filter, Check, X, Clock } from 'lucide-react';
 import { attendanceApi } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
+import { useToast } from '../../../components/ui/ToastProvider';
+
+const REQUEST_STATUS_OPTIONS = ['all', 'pending', 'approved', 'rejected'];
+
+function fmtTime(iso?: string | null) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 
 export default function CorrectionRequestApprovalPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const { success: toastSuccess, error: toastError } = useToast();
 
-  const { data: logs, isLoading } = useQuery({
-    queryKey: ['attendance-correction'],
-    queryFn: async () => {
-      const res = await attendanceApi.listToday();
-      return Array.isArray(res) ? res : [];
-    },
+  const { data: requests, isLoading } = useQuery({
+    queryKey: ['regularization-pending'],
+    queryFn: () => attendanceApi.listPendingRegularizations(),
     refetchInterval: 30000,
   });
 
-  const filteredLogs = (logs || []).filter((log: any) => {
-    const name = (log.employee?.firstName + ' ' + log.employee?.lastName).toLowerCase();
-    return name.includes(searchTerm.toLowerCase());
+  const approveMutation = useMutation({
+    mutationFn: (requestId: string) => attendanceApi.approveRegularization(requestId),
+    onSuccess: () => {
+      toastSuccess('Correction request approved');
+      queryClient.invalidateQueries({ queryKey: ['regularization-pending'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-today'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-summary-dash'] });
+    },
+    onError: (err: any) => toastError(err.message || 'Failed to approve request'),
   });
+
+  const rejectMutation = useMutation({
+    mutationFn: (requestId: string) => attendanceApi.rejectRegularization(requestId),
+    onSuccess: () => {
+      toastSuccess('Correction request rejected');
+      queryClient.invalidateQueries({ queryKey: ['regularization-pending'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-today'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-summary-dash'] });
+    },
+    onError: (err: any) => toastError(err.message || 'Failed to reject request'),
+  });
+
+  const filteredRequests = (requests || []).filter((req: any) => {
+    const name = (req.employee?.firstName + ' ' + req.employee?.lastName).toLowerCase();
+    const matchName = name.includes(searchTerm.toLowerCase());
+    const matchStatus = statusFilter === 'all' || req.status === statusFilter;
+    return matchName && matchStatus;
+  });
+
+  const statusBadge = (status: string) => {
+    const map: Record<string, string> = {
+      pending: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+      approved: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+      rejected: 'bg-red-500/10 text-red-500 border-red-500/20',
+    };
+    return map[status] || 'bg-[var(--surface-alt)] text-[var(--text-muted)] border-[var(--border)]';
+  };
 
   const columns: Column<any>[] = [
     {
       key: 'employee',
       header: 'Employee',
-      render: (log: any) => (
+      render: (req: any) => (
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20 font-bold text-xs flex items-center justify-center shrink-0">
-            {log.employee?.firstName?.[0] || 'E'}{log.employee?.lastName?.[0] || ''}
+            {req.employee?.firstName?.[0] || 'E'}{req.employee?.lastName?.[0] || ''}
           </div>
           <div className="min-w-0">
-            <div className="text-sm font-bold text-[var(--text-primary)] truncate">{log.employee?.firstName} {log.employee?.lastName}</div>
-            <div className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider font-mono">{log.employee?.employeeCode}</div>
+            <div className="text-sm font-bold text-[var(--text-primary)] truncate">{req.employee?.firstName} {req.employee?.lastName}</div>
+            <div className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider font-mono">{req.employee?.employeeCode}</div>
           </div>
         </div>
       )
     },
     {
-      key: 'method',
-      header: 'Method',
-      render: (log: any) => (
-        <div className="text-xs">
-          <span className="capitalize block font-semibold text-[var(--text-primary)]">{log.method}</span>
-          {log.isWithinGeofence === true && <span className="text-emerald-500 block mt-0.5 font-bold">✅ In-zone</span>}
-          {log.isWithinGeofence === false && <span className="text-amber-500 block mt-0.5 font-bold">⚠️ Out-zone</span>}
+      key: 'logDate',
+      header: 'Log Date',
+      render: (req: any) => (
+        <div className="text-xs font-semibold text-[var(--text-primary)]">
+          {req.attendanceLog?.date ? new Date(req.attendanceLog.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
         </div>
+      )
+    },
+    {
+      key: 'currentTimes',
+      header: 'Current In/Out',
+      render: (req: any) => (
+        <div className="text-[11px] font-medium text-[var(--text-muted)] space-y-0.5">
+          <div className="flex items-center gap-1.5">
+            <Clock size={10} className="text-emerald-500" />
+            <span className="text-[var(--text-primary)]">In:</span> {fmtTime(req.attendanceLog?.checkIn)}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Clock size={10} className="text-red-400" />
+            <span className="text-[var(--text-primary)]">Out:</span> {fmtTime(req.attendanceLog?.checkOut)}
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'requestedTimes',
+      header: 'Requested In/Out',
+      render: (req: any) => (
+        <div className="text-[11px] font-medium text-amber-500 space-y-0.5">
+          <div>In: {fmtTime(req.requestedCheckIn)}</div>
+          <div>Out: {fmtTime(req.requestedCheckOut)}</div>
+        </div>
+      )
+    },
+    {
+      key: 'reason',
+      header: 'Reason',
+      render: (req: any) => (
+        <p className="text-xs text-[var(--text-muted)] max-w-[160px] truncate" title={req.reason}>{req.reason || '—'}</p>
       )
     },
     {
       key: 'status',
       header: 'Status',
-      render: (log: any) => {
-        const map: Record<string, string> = {
-          present: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-          late: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-          absent: 'bg-red-500/10 text-red-500 border-red-500/20',
-          half_day: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-          on_leave: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20',
-        };
-        const statusClass = map[log.status] || 'bg-[var(--surface-alt)] text-[var(--text-muted)] border-[var(--border)]';
-        return <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold uppercase tracking-wider ${statusClass}`}>{log.status?.replace('_', ' ')}</span>;
-      }
-    },
-    {
-      key: 'time',
-      header: 'Check In/Out',
-      render: (log: any) => (
-        <div className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-          <div><span className="text-[var(--text-primary)]">In:</span> {log.checkIn ? new Date(log.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}</div>
-          <div><span className="text-[var(--text-primary)]">Out:</span> {log.checkOut ? new Date(log.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : 'Pending'}</div>
-        </div>
+      render: (req: any) => (
+        <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold uppercase tracking-wider ${statusBadge(req.status)}`}>
+          {req.status?.replace('_', ' ') || '—'}
+        </span>
       )
     },
     {
@@ -78,10 +141,18 @@ export default function CorrectionRequestApprovalPage() {
       header: 'Actions',
       render: (row: any) => (
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white border border-emerald-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all">
+          <button
+            onClick={() => approveMutation.mutate(row.id)}
+            disabled={approveMutation.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white border border-emerald-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all disabled:opacity-50"
+          >
             <Check size={12} /> Approve
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all">
+          <button
+            onClick={() => { if (window.confirm('Reject this correction request?')) rejectMutation.mutate(row.id); }}
+            disabled={rejectMutation.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all disabled:opacity-50"
+          >
             <X size={12} /> Reject
           </button>
         </div>
@@ -124,9 +195,27 @@ export default function CorrectionRequestApprovalPage() {
                 className="pl-9 pr-4 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 transition-colors w-64"
               />
             </div>
-            <button aria-label="Filter" className="p-2 border border-[var(--border)] rounded-xl text-[var(--text-muted)] hover:text-blue-500 hover:border-blue-500/30 transition-colors bg-[var(--surface-alt)]">
-               <Filter size={16} />
-            </button>
+            <div className="relative">
+              <button aria-label="Filter" onClick={() => setFilterOpen(o => !o)} className="p-2 border border-[var(--border)] rounded-xl text-[var(--text-muted)] hover:text-blue-500 hover:border-blue-500/30 transition-colors bg-[var(--surface-alt)]">
+                 <Filter size={16} />
+              </button>
+              {filterOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setFilterOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-40 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-lg z-20 py-1">
+                    {REQUEST_STATUS_OPTIONS.map(opt => (
+                      <button
+                        key={opt}
+                        onClick={() => { setStatusFilter(opt); setFilterOpen(false); }}
+                        className={`w-full text-left px-4 py-2 text-xs font-semibold capitalize transition-colors ${statusFilter === opt ? 'text-blue-500 bg-blue-500/5' : 'text-[var(--text-primary)] hover:bg-[var(--surface-hover)]'}`}
+                      >
+                        {opt === 'all' ? 'All' : opt}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
         
@@ -139,7 +228,7 @@ export default function CorrectionRequestApprovalPage() {
              .premium-datatable tr td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
              .premium-datatable tbody tr:hover td { background: var(--surface-hover); }
           `}</style>
-          <DataTable columns={columns} data={filteredLogs} loading={isLoading} keyField="id" />
+          <DataTable columns={columns} data={filteredRequests} loading={isLoading} keyField="id" emptyTitle="All caught up — no pending corrections" emptyMessage="New correction requests will appear here." />
         </div>
       </div>
     </div>

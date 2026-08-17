@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { CalendarCheck2, Scale, CalendarClock, FileStack, CalendarPlus, CalendarHeart, CalendarOff, Sparkles, Tag } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { CalendarCheck2, Scale, CalendarClock, FileStack, CalendarPlus, CalendarHeart, CalendarOff, Sparkles, Tag, Users, Clock, CheckCircle2, XCircle, CalendarDays } from 'lucide-react';
 import { LeaveRequestsSection, LeaveBalancesSection, CompOffSection, LeavePoliciesSection, HolidaysSection, FlexibleHolidaysSection, WeeklyOffSection, SpecialHolidaySection, LeaveTypesSection } from './sections/LeaveSections';
+import { leaveApi } from '../../../api/client';
 
 type TabKey = 'types' | 'requests' | 'balances' | 'compoff' | 'policies' | 'holidays' | 'flexible' | 'weekly-off' | 'special';
 
@@ -59,6 +61,24 @@ export default function LeaveAdminPage() {
   const pathParts = location.pathname.split('/');
   const subAction = pathParts.length > 2 ? pathParts[2] : 'requests';
 
+  const { data: analytics } = useQuery({ queryKey: ['leave-analytics'], queryFn: leaveApi.analytics });
+  const summary = analytics?.summary;
+  const nextHoliday = summary?.upcomingHolidays?.[0];
+
+  const statCards: { label: string; value?: number; icon: React.ElementType; color: string; sub?: string }[] = [
+    { label: 'Total Employees', value: summary?.totalEmployees, icon: Users, color: 'text-indigo-500' },
+    { label: 'Pending Requests', value: summary?.pendingRequests, icon: Clock, color: 'text-amber-500' },
+    { label: 'Approved This Month', value: summary?.approvedThisMonth, icon: CheckCircle2, color: 'text-emerald-500' },
+    { label: 'Rejected This Month', value: summary?.rejectedThisMonth, icon: XCircle, color: 'text-rose-500' },
+    {
+      label: 'Upcoming Holidays',
+      value: Array.isArray(summary?.upcomingHolidays) ? summary.upcomingHolidays.length : undefined,
+      icon: CalendarDays,
+      color: 'text-sky-500',
+      sub: nextHoliday ? `${nextHoliday.name} · ${new Date(nextHoliday.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : undefined,
+    },
+  ];
+
   const initialTab = SUB_TO_TAB[subAction] || 'requests';
   const [tab, setTab] = useState<TabKey>(initialTab);
 
@@ -78,6 +98,21 @@ export default function LeaveAdminPage() {
       <div>
         <h2 className="text-2xl font-black text-[var(--text-primary)]">Leave</h2>
         <p className="text-sm text-[var(--text-muted)] mt-1">Manage leave requests, balances, policies and holidays.</p>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        {statCards.map((c) => {
+          const Icon = c.icon;
+          return (
+            <div key={c.label} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Icon size={14} className={c.color} />
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">{c.label}</p>
+              </div>
+              <p className="text-2xl font-black font-mono tracking-tight text-[var(--text-primary)]">{c.value ?? '—'}</p>
+              {c.sub && <p className="text-[10px] text-[var(--text-muted)] mt-1 truncate">{c.sub}</p>}
+            </div>
+          );
+        })}
       </div>
       <div className="flex flex-wrap gap-2 border-b border-[var(--border)] pb-px">
         {TABS.map((t) => (

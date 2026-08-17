@@ -72,6 +72,7 @@ export default function ComplianceSetupPage() {
           <ApiTableEditor title="Professional Tax" icon={Landmark} subtitle="State-wise professional tax slabs"
             load={() => complianceSetupApi.list('pt')}
             create={(d) => complianceSetupApi.create('pt', d)}
+            update={(id, d) => complianceSetupApi.update('pt', id, d)}
             remove={(id) => complianceSetupApi.remove('pt', id)}
             fields={[
               { key: 'state', label: 'State', placeholder: 'State' },
@@ -84,6 +85,7 @@ export default function ComplianceSetupPage() {
           <ApiTableEditor title="Provident Fund" icon={Shield} subtitle="EPF contribution rates"
             load={() => complianceSetupApi.list('pf')}
             create={(d) => complianceSetupApi.create('pf', d)}
+            update={(id, d) => complianceSetupApi.update('pf', id, d)}
             remove={(id) => complianceSetupApi.remove('pf', id)}
             fields={[
               { key: 'component', label: 'Component', placeholder: 'e.g. Employee PF' },
@@ -95,6 +97,7 @@ export default function ComplianceSetupPage() {
           <ApiTableEditor title="ESIC" icon={HeartPulse} subtitle="ESI contribution rates"
             load={() => complianceSetupApi.list('esic')}
             create={(d) => complianceSetupApi.create('esic', d)}
+            update={(id, d) => complianceSetupApi.update('esic', id, d)}
             remove={(id) => complianceSetupApi.remove('esic', id)}
             fields={[
               { key: 'component', label: 'Component', placeholder: 'e.g. Employee ESI' },
@@ -106,6 +109,7 @@ export default function ComplianceSetupPage() {
           <ApiTableEditor title="Labour Welfare Fund" icon={Waves} subtitle="LWF contribution rates"
             load={() => complianceSetupApi.list('lwf')}
             create={(d) => complianceSetupApi.create('lwf', d)}
+            update={(id, d) => complianceSetupApi.update('lwf', id, d)}
             remove={(id) => complianceSetupApi.remove('lwf', id)}
             fields={[
               { key: 'state', label: 'State', placeholder: 'State' },
@@ -117,6 +121,7 @@ export default function ComplianceSetupPage() {
           <ApiTableEditor title="More Compliance Forms" icon={FormInput} subtitle="Additional statutory forms"
             load={() => complianceSetupApi.list('forms')}
             create={(d) => complianceSetupApi.create('forms', d)}
+            update={(id, d) => complianceSetupApi.update('forms', id, d)}
             remove={(id) => complianceSetupApi.remove('forms', id)}
             fields={[
               { key: 'formName', label: 'Form', placeholder: 'Form name' },

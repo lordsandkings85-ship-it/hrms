@@ -10,12 +10,12 @@ export default function CancelLeaveApprovalPage() {
 
   const approveMutation = useMutation({
     mutationFn: (id: string) => leaveApi.approveCancellation(id),
-    onSuccess: () => { success('Approved!', 'Cancellation request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['cancel-leave-approvals'] }); }
+    onSuccess: () => { success('Approved!', 'Cancellation request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['cancel-leave-approvals'] }); queryClient.invalidateQueries({ queryKey: ['leave-history'] }); queryClient.invalidateQueries({ queryKey: ['leave-balances'] }); queryClient.invalidateQueries({ queryKey: ['leave-balances-dash'] }); queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] }); }
   });
 
   const rejectMutation = useMutation({
     mutationFn: (id: string) => leaveApi.rejectCancellation(id),
-    onSuccess: () => { success('Rejected!', 'Cancellation request was rejected.'); queryClient.invalidateQueries({ queryKey: ['cancel-leave-approvals'] }); }
+    onSuccess: () => { success('Rejected!', 'Cancellation request was rejected.'); queryClient.invalidateQueries({ queryKey: ['cancel-leave-approvals'] }); queryClient.invalidateQueries({ queryKey: ['leave-history'] }); queryClient.invalidateQueries({ queryKey: ['leave-balances'] }); queryClient.invalidateQueries({ queryKey: ['leave-balances-dash'] }); queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] }); }
   });
 
   return (

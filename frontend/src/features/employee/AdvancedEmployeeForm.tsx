@@ -47,6 +47,7 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Contact');
   const [saving, setSaving] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
 
   // Fetch dynamic data for dropdowns
   const { data: departments = [] } = useQuery({ queryKey: ['departments'], queryFn: () => organizationApi.listDepartments() });
@@ -60,7 +61,7 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
     firstName: '',
     lastName: '',
     companyEmail: '',
-    status: 'Active',
+    status: 'active',
     isExEmployee: false,
     
     // Nested sections
@@ -139,12 +140,12 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
     const branchName = branches.find(b => b.id === formData.branchId)?.name ||
       departments.find(d => d.id === formData.branchId)?.name;
 
-    const payload = {
+    const payload: any = {
       employeeCode: formData.employeeCode || `EMP${Date.now()}`,
       firstName: formData.firstName || 'Unknown',
       middleName: formData.middleName,
       lastName: formData.lastName || '.',
-      email: formData.companyEmail || `emp${Date.now()}@company.com`,
+      email: formData.companyEmail || (initialData?.id ? undefined : `emp${Date.now()}@company.com`),
       dob: formData.dob || undefined,
       joiningDate: formData.joiningDate || undefined,
       state: formData.state,
@@ -159,9 +160,9 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
       grade: formData.grade,
       reportingManager: formData.reportingManager,
       reportingManager2: formData.reportingManager2,
-      probation: formData.probation,
-      experience: formData.experience,
-      status: formData.isExEmployee ? 'ex-employee' : (formData.status || 'Active'),
+      probation: typeof formData.probation === 'boolean' ? (formData.probation ? 'Yes' : 'No') : formData.probation,
+      experience: `${calculateExperience(formData.joiningDate).years} year ${calculateExperience(formData.joiningDate).months} Month`,
+      status: formData.isExEmployee ? 'ex-employee' : (formData.status || 'active'),
       workingDaysPerWeek: formData.workingDaysPerWeek,
 
       contactInfo: formData.contactInfo,
@@ -183,9 +184,13 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
   };
 
   const handleReset = () => {
+    if (initialData) {
+      setFormData(initialData);
+      return;
+    }
     setFormData({
       employeeCode: '', firstName: '', middleName: '', lastName: '',
-      companyEmail: '', status: 'Active', isExEmployee: false,
+      companyEmail: '', status: 'active', isExEmployee: false,
       paymentInfo: {}, adminInfo: {}, personalInfo: {},
       contactInfo: {},
       familyMembers: [{ relation: '', name: '', mobile: '', occupation: '', birthDate: '' }],
@@ -1073,11 +1078,11 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
               </div>
               <div className="grid grid-cols-3 items-center gap-2">
                 <label className="text-xs text-gray-600 col-span-1">Date of Joining <span className="text-red-500">*</span></label>
-                <input type="date" required className="col-span-2 border rounded px-2 py-1 text-sm" value={formData.joiningDate || ''} onChange={e => updateRoot('joiningDate', e.target.value)} />
+                <input type="date" className="col-span-2 border rounded px-2 py-1 text-sm" value={formData.joiningDate || ''} onChange={e => updateRoot('joiningDate', e.target.value)} />
               </div>
               <div className="grid grid-cols-3 items-center gap-2">
                 <label className="text-xs text-gray-600 col-span-1">Date of Birth <span className="text-red-500">*</span></label>
-                <input type="date" required className="col-span-2 border rounded px-2 py-1 text-sm" value={formData.dob || ''} onChange={e => updateRoot('dob', e.target.value)} />
+                <input type="date" className="col-span-2 border rounded px-2 py-1 text-sm" value={formData.dob || ''} onChange={e => updateRoot('dob', e.target.value)} />
               </div>
               <div className="grid grid-cols-3 items-center gap-2 mt-4">
                 <label className="text-xs text-gray-600 col-span-1">State <span className="text-red-500">*</span></label>
@@ -1151,13 +1156,20 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
                 <label className="text-xs text-gray-600 col-span-1">Reporting Manager</label>
                 <input type="text" placeholder="Enter Employee Code OR Name" className="col-span-2 border rounded px-2 py-1 text-sm" value={formData.reportingManager || ''} onChange={e => updateRoot('reportingManager', e.target.value)} />
               </div>
-              <div className="grid grid-cols-3 items-center gap-2">
-                <label className="text-xs text-gray-600 col-span-1">Probation</label>
-                <div className="col-span-2 flex items-center gap-2">
-                  <input type="checkbox" checked={formData.probation || false} onChange={e => updateRoot('probation', e.target.checked)} />
-                  <button type="button" className="bg-teal-500 text-white text-xs px-2 py-1 rounded">Manage</button>
-                </div>
-              </div>
+               <div className="grid grid-cols-3 items-center gap-2">
+                 <label className="text-xs text-gray-600 col-span-1">Probation</label>
+                 <div className="col-span-2 flex items-center gap-2">
+                   <input type="checkbox" checked={formData.probation || false} onChange={e => updateRoot('probation', e.target.checked)} />
+                   <button type="button" onClick={() => setManageOpen(o => !o)} className="bg-teal-500 text-white text-xs px-2 py-1 rounded">Manage</button>
+                 </div>
+                 {manageOpen && (
+                   <div className="col-span-3 flex items-center gap-3 pl-2 pb-2 text-xs text-gray-600">
+                     <span>Status: {formData.probation ? 'On probation' : 'Not on probation'}</span>
+                     <button type="button" onClick={() => { updateRoot('probation', true); setManageOpen(false); }} className="px-2 py-0.5 bg-teal-500 text-white rounded text-xs">Start Probation</button>
+                     <button type="button" onClick={() => { updateRoot('probation', false); setManageOpen(false); }} className="px-2 py-0.5 bg-gray-300 text-gray-700 rounded text-xs">End Probation</button>
+                   </div>
+                 )}
+               </div>
               <div className="grid grid-cols-3 items-center gap-2">
                 <label className="text-xs text-gray-600 col-span-1">Company Email</label>
                 <input type="email" className="col-span-2 border rounded px-2 py-1 text-sm" value={formData.companyEmail || ''} onChange={e => updateRoot('companyEmail', e.target.value)} />
@@ -1214,9 +1226,9 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
               </div>
               <div className="grid grid-cols-3 items-center gap-2">
                 <label className="text-xs text-gray-600 col-span-1">Status <span className="text-red-500">*</span></label>
-                <select className="col-span-2 border rounded px-2 py-1 text-sm" value={formData.status || 'Active'} onChange={e => updateRoot('status', e.target.value)}>
-                   <option value="Active">Active</option>
-                   <option value="Inactive">Inactive</option>
+                <select className="col-span-2 border rounded px-2 py-1 text-sm" value={formData.status || 'active'} onChange={e => updateRoot('status', e.target.value)}>
+                   <option value="active">Active</option>
+                   <option value="inactive">Inactive</option>
                 </select>
               </div>
             </div>
@@ -1227,7 +1239,7 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
             <button type="submit" form="master-form" disabled={saving} className="px-4 py-1.5 text-xs font-medium text-white bg-teal-500 hover:bg-teal-600 rounded shadow-sm">
               Submit
             </button>
-            <button type="button" className="px-4 py-1.5 text-xs font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded shadow-sm">
+            <button type="button" onClick={handleReset} className="px-4 py-1.5 text-xs font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded shadow-sm">
               Reset
             </button>
             <button type="button" onClick={() => initialData?.id && navigate(`/employees/${initialData.id}/salary-structure`)} disabled={!initialData?.id} title={initialData?.id ? 'View this employee in the Salary Structure database' : 'Save the employee first to open its salary structure'} className="px-4 py-1.5 text-xs font-medium text-white bg-teal-500 hover:bg-teal-600 rounded shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">

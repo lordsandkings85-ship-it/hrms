@@ -22,7 +22,7 @@ describe('computeIncomeTax — new regime', () => {
     expect(result.taxableIncome).toBe(489816);
   });
 
-  it('taxes only the 4L-8L slab slice at 5% (under 7L rebate)', () => {
+  it('taxes only the 4L-8L slab slice at 5% (under 12L rebate)', () => {
     const result = computeIncomeTax(input);
     expect(result.taxSlabs).toEqual([{ slab: '4L–8L @ 5%', tax: 4490.8 }]);
     expect(result.baseTax).toBe(0);
@@ -31,8 +31,41 @@ describe('computeIncomeTax — new regime', () => {
   });
 });
 
-describe('computeIncomeTax — new regime above 7L rebate', () => {
-  it('collects tax across slabs above 7L', () => {
+describe('computeIncomeTax — new regime rebate at 12L', () => {
+  it('applies zero tax for taxable income at exactly 12L', () => {
+    const result = computeIncomeTax({
+      basic: 106250,
+      hra: 0,
+      da: 0,
+      conveyance: 0,
+      medical: 0,
+      specialAllowance: 0,
+      regime: 'new',
+    });
+    // gross = 12.75L, taxable = 12.75L - 75k = 12L
+    expect(result.taxableIncome).toBe(1200000);
+    expect(result.baseTax).toBe(0);
+    expect(result.totalAnnualTax).toBe(0);
+  });
+
+  it('starts collecting tax above 12L (rebate no longer applies)', () => {
+    const result = computeIncomeTax({
+      basic: 110000,
+      hra: 0,
+      da: 0,
+      conveyance: 0,
+      medical: 0,
+      specialAllowance: 0,
+      regime: 'new',
+    });
+    // gross = 13.2L, taxable = 12.45L; slabs: 4-8L @5% = 20k, 8-12L @10% = 40k, 12-12.45L @15% = 6.75k
+    expect(result.taxableIncome).toBe(1245000);
+    expect(result.baseTax).toBe(66750);
+  });
+});
+
+describe('computeIncomeTax — new regime above 12L rebate', () => {
+  it('collects tax across slabs above 12L', () => {
     const result = computeIncomeTax({
       basic: 100000,
       hra: 40000,
@@ -48,6 +81,40 @@ describe('computeIncomeTax — new regime above 7L rebate', () => {
     const expectedBase = 400000 * 0.05 + 400000 * 0.1 + 400000 * 0.15 + 400000 * 0.2 + 325000 * 0.25;
     expect(result.baseTax).toBe(expectedBase);
     expect(result.tdsPerMonth).toBeCloseTo((expectedBase * 1.04) / 12, 6);
+  });
+});
+
+describe('computeIncomeTax — surcharge (Finance Act 2025)', () => {
+  it('applies 25% surcharge above 5Cr (previously 37%)', () => {
+    const result = computeIncomeTax({
+      basic: 4500000,
+      hra: 1000000,
+      da: 0,
+      conveyance: 0,
+      medical: 0,
+      specialAllowance: 1500000,
+      regime: 'new',
+    });
+    // gross = 7L/mo * 12 = 84L? no: 70L/mo * 12 = 84L/yr; taxable = 84L - 75k
+    // exceeds 5Cr? 83.25L = 8.325Cr > 5Cr -> 25% surcharge
+    expect(result.taxableIncome).toBeGreaterThan(50000000);
+    expect(result.surcharge).toBeCloseTo(result.baseTax * 0.25, 6);
+  });
+
+  it('applies 10% surcharge between 50L and 1Cr', () => {
+    const result = computeIncomeTax({
+      basic: 450000,
+      hra: 100000,
+      da: 0,
+      conveyance: 0,
+      medical: 0,
+      specialAllowance: 150000,
+      regime: 'new',
+    });
+    // gross = 7L/mo * 12 = 84L; taxable = 83.25L -> between 50L and 1Cr
+    expect(result.taxableIncome).toBeGreaterThan(5000000);
+    expect(result.taxableIncome).toBeLessThan(10000000);
+    expect(result.surcharge).toBeCloseTo(result.baseTax * 0.1, 6);
   });
 });
 

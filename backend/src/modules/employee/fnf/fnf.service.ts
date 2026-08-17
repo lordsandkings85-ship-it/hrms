@@ -22,7 +22,14 @@ export class FnfService {
     const isGratuityEligible = yearsOfService >= 5;
 
     const salary = employee.salaryStructures[0];
-    const basicMonthly = salary?.basic || 0;
+    const basicMonthly = Number(salary?.basic || 0);
+    const monthlyGross =
+      basicMonthly +
+      Number(salary?.hra || 0) +
+      Number(salary?.da || 0) +
+      Number(salary?.conveyance || 0) +
+      Number(salary?.medical || 0) +
+      Number(salary?.specialAllowance || 0);
     const perDay = basicMonthly / 26;
 
     // Gratuity = (15 * Basic * Years) / 26
@@ -33,10 +40,16 @@ export class FnfService {
     const leaveEncashDays = earnedLeave ? earnedLeave.allotted - earnedLeave.used : 0;
     const leaveEncashAmount = leaveEncashDays * perDay;
 
-    // Notice period recovery (if not served fully)
-    // For simplicity, assume partial service is passed as noticeRecovery
-    const noticeRecovery = 0; // admin can override
-    const unpaidSalaryAmt = 0;
+    // Notice period recovery — recover per-day basic for notice days not served
+    const daysUntilLwd = Math.max(0, Math.round((lwd.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+    const noticeRecovery = perDay * Math.max(0, noticePeriodDays - daysUntilLwd);
+
+    // Unpaid salary — salary for the remaining working days of the LWD month
+    // (the LWD month's payslip has not been generated yet at settlement time)
+    const wdPerWeek = employee.workingDaysPerWeek ?? 5;
+    const workingDaysInMonth = countWorkingDaysInMonth(lwd, wdPerWeek);
+    const remainingWorkingDays = countWorkingDaysBetween(addDays(lwd, 1), monthEnd(lwd), wdPerWeek);
+    const unpaidSalaryAmt = workingDaysInMonth > 0 ? (monthlyGross / workingDaysInMonth) * remainingWorkingDays : 0;
 
     const netSettlement =
       gratuityAmount +
@@ -126,13 +139,13 @@ export class FnfService {
     const settlement = await this.prisma.fnfSettlement.findUnique({ where: { id } });
     if (!settlement) throw new NotFoundException('Settlement not found');
 
-    const noticeRecovery = data.noticeRecovery ?? settlement.noticeRecovery;
-    const otherDeductions = data.otherDeductions ?? settlement.otherDeductions;
-    const unpaidSalaryAmt = data.unpaidSalaryAmt ?? settlement.unpaidSalaryAmt;
+const noticeRecovery = Number(data.noticeRecovery ?? settlement.noticeRecovery);
+    const otherDeductions = Number(data.otherDeductions ?? settlement.otherDeductions);
+    const unpaidSalaryAmt = Number(data.unpaidSalaryAmt ?? settlement.unpaidSalaryAmt);
 
-    const netSettlement =
-      settlement.gratuityAmount +
-      settlement.leaveEncashAmount +
+const netSettlement =
+      Number(settlement.gratuityAmount) +
+      Number(settlement.leaveEncashAmount) +
       unpaidSalaryAmt -
       noticeRecovery -
       otherDeductions;
@@ -142,5 +155,36 @@ export class FnfService {
       data: { noticeRecovery, otherDeductions, unpaidSalaryAmt, unpaidSalaryDays: data.unpaidSalaryDays ?? settlement.unpaidSalaryDays, netSettlement },
     });
   }
+}
+
+function addDays(date: Date, days: number): Date {
+  const out = new Date(date);
+  out.setUTCDate(out.getUTCDate() + days);
+  return out;
+}
+
+function monthEnd(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
+}
+
+function isWorkingDay(date: Date, wdPerWeek: number): boolean {
+  const dow = date.getUTCDay();
+  if (wdPerWeek === 5) return dow >= 1 && dow <= 5;
+  if (wdPerWeek === 6) return dow >= 1 && dow <= 6;
+  return true;
+}
+
+function countWorkingDaysBetween(from: Date, to: Date, wdPerWeek: number): number {
+  let count = 0;
+  const cursor = new Date(from);
+  while (cursor < to) {
+    if (isWorkingDay(cursor, wdPerWeek)) count++;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return count;
+}
+
+function countWorkingDaysInMonth(date: Date, wdPerWeek: number): number {
+  return countWorkingDaysBetween(new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)), monthEnd(date), wdPerWeek);
 }
 

@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, Search, Filter, Check, X } from 'lucide-react';
+import { MapPin, Search, Filter } from 'lucide-react';
 import { attendanceApi } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 
+const ZONE_OPTIONS = ['all', 'in-zone', 'out-zone', 'no-location'];
+
 export default function GeoAttendanceApprovalPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [zoneFilter, setZoneFilter] = useState('all');
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const { data: logs, isLoading } = useQuery({
-    queryKey: ['attendance-geo'],
+    queryKey: ['attendance-today'],
     queryFn: async () => {
       const res = await attendanceApi.listToday();
       return Array.isArray(res) ? res : [];
@@ -18,8 +22,18 @@ export default function GeoAttendanceApprovalPage() {
 
   const filteredLogs = (logs || []).filter((log: any) => {
     const name = (log.employee?.firstName + ' ' + log.employee?.lastName).toLowerCase();
-    return name.includes(searchTerm.toLowerCase());
+    const matchName = name.includes(searchTerm.toLowerCase());
+    const hasLocation = log.latitude != null;
+    let matchZone = true;
+    if (zoneFilter === 'in-zone') matchZone = log.isWithinGeofence === true;
+    else if (zoneFilter === 'out-zone') matchZone = log.isWithinGeofence === false;
+    else if (zoneFilter === 'no-location') matchZone = !hasLocation;
+    return matchName && matchZone;
   });
+
+  const openLocation = (lat: number, lng: number) => {
+    window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank', 'noopener,noreferrer');
+  };
 
   const columns: Column<any>[] = [
     {
@@ -77,14 +91,16 @@ export default function GeoAttendanceApprovalPage() {
       key: 'actions',
       header: 'Actions',
       render: (row: any) => (
-        <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white border border-emerald-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all">
-            <Check size={12} /> Approve
+        row.latitude != null ? (
+          <button
+            onClick={() => openLocation(row.latitude, row.longitude)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white border border-blue-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all"
+          >
+            <MapPin size={12} /> View Location
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all">
-            <X size={12} /> Reject
-          </button>
-        </div>
+        ) : (
+          <span className="text-[var(--text-muted)] text-xs font-semibold">—</span>
+        )
       ),
     }
   ].filter(Boolean) as Column<any>[];
@@ -124,9 +140,27 @@ export default function GeoAttendanceApprovalPage() {
                 className="pl-9 pr-4 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] focus:outline-none focus:border-blue-500/50 transition-colors w-64"
               />
             </div>
-            <button aria-label="Filter" className="p-2 border border-[var(--border)] rounded-xl text-[var(--text-muted)] hover:text-blue-500 hover:border-blue-500/30 transition-colors bg-[var(--surface-alt)]">
-               <Filter size={16} />
-            </button>
+            <div className="relative">
+              <button aria-label="Filter" onClick={() => setFilterOpen(o => !o)} className="p-2 border border-[var(--border)] rounded-xl text-[var(--text-muted)] hover:text-blue-500 hover:border-blue-500/30 transition-colors bg-[var(--surface-alt)]">
+                 <Filter size={16} />
+              </button>
+              {filterOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setFilterOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-44 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-lg z-20 py-1">
+                    {ZONE_OPTIONS.map(opt => (
+                      <button
+                        key={opt}
+                        onClick={() => { setZoneFilter(opt); setFilterOpen(false); }}
+                        className={`w-full text-left px-4 py-2 text-xs font-semibold capitalize transition-colors ${zoneFilter === opt ? 'text-blue-500 bg-blue-500/5' : 'text-[var(--text-primary)] hover:bg-[var(--surface-hover)]'}`}
+                      >
+                        {opt === 'all' ? 'All' : opt === 'in-zone' ? 'In-zone' : opt === 'out-zone' ? 'Out-zone' : 'No location'}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
         

@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { FileText, Loader2, Save, UploadCloud, Receipt } from 'lucide-react';
+import { FileText, Loader2, Save, UploadCloud, Receipt, FileCheck, X } from 'lucide-react';
 import { useToast } from '../../../components/ui/ToastProvider';
-import { taxApi } from '../../../api/client';
+import { taxApi, documentsApi } from '../../../api/client';
 import { useAuthStore } from '../../../store/useAuthStore';
 
 const declarationSchema = z.object({
@@ -65,6 +65,27 @@ export default function TaxDeclarationsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [existing, setExisting] = useState<any[]>([]);
   const [financialYear, setFinancialYear] = useState('FY 2025-26');
+  const [proofs, setProofs] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleProofFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setIsUploading(true);
+    try {
+      for (const file of files) {
+        await documentsApi.upload({ employeeId: myEmpId, type: 'tax-proof', fileUrl: file.name });
+        setProofs(p => [...p, file.name]);
+      }
+      toastSuccess(`${files.length} proof document${files.length > 1 ? 's' : ''} uploaded.`);
+    } catch {
+      toastError('Failed to upload proof documents.');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const { register, control, handleSubmit, watch, reset, formState: { errors } } = useForm<DeclarationData>({
     resolver: zodResolver(declarationSchema),
@@ -308,14 +329,25 @@ export default function TaxDeclarationsPage() {
              )}
            </div>
            
-           <div className="bg-[var(--surface-alt)] border-2 border-dashed border-[var(--border)] rounded-2xl p-6 text-center">
-             <UploadCloud className="text-[var(--text-muted)] mx-auto mb-3" size={32} />
-             <h4 className="text-sm font-bold text-[var(--text-primary)]">Upload Proof Documents</h4>
-             <p className="text-xs text-[var(--text-muted)] mt-1 mb-4">Attach receipts, premium certificates, and landlord PAN copies.</p>
-             <button type="button" className="text-xs font-bold text-[var(--text-primary)] bg-[var(--surface)] border border-[var(--border)] px-4 py-2 rounded-lg shadow-sm hover:border-sky-500 transition-colors">
-               Browse Files
-             </button>
-           </div>
+            <div className="bg-[var(--surface-alt)] border-2 border-dashed border-[var(--border)] rounded-2xl p-6 text-center">
+              <UploadCloud className="text-[var(--text-muted)] mx-auto mb-3" size={32} />
+              <h4 className="text-sm font-bold text-[var(--text-primary)]">Upload Proof Documents</h4>
+              <p className="text-xs text-[var(--text-muted)] mt-1 mb-4">Attach receipts, premium certificates, and landlord PAN copies.</p>
+              {proofs.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-2 mb-4">
+                  {proofs.map((name, i) => (
+                    <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[11px] font-bold text-[var(--text-primary)]">
+                      <FileCheck size={13} className="text-emerald-500" /> {name}
+                      <button type="button" onClick={() => setProofs(p => p.filter((_, j) => j !== i))} className="text-[var(--text-muted)] hover:text-rose-500"><X size={12} /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleProofFiles} />
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="text-xs font-bold text-[var(--text-primary)] bg-[var(--surface)] border border-[var(--border)] px-4 py-2 rounded-lg shadow-sm hover:border-sky-500 transition-colors disabled:opacity-60">
+                {isUploading ? 'Uploading...' : 'Browse Files'}
+              </button>
+            </div>
         </div>
 
         <div className="flex justify-end pt-4">

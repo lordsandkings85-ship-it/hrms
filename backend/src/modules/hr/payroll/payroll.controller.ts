@@ -4,6 +4,7 @@ import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { Permissions } from '../../../common/decorators/permissions.decorator';
 import { CurrentUser, AuthUser } from '../../../common/decorators/current-user.decorator';
 import { PayrollService } from './payroll.service';
+import { AddPayoutDto, RunPayrollDto, SalaryStructureDto } from './dto/payroll.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('payroll')
@@ -12,7 +13,7 @@ export class PayrollController {
 
   @Post('salary-structure/:employeeId')
   @Permissions({ module: 'payroll', action: 'edit' })
-  setSalaryStructure(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string, @Body() body: any) {
+  setSalaryStructure(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string, @Body() body: SalaryStructureDto) {
     return this.payrollService.setSalaryStructure(user.companyId, employeeId, body);
   }
 
@@ -30,7 +31,7 @@ export class PayrollController {
 
   @Post('run')
   @Permissions({ module: 'payroll', action: 'approve' })
-  runPayroll(@CurrentUser() user: AuthUser, @Body() body: { month: number; year: number; regime?: 'old' | 'new' }) {
+runPayroll(@CurrentUser() user: AuthUser, @Body() body: RunPayrollDto) {
     return this.payrollService.runPayroll(user.companyId, body.month, body.year, body.regime);
   }
 
@@ -77,7 +78,7 @@ export class PayrollController {
 
   @Post('payouts')
   @Permissions({ module: 'payroll', action: 'edit' })
-  addPayout(@CurrentUser() user: AuthUser, @Body() body: any) {
+addPayout(@CurrentUser() user: AuthUser, @Body() body: AddPayoutDto) {
     return this.payrollService.addPayout(user.companyId, body);
   }
 

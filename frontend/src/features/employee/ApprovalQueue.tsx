@@ -22,13 +22,17 @@ export function ApprovalQueue({
   const { data, isLoading } = useQuery({ queryKey, queryFn });
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'pending' | 'approved'>('pending');
+  const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const all = Array.isArray(data) ? data : (data?.data ?? []);
   const pending = all.filter((r: any) => r.status === 'pending' || r.status === 'submitted');
   const approved = all.filter((r: any) => r.status === 'approved' || r.status === 'rejected');
 
   const active = filter === 'pending' ? pending : approved;
+  const typeOptions: string[] = Array.from(new Set<string>(active.map((r: any) => String(r.leaveType || r.type || '')).filter(Boolean)));
   const filtered = active.filter((r: any) => {
+    if (typeFilter && (r.leaveType || r.type) !== typeFilter) return false;
     const name = (r.employee?.firstName + ' ' + r.employee?.lastName).toLowerCase();
     return name.includes(searchTerm.toLowerCase());
   });
@@ -117,9 +121,38 @@ export function ApprovalQueue({
                 className="pl-9 pr-4 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-xs text-[var(--text-primary)] focus:outline-none focus:border-indigo-500/50 transition-colors w-64"
               />
             </div>
-            <button aria-label="Filter" className="p-2 border border-[var(--border)] rounded-xl text-[var(--text-muted)] hover:text-indigo-500 hover:border-indigo-500/30 transition-colors bg-[var(--surface-alt)]">
-               <Filter size={16} />
-            </button>
+             <div className="relative">
+               <button
+                 aria-label="Filter"
+                 aria-expanded={filterOpen}
+                 onClick={() => setFilterOpen(o => !o)}
+                 className={`p-2 border border-[var(--border)] rounded-xl transition-colors bg-[var(--surface-alt)] ${typeFilter ? 'text-indigo-500 border-indigo-500/30' : 'text-[var(--text-muted)] hover:text-indigo-500 hover:border-indigo-500/30'}`}
+               >
+                 <Filter size={16} />
+               </button>
+               {filterOpen && (
+                 <>
+                   <div className="fixed inset-0 z-40" onClick={() => setFilterOpen(false)} />
+                   <div className="absolute right-0 mt-2 w-56 rounded-xl border bg-[var(--surface)] z-50 shadow-xl p-2 space-y-1" style={{ borderColor: 'var(--border)' }}>
+                     <button
+                       onClick={() => { setTypeFilter(null); setFilterOpen(false); }}
+                       className={`w-full text-left px-3 py-1.5 text-xs rounded-lg ${typeFilter === null ? 'bg-indigo-500 text-white font-bold' : 'text-[var(--text-muted)] hover:bg-[var(--surface-hover)]'}`}
+                     >
+                       All types
+                     </button>
+                     {typeOptions.map(t => (
+                       <button
+                         key={t}
+                         onClick={() => { setTypeFilter(t); setFilterOpen(false); }}
+                         className={`w-full text-left px-3 py-1.5 text-xs rounded-lg ${typeFilter === t ? 'bg-indigo-500 text-white font-bold' : 'text-[var(--text-muted)] hover:bg-[var(--surface-hover)]'}`}
+                       >
+                         {t}
+                       </button>
+                     ))}
+                   </div>
+                 </>
+               )}
+             </div>
           </div>
         </div>
         

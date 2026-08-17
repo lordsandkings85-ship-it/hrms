@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Timer } from 'lucide-react';
+import { Timer, MapPin, Save } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AdminSection } from '../../../components/ui/AdminSection';
-import { attendancePolicyApi } from '../../../api/client';
+import { attendancePolicyApi, attendanceApiExt } from '../../../api/client';
+import { useToast } from '../../../components/ui/ToastProvider';
 
 const DEFAULTS = [
   { key: 'workdays', name: 'Weekly Working Days', value: '6' },
@@ -19,6 +21,45 @@ export default function AttendancePolicyPage() {
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const queryClient = useQueryClient();
+  const { success: toastSuccess, error: toastError } = useToast();
+
+  const { data: geofenceConfig } = useQuery({
+    queryKey: ['geofence-config'],
+    queryFn: () => attendanceApiExt.getGeofence(),
+  });
+
+  const [geoForm, setGeoForm] = useState({ lat: '', lng: '', radius: '200' });
+
+  const geofence = (geofenceConfig || {}) as any;
+  const configuredLat = geofence.lat ?? geofence.geofenceLat;
+  const configuredLng = geofence.lng ?? geofence.geofenceLng;
+  const configuredRadius = geofence.radius ?? geofence.geofenceRadius;
+  const isGeofenceConfigured = !!(configuredLat && configuredLng);
+
+  useEffect(() => {
+    if (geofenceConfig) {
+      const lat = geofence.lat ?? geofence.geofenceLat;
+      const lng = geofence.lng ?? geofence.geofenceLng;
+      const radius = geofence.radius ?? geofence.geofenceRadius;
+      if (lat != null && lng != null) {
+        setGeoForm({ lat: String(lat), lng: String(lng), radius: String(radius ?? '200') });
+      }
+    }
+  }, [geofenceConfig]);
+
+  const saveGeofence = useMutation({
+    mutationFn: () => attendanceApiExt.setGeofence({
+      lat: parseFloat(geoForm.lat),
+      lng: parseFloat(geoForm.lng),
+      radius: parseFloat(geoForm.radius) || 200,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['geofence-config'] });
+      toastSuccess('Geofence coordinates saved');
+    },
+    onError: (e: any) => toastError(e?.message || 'Failed to save geofence'),
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +119,30 @@ export default function AttendancePolicyPage() {
             </tbody>
           </table>
         </div>
+      </AdminSection>
+      <AdminSection title="Geofence Coordinates" icon={MapPin} subtitle="Office location used for attendance geo-fencing">
+        <div className="flex items-end gap-3 flex-wrap">
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Latitude</label>
+            <input type="number" step="any" value={geoForm.lat} onChange={(e) => setGeoForm({ ...geoForm, lat: e.target.value })} placeholder="e.g. 12.9716" aria-label="Latitude" className="px-3 py-1.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-lg text-sm w-48 focus:outline-none focus:border-indigo-500" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Longitude</label>
+            <input type="number" step="any" value={geoForm.lng} onChange={(e) => setGeoForm({ ...geoForm, lng: e.target.value })} placeholder="e.g. 77.5946" aria-label="Longitude" className="px-3 py-1.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-lg text-sm w-48 focus:outline-none focus:border-indigo-500" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Radius (meters)</label>
+            <input type="number" min="1" value={geoForm.radius} onChange={(e) => setGeoForm({ ...geoForm, radius: e.target.value })} placeholder="200" aria-label="Radius" className="px-3 py-1.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-lg text-sm w-48 focus:outline-none focus:border-indigo-500" />
+          </div>
+          <button onClick={() => saveGeofence.mutate()} disabled={!geoForm.lat.trim() || !geoForm.lng.trim() || isNaN(parseFloat(geoForm.lat)) || isNaN(parseFloat(geoForm.lng)) || saveGeofence.isPending} className="flex items-center gap-1.5 px-4 py-2 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 text-xs font-bold uppercase tracking-wider disabled:opacity-50">
+            <Save size={14} /> {saveGeofence.isPending ? 'Saving…' : 'Save Geofence'}
+          </button>
+        </div>
+        <p className="text-sm text-[var(--text-muted)] mt-4">
+          {isGeofenceConfigured
+            ? `Configured: Latitude ${configuredLat}, Longitude ${configuredLng}${configuredRadius ? `, Radius ${configuredRadius}m` : ''}`
+            : 'Not configured yet'}
+        </p>
       </AdminSection>
     </div>
   );

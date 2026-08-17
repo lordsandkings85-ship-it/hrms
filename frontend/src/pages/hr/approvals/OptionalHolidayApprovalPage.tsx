@@ -10,12 +10,12 @@ export default function OptionalHolidayApprovalPage() {
 
   const approveMutation = useMutation({
     mutationFn: (id: string) => employeeServicesApi.approveOptionalHoliday(id),
-    onSuccess: () => { success('Approved!', 'Request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['optional-holiday-approvals'] }); }
+    onSuccess: () => { success('Approved!', 'Request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['optional-holiday-approvals'] }); queryClient.invalidateQueries({ queryKey: ['flexible-holiday-mine'] }); }
   });
 
   const rejectMutation = useMutation({
     mutationFn: (id: string) => employeeServicesApi.rejectOptionalHoliday(id),
-    onSuccess: () => { success('Rejected!', 'Request was rejected.'); queryClient.invalidateQueries({ queryKey: ['optional-holiday-approvals'] }); }
+    onSuccess: () => { success('Rejected!', 'Request was rejected.'); queryClient.invalidateQueries({ queryKey: ['optional-holiday-approvals'] }); queryClient.invalidateQueries({ queryKey: ['flexible-holiday-mine'] }); }
   });
 
   return (

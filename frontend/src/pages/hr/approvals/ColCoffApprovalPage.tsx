@@ -10,12 +10,12 @@ export default function ColCoffApprovalPage() {
 
   const approveMutation = useMutation({
     mutationFn: (id: string) => employeeServicesApi.approveCompOff(id),
-    onSuccess: () => { success('Approved!', 'Request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['compoff-approvals'] }); }
+    onSuccess: () => { success('Approved!', 'Request was approved successfully.'); queryClient.invalidateQueries({ queryKey: ['compoff-approvals'] }); queryClient.invalidateQueries({ queryKey: ['comp-off-mine'] }); }
   });
 
   const rejectMutation = useMutation({
     mutationFn: (id: string) => employeeServicesApi.rejectCompOff(id),
-    onSuccess: () => { success('Rejected!', 'Request was rejected.'); queryClient.invalidateQueries({ queryKey: ['compoff-approvals'] }); }
+    onSuccess: () => { success('Rejected!', 'Request was rejected.'); queryClient.invalidateQueries({ queryKey: ['compoff-approvals'] }); queryClient.invalidateQueries({ queryKey: ['comp-off-mine'] }); }
   });
 
   return (

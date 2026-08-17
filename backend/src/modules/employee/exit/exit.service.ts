@@ -24,28 +24,35 @@ export class ExitService {
     lastWorkingDay: string;
     reason?: string;
   }) {
+    const employee = await this.prisma.employee.findFirst({ where: { id: dto.employeeId, companyId } });
+    if (!employee) throw new NotFoundException('Employee not found in this company');
+
     const existing = await this.prisma.exitRequest.findUnique({ where: { employeeId: dto.employeeId } });
     if (existing) return existing;
 
-    const exitRequest = await this.prisma.exitRequest.create({
-      data: {
-        companyId,
-        employeeId: dto.employeeId,
-        resignationDate: new Date(dto.resignationDate),
-        lastWorkingDay: new Date(dto.lastWorkingDay),
-        reason: dto.reason,
-        status: 'initiated',
-        checklists: {
-          create: DEFAULT_CHECKLIST.map(task => ({ task })),
+    const exitRequest = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.exitRequest.create({
+        data: {
+          companyId,
+          employeeId: dto.employeeId,
+          resignationDate: new Date(dto.resignationDate),
+          lastWorkingDay: new Date(dto.lastWorkingDay),
+          reason: dto.reason,
+          status: 'initiated',
+          checklists: {
+            create: DEFAULT_CHECKLIST.map(task => ({ task })),
+          },
         },
-      },
-      include: { checklists: true },
-    });
+        include: { checklists: true },
+      });
 
-    // Update employee status
-    await this.prisma.employee.update({
-      where: { id: dto.employeeId },
-      data: { status: 'archived' },
+      // Update employee status
+      await tx.employee.update({
+        where: { id: dto.employeeId },
+        data: { status: 'archived' },
+      });
+
+      return created;
     });
 
     return exitRequest;

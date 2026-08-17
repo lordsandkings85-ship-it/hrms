@@ -27,6 +27,7 @@ export default function ApproveTargetsPage() {
     onSuccess: () => {
       toastSuccess('Target approved successfully!');
       queryClient.invalidateQueries({ queryKey: ['performance-goals', selectedEmp] });
+      queryClient.invalidateQueries({ queryKey: ['my-goals'] });
     },
   });
 
@@ -35,6 +36,7 @@ export default function ApproveTargetsPage() {
     onSuccess: () => {
       toastSuccess('Target rejected');
       queryClient.invalidateQueries({ queryKey: ['performance-goals', selectedEmp] });
+      queryClient.invalidateQueries({ queryKey: ['my-goals'] });
     },
   });
 

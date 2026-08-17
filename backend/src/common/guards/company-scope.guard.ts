@@ -98,6 +98,13 @@ export class CompanyScopeGuard implements CanActivate {
         () => tx.job.findFirst({ where: { id, companyId }, select: { id: true } }),
         () => tx.holiday.findFirst({ where: { id, companyId }, select: { id: true } }),
         () => tx.shift.findFirst({ where: { id, companyId }, select: { id: true } }),
+        () => tx.compOffRequest.findFirst({ where: { id, companyId }, select: { id: true } }),
+        () => tx.flexibleHolidayRequest.findFirst({ where: { id, companyId }, select: { id: true } }),
+        () => tx.overtimeRequest.findFirst({ where: { id, companyId }, select: { id: true } }),
+        () => tx.optionalHolidayRequest.findFirst({ where: { id, companyId }, select: { id: true } }),
+        () => tx.loanRequest.findFirst({ where: { id, companyId }, select: { id: true } }),
+        () => tx.taxDeclaration.findFirst({ where: { id, companyId }, select: { id: true } }),
+        () => tx.leaveCancellationRequest.findFirst({ where: { id, companyId }, select: { id: true } }),
       ];
       for (const find of tables) {
         if (await find()) return true;

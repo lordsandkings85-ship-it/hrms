@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
+import { SuperAdminGuard } from '../../../common/guards/super-admin.guard';
 import { Permissions } from '../../../common/decorators/permissions.decorator';
 import { CurrentUser, AuthUser } from '../../../common/decorators/current-user.decorator';
 import { BillingService } from './billing.service';
@@ -17,8 +18,8 @@ export class BillingController {
     return this.service.upgradePlan(user.companyId, planName);
   }
 
-  // NOTE: In production, this would be a Cron Job or behind SuperAdminGuard
   @Post('generate-invoices')
+  @UseGuards(SuperAdminGuard)
   generateInvoices() {
     return this.service.generateMonthlyInvoices();
   }

@@ -17,9 +17,18 @@ export default function EmployeeDetailPage() {
   if (!emp) return <div className="page-container flex items-center justify-center h-64 text-red-500">Employee not found.</div>;
 
   const empAny = emp as any;
-  // Format initialData to handle nested objects matching the form state
+  const toDateString = (v: any) => {
+    if (!v) return '';
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 10);
+  };
   const initialData = {
     ...empAny,
+    companyEmail: empAny.email || '',
+    joiningDate: toDateString(empAny.joiningDate),
+    dob: toDateString(empAny.dob),
+    confirmationDate: toDateString(empAny.confirmationDate),
     contactInfo: empAny.contactInfo || {},
     paymentInfo: empAny.paymentInfo || {},
     adminInfo: empAny.adminInfo || {},

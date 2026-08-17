@@ -10,6 +10,7 @@ import {
   User, Calendar, Target, CheckSquare
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
+import { dashboardApi } from '../../api/client';
 import { useTheme, type ThemeMode } from '../../components/ui/ThemeProvider';
 import CommandPalette from '../../components/ui/CommandPalette';
 import workoraIcon from '../../assets/brand/workora-icon.png';
@@ -422,7 +423,7 @@ const EMPLOYEE_NAV_GROUPS: { group: string; items: NavItem[] }[] = [
               { to: '/exit/interview', label: 'Exit Interview' },
             ],
           },
-          { to: '/announcements', label: 'Company Announcements' },
+          { to: '/announcements/company', label: 'Company Announcements' },
           { to: '/documents/newsletter', label: 'Newsletter/Policies' },
           { to: '/documents/hr-links', label: 'Other HR links' },
           { to: '/documents/salary-links', label: 'Other Salary links' },
@@ -771,6 +772,73 @@ export default function Layout() {
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [bellOpen, setBellOpen] = useState(false);
+  const [notifications, setNotifications] = useState<{ id: string; title: string; type: string }[] | null>(null);
+
+  const toggleBell = async () => {
+    setBellOpen(open => {
+      const next = !open;
+      if (next && notifications === null) {
+        dashboardApi.summary()
+          .then(d => setNotifications(d.notifications || []))
+          .catch(() => setNotifications([]));
+      }
+      return next;
+    });
+  };
+
+  const openNotification = (notif: { id: string; title: string; type: string }) => {
+    setBellOpen(false);
+    if (notif.id.startsWith('leave-')) navigate('/leave');
+    else if (notif.id.startsWith('reg-alert')) navigate('/attendance/regularization');
+    else if (notif.id.startsWith('jobs-info')) navigate('/recruitment');
+  };
+
+  const handleGo = () => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return;
+    const roleNameLower = user?.role?.name?.toLowerCase() || '';
+    const isGlobalAdmin = !!user?.isSuperAdmin;
+    const isSystemAdmin = isGlobalAdmin || !!user?.role?.isSystem;
+    const isHr = isSystemAdmin || roleNameLower.includes('admin') || roleNameLower.includes('hr') || roleNameLower.includes('human resource') || roleNameLower.includes('manager');
+    const groups = (isGlobalAdmin || isSystemAdmin)
+      ? NAV_GROUPS
+      : isHr
+        ? HR_NAV_GROUPS
+        : EMPLOYEE_NAV_GROUPS;
+    for (const { items } of groups) {
+      for (const item of items) {
+        if (item.globalAdminOnly && !isGlobalAdmin) continue;
+        if (item.systemAdminOnly && !isSystemAdmin) continue;
+        if (item.adminOnly && !isSystemAdmin && !isHr) continue;
+        if (item.label.toLowerCase().includes(term) && item.to) {
+          navigate(item.to);
+          setSearchTerm('');
+          return;
+        }
+        if (item.children) {
+          for (const child of item.children) {
+            const childLabel = child.label.toLowerCase();
+            const matchesChild = childLabel.includes(term) || child.children?.some(c => c.label.toLowerCase().includes(term));
+            if (matchesChild && child.to) {
+              navigate(child.to);
+              setSearchTerm('');
+              return;
+            }
+            if (child.children) {
+              for (const grand of child.children) {
+                if (grand.label.toLowerCase().includes(term) && grand.to) {
+                  navigate(grand.to);
+                  setSearchTerm('');
+                  return;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  };
 
   const [openTopItem, setOpenTopItem] = useState<string | null>(() => {
     for (const group of NAV_GROUPS) {
@@ -856,7 +924,7 @@ export default function Layout() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-slate-900/90 text-xs text-white placeholder-gray-400 px-2.5 py-1 rounded border border-slate-700/60 focus:outline-none focus:border-indigo-500 transition-colors"
             />
-            <button className="bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-gray-200 px-2 py-1 rounded border border-slate-700/60 transition-colors shrink-0">
+            <button onClick={handleGo} className="bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-gray-200 px-2 py-1 rounded border border-slate-700/60 transition-colors shrink-0">
               Go
             </button>
           </div>
@@ -991,14 +1059,53 @@ export default function Layout() {
           <ThemeToggle />
 
           {/* Bell */}
-          <button
-            title="Notifications"
-            style={{ padding: '0.375rem', borderRadius: '0.5rem', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-hover)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = ''; (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; }}
-          >
-            <Bell size={16} />
-          </button>
+          <div className="relative">
+            <button
+              title="Notifications"
+              onClick={toggleBell}
+              style={{ padding: '0.375rem', borderRadius: '0.5rem', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', position: 'relative' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-hover)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = ''; (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; }}
+            >
+              <Bell size={16} />
+              {notifications && notifications.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center" style={{ background: 'var(--danger)', color: '#fff' }}>{notifications.length}</span>
+              )}
+            </button>
+            {bellOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setBellOpen(false)} />
+                <div
+                  className="absolute right-0 mt-2 w-80 max-h-96 overflow-auto rounded-xl border z-50 shadow-xl"
+                  style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: 'var(--shadow-lg, 0 10px 40px rgba(0,0,0,0.15))' }}
+                >
+                  <div className="px-3 py-2 text-xs font-semibold border-b" style={{ borderColor: 'var(--border)' }}>
+                    Notifications
+                  </div>
+                  {notifications === null ? (
+                    <div className="px-3 py-6 text-center text-xs" style={{ color: 'var(--text-muted)' }}>Loading…</div>
+                  ) : notifications.length === 0 ? (
+                    <div className="px-3 py-6 text-center text-xs" style={{ color: 'var(--text-muted)' }}>You're all caught up</div>
+                  ) : (
+                    notifications.map((n) => (
+                      <button
+                        key={n.id}
+                        onClick={() => openNotification(n)}
+                        className="w-full text-left px-3 py-2.5 text-xs hover:bg-[var(--surface-hover)] flex items-start gap-2 border-b last:border-b-0"
+                        style={{ borderColor: 'var(--border)' }}
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full mt-1 shrink-0"
+                          style={{ background: n.type === 'urgent' ? 'var(--danger)' : n.type === 'warning' ? 'var(--warning, #f59e0b)' : 'var(--action-primary)' }}
+                        />
+                        <span style={{ color: 'var(--text-primary)' }}>{n.title}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Avatar (topbar) */}
           <div

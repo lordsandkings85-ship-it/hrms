@@ -4,6 +4,7 @@ import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { CompanyScopeGuard } from '../../../common/guards/company-scope.guard';
 import { Permissions } from '../../../common/decorators/permissions.decorator';
 import { FnfService } from './fnf.service';
+import { FnfOverridesDto, InitiateFnfDto } from './dto/fnf.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard, CompanyScopeGuard)
 @Controller('fnf')
@@ -12,7 +13,7 @@ export class FnfController {
 
   @Post('initiate')
   @Permissions({ module: 'payroll', action: 'create' })
-  initiate(@Body() body: { employeeId: string; lastWorkingDay: string; noticePeriodDays?: number }) {
+  initiate(@Body() body: InitiateFnfDto) {
     return this.service.initiate(body.employeeId, body.lastWorkingDay, body.noticePeriodDays);
   }
 
@@ -36,7 +37,7 @@ export class FnfController {
 
   @Patch(':id/overrides')
   @Permissions({ module: 'payroll', action: 'edit' })
-  updateOverrides(@Param('id') id: string, @Body() body: any) {
+updateOverrides(@Param('id') id: string, @Body() body: FnfOverridesDto) {
     return this.service.updateOverrides(id, body);
   }
 }

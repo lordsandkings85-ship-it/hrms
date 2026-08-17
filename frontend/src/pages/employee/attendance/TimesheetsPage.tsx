@@ -59,14 +59,18 @@ export default function TimesheetsPage() {
   const approveMutation = useMutation({
     mutationFn: timesheetsApi.approve,
     onSuccess: () => {
-      refetch();
+      toastSuccess('Timesheet approved');
+      queryClient.invalidateQueries({ queryKey: ['timesheets-list'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
     },
   });
 
   const rejectMutation = useMutation({
     mutationFn: timesheetsApi.reject,
     onSuccess: () => {
-      refetch();
+      toastError('Timesheet rejected');
+      queryClient.invalidateQueries({ queryKey: ['timesheets-list'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
     },
   });
 

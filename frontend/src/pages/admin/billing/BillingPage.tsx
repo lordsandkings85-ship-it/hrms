@@ -1,8 +1,64 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { jsPDF } from 'jspdf';
 import { CreditCard, ShieldCheck, Download, Loader2, Zap, Rocket, Star } from 'lucide-react';
 import { billingApi } from '../../../api/client';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { DataTable, Column } from '../../../components/ui/DataTable';
+
+const BRAND: [number, number, number] = [16, 185, 129];
+const DARK: [number, number, number] = [30, 41, 59];
+const MUTED: [number, number, number] = [100, 116, 139];
+
+function handleDownloadReceipt(row: any) {
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = 210;
+  doc.setFillColor(...BRAND);
+  doc.rect(0, 0, pageWidth, 24, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Lords & Kings HRMS', 14, 11);
+  doc.setFontSize(9);
+  doc.text('PAYMENT RECEIPT', pageWidth - 14, 11, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(220, 252, 231);
+  doc.text(row.invoiceNumber, pageWidth - 14, 16, { align: 'right' });
+
+  let y = 36;
+  const detail = (label: string, value: string) => {
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...MUTED);
+    doc.text(label, 14, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...DARK);
+    doc.text(value, 14 + 40, y);
+    y += 7;
+  };
+  detail('Invoice Number', row.invoiceNumber);
+  detail('Billing Date', new Date(row.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }));
+  detail('Status', String(row.status || '-').toUpperCase());
+
+  y += 6;
+  doc.setFillColor(...BRAND);
+  doc.roundedRect(14, y, pageWidth - 28, 16, 1.5, 1.5, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text('AMOUNT PAID', 18, y + 10);
+  doc.setFontSize(14);
+  doc.text(`Rs. ${Math.round(row.amount || 0).toLocaleString('en-IN')}`, pageWidth - 18, y + 10, { align: 'right' });
+  y += 28;
+
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(...MUTED);
+  doc.text('This is a computer-generated receipt. For queries, contact billing@lordsandkings.co.', 14, y);
+  doc.text(`Page 1 of 1 | Lords & Kings`, 14, 287);
+
+  doc.save(`${row.invoiceNumber}_Receipt.pdf`);
+}
 
 export default function BillingPage() {
   const { success: toastSuccess } = useToast();
@@ -47,8 +103,8 @@ export default function BillingPage() {
     { 
       key: 'actions', 
       header: 'Receipt', 
-      render: () => (
-        <button className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-lg text-xs font-bold text-[var(--text-muted)] hover:text-emerald-500 hover:border-emerald-500/30 transition-colors">
+      render: (row) => (
+        <button onClick={() => handleDownloadReceipt(row)} className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-lg text-xs font-bold text-[var(--text-muted)] hover:text-emerald-500 hover:border-emerald-500/30 transition-colors">
           <Download size={14} /> PDF
         </button>
       )

@@ -59,7 +59,7 @@ export default function ShiftAssignPage() {
     { key: 'name', header: 'Employee Name', render: (row: any) => <span className="font-bold text-[var(--text-primary)]">{row.firstName} {row.lastName}</span> },
     { key: 'empId', header: 'Employee ID', render: (row: any) => <span className="font-mono text-xs uppercase text-[var(--text-muted)] tracking-wider">{row.employeeCode || row.employeeId || 'N/A'}</span> },
     { key: 'dept', header: 'Department', render: (row: any) => <span className="text-[var(--text-primary)] text-xs font-semibold">{row.department?.name || '—'}</span> },
-    { key: 'designation', header: 'Designation', render: (row: any) => <span className="text-[var(--text-muted)] text-xs">{row.designation?.name || '—'}</span> },
+    { key: 'designation', header: 'Designation', render: (row: any) => <span className="text-[var(--text-muted)] text-xs">{row.designation?.title || '—'}</span> },
     {
       key: 'currentShift',
       header: 'Current Shift',

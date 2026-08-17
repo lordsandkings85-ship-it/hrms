@@ -1,19 +1,25 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
 export class TrainingService {
   constructor(private prisma: PrismaService) {}
-  listCourses() {
-    return this.prisma.trainingCourse.findMany({ include: { enrollments: true } });
+  listCourses(companyId: string) {
+    return this.prisma.trainingCourse.findMany({ where: { companyId }, include: { enrollments: true } });
   }
-  createCourse(title: string, description?: string) {
-    return this.prisma.trainingCourse.create({ data: { title, description } });
+  createCourse(companyId: string, title: string, description?: string) {
+    return this.prisma.trainingCourse.create({ data: { companyId, title, description } });
   }
-  enroll(courseId: string, employeeId: string) {
-    return this.prisma.courseEnrollment.create({ data: { courseId, employeeId } });
+  async enroll(companyId: string, courseId: string, employeeId: string) {
+    const course = await this.prisma.trainingCourse.findFirst({ where: { id: courseId, companyId } });
+    if (!course) throw new NotFoundException('Course not found in this company');
+    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+    if (!employee) throw new NotFoundException('Employee not found in this company');
+    return this.prisma.courseEnrollment.create({ data: { companyId, courseId, employeeId } });
   }
-  updateProgress(enrollmentId: string, progress: number) {
+  async updateProgress(companyId: string, enrollmentId: string, progress: number) {
+    const enrollment = await this.prisma.courseEnrollment.findFirst({ where: { id: enrollmentId, companyId } });
+    if (!enrollment) throw new NotFoundException('Enrollment not found in this company');
     return this.prisma.courseEnrollment.update({
       where: { id: enrollmentId },
       data: { progress, completedAt: progress >= 100 ? new Date() : undefined },
@@ -25,9 +31,9 @@ export class TrainingService {
     const courseTitles = ['Data Security Basics', 'POSH Compliance', 'Code of Conduct'];
     const courses: any[] = [];
     for (const title of courseTitles) {
-      let course = await this.prisma.trainingCourse.findFirst({ where: { title } });
+      let course = await this.prisma.trainingCourse.findFirst({ where: { title, companyId } });
       if (!course) {
-        course = await this.prisma.trainingCourse.create({ data: { title, description: 'Mandatory Compliance Training' } });
+        course = await this.prisma.trainingCourse.create({ data: { companyId, title, description: 'Mandatory Compliance Training' } });
       }
       courses.push(course);
     }
@@ -37,21 +43,22 @@ export class TrainingService {
 
     // 3. Assign courses if not already enrolled
     let enrollmentsCreated = 0;
-    for (const emp of employees) {
-      for (const course of courses) {
-        const existing = await this.prisma.courseEnrollment.findFirst({
-          where: { employeeId: emp.id, courseId: course.id }
-        });
-        if (!existing) {
-          await this.prisma.courseEnrollment.create({
-            data: { employeeId: emp.id, courseId: course.id }
+    await this.prisma.$transaction(async (tx) => {
+      for (const emp of employees) {
+        for (const course of courses) {
+          const existing = await tx.courseEnrollment.findFirst({
+            where: { employeeId: emp.id, courseId: course.id, companyId }
           });
-          enrollmentsCreated++;
+          if (!existing) {
+            await tx.courseEnrollment.create({
+              data: { companyId, employeeId: emp.id, courseId: course.id }
+            });
+            enrollmentsCreated++;
+          }
         }
       }
-    }
+    });
 
     return { success: true, message: `Auto-enrolled employees into compliance training. Created ${enrollmentsCreated} new enrollments.` };
   }
 }
-

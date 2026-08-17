@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
@@ -12,7 +12,13 @@ export class PerformanceService {
       data: { employeeId, title, description, dueDate: dueDate ? new Date(dueDate) : undefined },
     });
   }
-  updateProgress(goalId: string, progress: number) {
+  async updateProgress(goalId: string, userId: string, progress: number) {
+    const goal = await this.prisma.goal.findUnique({ where: { id: goalId } });
+    if (!goal) throw new NotFoundException('Goal not found');
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (user?.employeeId && user.employeeId !== goal.employeeId) {
+      throw new ForbiddenException('Cannot update another employee\'s goal progress');
+    }
     return this.prisma.goal.update({ where: { id: goalId }, data: { progress } });
   }
   setGoalStatus(goalId: string, status: string) {

@@ -27,51 +27,55 @@ export class AuthService {
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('Email already registered');
 
-    const company = await this.prisma.company.create({
-      data: { name: dto.companyName },
-    });
-
-    // Company Admin role with full permissions across every module
-    const adminRole = await this.prisma.role.create({
-      data: {
-        companyId: company.id,
-        name: 'Company Admin',
-        isSystem: true,
-        permissions: {
-          create: ALL_MODULES.flatMap((module) =>
-            ALL_ACTIONS.map((action) => ({ module, action })),
-          ),
-        },
-      },
-    });
-
     const passwordHash = await bcrypt.hash(dto.password, 12);
     const [firstName, ...rest] = dto.fullName.split(' ');
 
-    const employee = await this.prisma.employee.create({
-      data: {
-        companyId: company.id,
-        employeeCode: 'EMP001',
-        firstName: firstName || dto.fullName,
-        lastName: rest.join(' ') || '',
-        email: dto.email,
-        joiningDate: new Date(),
-      },
+    const { company, user, adminRoleId } = await this.prisma.$transaction(async (tx) => {
+      const company = await tx.company.create({
+        data: { name: dto.companyName },
+      });
+
+      // Company Admin role with full permissions across every module
+      const adminRole = await tx.role.create({
+        data: {
+          companyId: company.id,
+          name: 'Company Admin',
+          isSystem: true,
+          permissions: {
+            create: ALL_MODULES.flatMap((module) =>
+              ALL_ACTIONS.map((action) => ({ module, action })),
+            ),
+          },
+        },
+      });
+
+      const employee = await tx.employee.create({
+        data: {
+          companyId: company.id,
+          employeeCode: 'EMP001',
+          firstName: firstName || dto.fullName,
+          lastName: rest.join(' ') || '',
+          email: dto.email,
+          joiningDate: new Date(),
+        },
+      });
+
+      const user = await tx.user.create({
+        data: {
+          companyId: company.id,
+          email: dto.email,
+          passwordHash,
+          roleId: adminRole.id,
+          employeeId: employee.id,
+        },
+      });
+
+      return { company, user, adminRoleId: adminRole.id };
     });
 
-    const user = await this.prisma.user.create({
-      data: {
-        companyId: company.id,
-        email: dto.email,
-        passwordHash,
-        roleId: adminRole.id,
-        employeeId: employee.id,
-      },
-    });
+    await this.seeder.autoPopulate(company.id, user.employeeId as string);
 
-    await this.seeder.autoPopulate(company.id, employee.id);
-
-    return this.issueTokens(user.id, company.id, user.email, adminRole.id);
+    return this.issueTokens(user.id, company.id, user.email, adminRoleId);
   }
 
   async login(dto: LoginDto) {

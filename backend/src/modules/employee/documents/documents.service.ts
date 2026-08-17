@@ -11,6 +11,9 @@ export class DocumentsService {
   listForEmployee(employeeId: string) {
     return this.prisma.employeeDocument.findMany({ where: { employeeId } });
   }
+  listAll() {
+    return this.prisma.employeeDocument.findMany({ orderBy: { uploadedAt: 'desc' } });
+  }
 
   async eSignDocument(documentId: string, employeeId: string, ipAddress: string) {
     const doc = await this.prisma.employeeDocument.findUnique({ where: { id: documentId } });

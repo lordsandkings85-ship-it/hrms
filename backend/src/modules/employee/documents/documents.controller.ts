@@ -12,6 +12,7 @@ export class DocumentsController {
     return this.service.upload(body.employeeId, body.type, body.fileUrl);
   }
   @Get('employee/:employeeId') list(@Param('employeeId') employeeId: string) { return this.service.listForEmployee(employeeId); }
+  @Get('all') listAll() { return this.service.listAll(); }
 
   @Post(':id/sign')
   eSignDocument(

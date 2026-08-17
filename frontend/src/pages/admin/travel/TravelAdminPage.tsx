@@ -9,7 +9,7 @@ export default function TravelAdminPage() {
   const { data, isLoading } = useQuery({ queryKey: ['admin-travel'], queryFn: travelApi.listForCompany });
   const queryClient = useQueryClient();
   const { success, error } = useToast();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin-travel'] });
+  const invalidate = () => { queryClient.invalidateQueries({ queryKey: ['admin-travel'] }); queryClient.invalidateQueries({ queryKey: ['my-travel-requests'] }); };
   const approve = useMutation({
     mutationFn: (id: string) => travelApi.updateStatus(id, 'approved'),
     onSuccess: () => { success('Travel claim approved'); invalidate(); },
