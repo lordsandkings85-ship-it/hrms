@@ -1054,10 +1054,10 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
       <div className="bg-white border rounded shadow-sm flex flex-col min-h-max">
         
         {/* TOP SECTION: Employee Master */}
-        <div className="p-4 bg-gray-50 border-b relative">
+        <div className="p-3 sm:p-4 bg-gray-50 border-b relative">
           <h2 className="text-gray-500 font-medium mb-4">Employee Master</h2>
           
-          <form id="master-form" onSubmit={handleSubmit} className="grid grid-cols-2 gap-x-8 gap-y-3 max-w-5xl">
+          <form id="master-form" onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 max-w-5xl">
             {/* Left Col */}
             <div className="space-y-3">
               <div className="grid grid-cols-3 items-center gap-2">

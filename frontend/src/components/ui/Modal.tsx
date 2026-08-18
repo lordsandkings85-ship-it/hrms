@@ -54,11 +54,16 @@ export function Modal({
 
   if (!open) return null;
 
-  const widths = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-2xl', xl: 'max-w-4xl' };
+  const widths = {
+    sm: 'w-full max-w-sm',
+    md: 'w-full max-w-md',
+    lg: 'w-full max-w-2xl',
+    xl: 'w-full max-w-4xl',
+  };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -72,11 +77,11 @@ export function Modal({
       <div
         ref={panelRef}
         tabIndex={-1}
-        className={`relative w-full ${widths[size]} bg-white dark:bg-surface-elevated text-ink dark:text-white rounded-2xl shadow-popover animate-scaleIn overflow-hidden outline-none`}
+        className={`relative ${widths[size]} bg-white dark:bg-surface-elevated text-ink dark:text-white rounded-2xl shadow-popover animate-scaleIn overflow-hidden outline-none flex flex-col max-h-[90vh]`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-line">
-          <h2 className="font-display font-semibold text-base text-ink dark:text-white">{title}</h2>
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-line flex-shrink-0">
+          <h2 className="font-display font-semibold text-sm sm:text-base text-ink dark:text-white">{title}</h2>
           <button
             onClick={onClose}
             aria-label="Close dialog"
@@ -85,8 +90,8 @@ export function Modal({
             <X size={16} />
           </button>
         </div>
-        {/* Body */}
-        <div className="px-6 py-5">{children}</div>
+        {/* Body — scrollable so tall forms never overflow the viewport */}
+        <div className="px-4 sm:px-6 py-4 sm:py-5 overflow-y-auto">{children}</div>
       </div>
     </div>
   );

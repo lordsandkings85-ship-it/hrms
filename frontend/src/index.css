@@ -206,15 +206,62 @@ body {
    LAYOUT
    ═══════════════════════════════════════════════════════════════ */
 .page-container {
-  padding: 1.5rem;
+  padding: 1rem;
   max-width: 1400px;
   margin-left: auto;
   margin-right: auto;
   width: 100%;
 }
+@media (min-width: 640px) {
+  .page-container { padding: 1.5rem; }
+}
 @media (min-width: 768px) {
   .page-container { padding: 2rem; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   GLOBAL RESPONSIVE HELPERS
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Ensure inputs/selects never cause horizontal overflow */
+input, select, textarea {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Hide scrollbar but keep functionality */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Responsive table wrapper — allow table to scroll horizontally
+   inside its container without causing page-level overflow */
+.responsive-table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Responsive form grid: 1 col mobile, 2 col tablet, 3 col desktop */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+@media (min-width: 640px) {
+  .form-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 1024px) {
+  .form-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* Touch-friendly minimum tap target */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
 
 /* ═══════════════════════════════════════════════════════════════
    SECTION CARD

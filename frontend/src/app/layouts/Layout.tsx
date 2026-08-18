@@ -770,6 +770,8 @@ export default function Layout() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 1024);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [bellOpen, setBellOpen] = useState(false);
@@ -877,20 +879,47 @@ export default function Layout() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
+  // Track mobile viewport
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
   function handleLogout() { logout(); navigate('/login'); }
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg-primary)' }}>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
 
+      {/* Mobile sidebar backdrop */}
+      {isMobile && mobileOpen && (
+        <div
+          className="fixed inset-0 z-40"
+          style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }}
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
       {/* ── SIDEBAR ─────────────────────────────────────────── */}
       <aside
-        className="shrink-0 flex flex-col z-40 relative overflow-hidden"
+        className="flex flex-col overflow-hidden"
         style={{
-          width: collapsed ? '4rem' : '15rem',
+          width: isMobile ? '16rem' : (collapsed ? '4rem' : '15rem'),
           background: 'var(--sidebar-bg)',
           borderRight: '1px solid var(--sidebar-border)',
-          transition: 'width 300ms cubic-bezier(0.16,1,0.3,1)',
+          transition: 'width 300ms cubic-bezier(0.16,1,0.3,1), transform 300ms cubic-bezier(0.16,1,0.3,1)',
+          // Mobile: fixed drawer; Desktop: static in-flow
+          position: isMobile ? 'fixed' : 'relative',
+          inset: isMobile ? '0 auto 0 0' : undefined,
+          zIndex: isMobile ? 50 : 40,
+          flexShrink: isMobile ? undefined : 0,
+          transform: isMobile ? (mobileOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
         }}
       >
         {/* Logo */}
@@ -1017,15 +1046,16 @@ export default function Layout() {
             boxShadow: 'var(--shadow-card)',
           }}
         >
-          {/* Sidebar toggle */}
+          {/* Sidebar toggle — mobile opens drawer, desktop collapses/expands */}
           <button
-            onClick={() => setCollapsed(c => !c)}
-            title="Toggle sidebar"
+            onClick={() => isMobile ? setMobileOpen(o => !o) : setCollapsed(c => !c)}
+            title={isMobile ? 'Open navigation' : 'Toggle sidebar'}
+            aria-label={isMobile ? 'Open navigation' : 'Toggle sidebar'}
             style={{ padding: '0.375rem', borderRadius: '0.5rem', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-hover)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = ''; (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; }}
           >
-            {collapsed ? <Menu size={16} /> : <ChevronLeft size={16} />}
+            {isMobile ? <Menu size={16} /> : (collapsed ? <Menu size={16} /> : <ChevronLeft size={16} />)}
           </button>
 
           {/* Breadcrumb */}
@@ -1076,7 +1106,7 @@ export default function Layout() {
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setBellOpen(false)} />
                 <div
-                  className="absolute right-0 mt-2 w-80 max-h-96 overflow-auto rounded-xl border z-50 shadow-xl"
+                  className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-1rem))] max-h-96 overflow-auto rounded-xl border z-50 shadow-xl"
                   style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: 'var(--shadow-lg, 0 10px 40px rgba(0,0,0,0.15))' }}
                 >
                   <div className="px-3 py-2 text-xs font-semibold border-b" style={{ borderColor: 'var(--border)' }}>

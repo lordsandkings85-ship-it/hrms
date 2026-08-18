@@ -190,7 +190,7 @@ export function DataTable<T extends object>({
       {showToolbar && (
       <div className="flex items-center gap-3 px-4 py-3 border-b border-line dark:border-white/5 flex-wrap">
         {searchable && (
-          <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <div className="relative flex-1 min-w-[140px] sm:min-w-[200px] max-w-xs">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
             <input
               type="text"
@@ -333,11 +333,11 @@ export function DataTable<T extends object>({
 
       {/* Pagination */}
       {!loading && (isServer ? totalRecords > pageSize : sorted.length > pageSize) && (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-line dark:border-white/5 text-xs text-muted dark:text-white/50">
-          <span>
+        <div className="flex flex-wrap items-center justify-between px-4 py-3 border-t border-line dark:border-white/5 text-xs text-muted dark:text-white/50 gap-2">
+          <span className="whitespace-nowrap">
             Showing {((activePage - 1) * pageSize) + 1}–{Math.min(activePage * pageSize, isServer ? totalRecords : sorted.length)} of {isServer ? totalRecords : sorted.length}
           </span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-wrap">
             <button
               onClick={() => isServer && onPageChange ? onPageChange(Math.max(1, activePage - 1)) : setPage(p => Math.max(1, p - 1))}
               disabled={activePage === 1}
