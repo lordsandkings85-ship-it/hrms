@@ -15,11 +15,18 @@ async function bootstrap() {
   app.use(helmet());
 
   app.enableCors({
-    origin: [
-      'https://workora-neon.vercel.app',
-      'https://workora-mu.vercel.app',
-      'http://localhost:5173'
-    ],
+    origin: (origin, callback) => {
+      const allowed = [
+        /^https:\/\/.*\.vercel\.app$/,
+        /^http:\/\/localhost(:\d+)?$/,
+        /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+      ];
+      if (!origin || allowed.some(re => re.test(origin))) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS blocked: ${origin}`));
+      }
+    },
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
