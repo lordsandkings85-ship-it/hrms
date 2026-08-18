@@ -577,7 +577,9 @@ function normalizeNestedDates(rows: Record<string, any>[]): Record<string, any>[
   return rows.map((row) => {
     const out: Record<string, any> = { ...row };
     for (const field of DATE_FIELDS) {
-      if (out[field] != null && out[field] !== '') {
+      if (out[field] === '') {
+        delete out[field];
+      } else if (out[field] != null) {
         out[field] = new Date(out[field]);
       }
     }
