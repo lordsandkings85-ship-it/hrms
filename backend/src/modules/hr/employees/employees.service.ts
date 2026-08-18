@@ -234,6 +234,7 @@ export class EmployeesService {
         where: { id },
         data: {
           ...encryptedData,
+          workingDaysPerWeek,
           joiningDate: dto.joiningDate ? new Date(dto.joiningDate) : undefined,
           confirmationDate: dto.confirmationDate ? new Date(dto.confirmationDate) : undefined,
           dob: dto.dob ? new Date(dto.dob) : undefined,
@@ -241,13 +242,13 @@ export class EmployeesService {
           paymentInfo: paymentInfo ? { upsert: { create: encryptNestedPii(paymentInfo as any, 'paymentInfo'), update: encryptNestedPii(paymentInfo as any, 'paymentInfo') } } : undefined,
           adminInfo: adminInfo ? { upsert: { create: encryptNestedPii(adminInfo as any, 'adminInfo'), update: encryptNestedPii(adminInfo as any, 'adminInfo') } } : undefined,
           personalInfo: personalInfo ? { upsert: { create: encryptNestedPii(personalInfo as any, 'personalInfo'), update: encryptNestedPii(personalInfo as any, 'personalInfo') } } : undefined,
-          familyMembers: familyMembers ? { deleteMany: {}, create: normalizeNestedDates(familyMembers.map(f => { const { id, ...rest } = f as any; return rest; })) } : undefined,
-          emergencyContacts: emergencyContacts ? { deleteMany: {}, create: emergencyContacts.map(e => { const { id, ...rest } = e as any; return rest; }) } : undefined,
-          experiences: experiences ? { deleteMany: {}, create: normalizeNestedDates(experiences.map(e => { const { id, ...rest } = e as any; return rest; })) } : undefined,
-          immigrations: immigrations ? { deleteMany: {}, create: normalizeNestedDates(immigrations.map(i => { const { id, ...rest } = i as any; return rest; })).map((i) => encryptNestedPii(i, 'immigrationInfo')) } : undefined,
-          documentInfos: documentInfos ? { deleteMany: {}, create: normalizeNestedDates(documentInfos.map(d => { const { id, ...rest } = d as any; return rest; })) } : undefined,
-          certifications: certifications ? { deleteMany: {}, create: normalizeNestedDates(certifications.map(c => { const { id, ...rest } = c as any; return rest; })) } : undefined,
-          qualifications: qualifications ? { deleteMany: {}, create: normalizeNestedDates(qualifications.map(q => { const { id, ...rest } = q as any; return rest; })) } : undefined,
+          familyMembers: familyMembers ? { deleteMany: {}, create: normalizeNestedDates(familyMembers.map(f => { const { id, employeeId, createdAt, updatedAt, ...rest } = f as any; return rest; })) } : undefined,
+          emergencyContacts: emergencyContacts ? { deleteMany: {}, create: emergencyContacts.map(e => { const { id, employeeId, createdAt, updatedAt, ...rest } = e as any; return rest; }) } : undefined,
+          experiences: experiences ? { deleteMany: {}, create: normalizeNestedDates(experiences.map(e => { const { id, employeeId, createdAt, updatedAt, ...rest } = e as any; return rest; })) } : undefined,
+          immigrations: immigrations ? { deleteMany: {}, create: normalizeNestedDates(immigrations.map(i => { const { id, employeeId, createdAt, updatedAt, ...rest } = i as any; return rest; })).map((i) => encryptNestedPii(i, 'immigrationInfo')) } : undefined,
+          documentInfos: documentInfos ? { deleteMany: {}, create: normalizeNestedDates(documentInfos.map(d => { const { id, employeeId, createdAt, updatedAt, ...rest } = d as any; return rest; })) } : undefined,
+          certifications: certifications ? { deleteMany: {}, create: normalizeNestedDates(certifications.map(c => { const { id, employeeId, createdAt, updatedAt, ...rest } = c as any; return rest; })) } : undefined,
+          qualifications: qualifications ? { deleteMany: {}, create: normalizeNestedDates(qualifications.map(q => { const { id, employeeId, createdAt, updatedAt, ...rest } = q as any; return rest; })) } : undefined,
         },
       });
 
