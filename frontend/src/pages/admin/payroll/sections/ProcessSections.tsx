@@ -16,11 +16,11 @@ export function AttendanceProcessSection() {
     queryFn: () => payrollApiExt.getAttendanceSummary(month, year),
   });
   const columns: Column<any>[] = [
-    { key: 'employee', header: 'Employee', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.employeeName || r.name || r.employeeId}</span> },
-    { key: 'present', header: 'Present Days', render: (r: any) => <span className="font-semibold text-emerald-500">{r.presentDays ?? r.present ?? 0}</span> },
-    { key: 'absent', header: 'Absent Days', render: (r: any) => <span className="font-semibold text-rose-500">{r.absentDays ?? r.absent ?? 0}</span> },
-    { key: 'lop', header: 'LOP Days', render: (r: any) => <span className="font-semibold">{r.lopDays ?? r.lop ?? 0}</span> },
-    { key: 'working', header: 'Working Days', render: (r: any) => <span className="text-[var(--text-muted)] text-xs">{r.workingDays ?? 0}</span> },
+    { key: 'employeeCode', header: 'Employee', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.employeeCode || r.id}</span> },
+    { key: 'present', header: 'Present Days', render: (r: any) => <span className="font-semibold text-emerald-500">{r.present ?? 0}</span> },
+    { key: 'absent', header: 'Absent Days', render: (r: any) => <span className="font-semibold text-rose-500">{r.absent ?? 0}</span> },
+    { key: 'lop', header: 'LOP Days', render: (r: any) => <span className="font-semibold">{r.lop ?? 0}</span> },
+    { key: 'totalDays', header: 'Working Days', render: (r: any) => <span className="text-[var(--text-muted)] text-xs">{r.totalDays ?? 0}</span> },
   ];
   return (
     <SectionCard title="Attendance Process" icon={CalendarClock} right={<MonthYearControls month={month} year={year} onMonth={setMonth} onYear={setYear} />}>
