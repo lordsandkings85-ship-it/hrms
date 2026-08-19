@@ -261,7 +261,7 @@ let payslipCount = 0;
       }
 
       return tx.payrollCycle.update({ where: { id: cycle.id }, data: { status: 'processed' } });
-    });
+    }, { timeout: 60000 });
     return { cycle: updated, payslipCount };
   }
 

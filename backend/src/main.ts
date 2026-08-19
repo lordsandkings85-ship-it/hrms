@@ -18,6 +18,7 @@ async function bootstrap() {
     origin: (origin, callback) => {
       const allowed = [
         /^https:\/\/.*\.vercel\.app$/,
+        /^https:\/\/.*\.onrender\.com$/,
         /^http:\/\/localhost(:\d+)?$/,
         /^http:\/\/127\.0\.0\.1(:\d+)?$/,
       ];

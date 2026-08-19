@@ -85,7 +85,7 @@ export class EmployeesService {
       }
 
       return created;
-    });
+    }, { timeout: 30000 });
 
     await this.audit(companyId, userId, 'create', employee.id);
     return generatedPassword ? { ...employee, generatedPassword } : employee;
@@ -272,7 +272,7 @@ export class EmployeesService {
       }
 
       return updated;
-    });
+    }, { timeout: 30000 });
 
     await this.audit(companyId, userId, 'update', id);
     return decryptEmployeeNested(decryptPiiFields(employee));

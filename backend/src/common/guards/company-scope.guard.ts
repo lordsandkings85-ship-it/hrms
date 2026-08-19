@@ -110,7 +110,7 @@ export class CompanyScopeGuard implements CanActivate {
         if (await find()) return true;
       }
       return false;
-    });
+    }, { timeout: 30000 });
     if (directCompanyScoped) return;
 
     const ownedByEmployee = await this.findEmployeeRecordOwner(id, companyId);

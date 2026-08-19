@@ -71,7 +71,7 @@ export class AuthService {
       });
 
       return { company, user, adminRoleId: adminRole.id };
-    });
+    }, { timeout: 30000 });
 
     await this.seeder.autoPopulate(company.id, user.employeeId as string);
 
