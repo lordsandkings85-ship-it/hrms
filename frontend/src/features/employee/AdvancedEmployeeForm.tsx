@@ -43,7 +43,7 @@ const calculateExperience = (joiningDateStr: string | null | undefined) => {
 
 export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedEmployeeFormProps) {
   const queryClient = useQueryClient();
-  const { error: toastError } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Contact');
   const [saving, setSaving] = useState(false);
@@ -94,6 +94,7 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
   const mutation = useMutation({
     mutationFn: (data: any) => initialData?.id ? employeesApi.update(initialData.id, data) : employeesApi.create(data),
     onSuccess: async () => {
+      toastSuccess(initialData?.id ? 'Employee updated successfully' : 'Employee created successfully');
       queryClient.removeQueries({ queryKey: ['employees'] });
       if (initialData?.id) {
         queryClient.removeQueries({ queryKey: ['employee', initialData.id] });
@@ -102,6 +103,9 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
         await queryClient.invalidateQueries({ queryKey: ['employees-list'] });
       }
       onClose();
+    },
+    onError: (error: any) => {
+      toastError(error?.message || 'Failed to save employee');
     },
   });
 

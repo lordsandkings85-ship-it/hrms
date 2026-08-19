@@ -232,9 +232,10 @@ export class EmployeesService {
   }
 
   async update(companyId: string, userId: string, id: string, dto: UpdateEmployeeDto) {
-    await this.findOne(companyId, userId, id); // 404s if not in this tenant
+    const exists = await this.prisma.employee.findFirst({ where: { id, companyId }, select: { id: true } });
+    if (!exists) throw new NotFoundException('Employee not found');
 
-    const { password, workingDaysPerWeek, ctc, roleName, contactInfo, paymentInfo, adminInfo, personalInfo, familyMembers, emergencyContacts, experiences, immigrations, documentInfos, certifications, qualifications, ...employeeData } = dto;
+    const { password, workingDaysPerWeek, ctc, roleName, experience, contactInfo, paymentInfo, adminInfo, personalInfo, familyMembers, emergencyContacts, experiences, immigrations, documentInfos, certifications, qualifications, ...employeeData } = dto;
     const encryptedData = encryptPiiFields(employeeData as any);
 
     const employee = await this.prisma.$transaction(async (tx) => {
@@ -252,8 +253,8 @@ export class EmployeesService {
           personalInfo: personalInfo ? (() => { const { id: _i, employeeId: _e, createdAt: _c, updatedAt: _u, ...psi } = personalInfo as any; const enc = encryptNestedPii(psi, 'personalInfo'); return { upsert: { create: enc, update: enc } }; })() : undefined,
           familyMembers: familyMembers ? { deleteMany: {}, create: normalizeNestedDates(familyMembers.map(f => { const { id, employeeId, createdAt, updatedAt, ...rest } = f as any; return rest; })) } : undefined,
           emergencyContacts: emergencyContacts ? { deleteMany: {}, create: emergencyContacts.map(e => { const { id, employeeId, createdAt, updatedAt, ...rest } = e as any; return rest; }) } : undefined,
-          experiences: experiences ? { deleteMany: {}, create: normalizeNestedDates(experiences.map(e => { const { id, employeeId, createdAt, updatedAt, ...rest } = e as any; return rest; })) } : undefined,
-          immigrations: immigrations ? { deleteMany: {}, create: normalizeNestedDates(immigrations.map(i => { const { id, employeeId, createdAt, updatedAt, ...rest } = i as any; return rest; })).map((i) => encryptNestedPii(i, 'immigrationInfo')) } : undefined,
+          experiences: experiences ? { deleteMany: {}, create: normalizeNestedDates(experiences.map(e => { const { id, employeeId, createdAt, updatedAt, ...rest } = e as any; return rest; }), ['startDate', 'endDate']) } : undefined,
+          immigrations: immigrations ? { deleteMany: {}, create: normalizeNestedDates(immigrations.map(i => { const { id, employeeId, createdAt, updatedAt, ...rest } = i as any; return rest; }), ['issuedDate', 'expiryDate']).map((i) => encryptNestedPii(i, 'immigrationInfo')) } : undefined,
           documentInfos: documentInfos ? { deleteMany: {}, create: normalizeNestedDates(documentInfos.map(d => { const { id, employeeId, createdAt, updatedAt, ...rest } = d as any; return rest; })) } : undefined,
           certifications: certifications ? { deleteMany: {}, create: normalizeNestedDates(certifications.map(c => { const { id, employeeId, createdAt, updatedAt, ...rest } = c as any; return rest; })) } : undefined,
           qualifications: qualifications ? { deleteMany: {}, create: normalizeNestedDates(qualifications.map(q => { const { id, employeeId, createdAt, updatedAt, ...rest } = q as any; return rest; })) } : undefined,
@@ -579,15 +580,18 @@ export class EmployeesService {
   }
 }
 
+const DEFAULT_DATE = new Date('1970-01-01');
 const DATE_FIELDS = ['birthDate', 'startDate', 'endDate', 'issueDate', 'issuedDate', 'expiryDate', 'marriageDate'];
 
-function normalizeNestedDates(rows: Record<string, any>[]): Record<string, any>[] {
+function normalizeNestedDates(rows: Record<string, any>[], requiredDateFields: string[] = []): Record<string, any>[] {
   return rows.map((row) => {
     const out: Record<string, any> = { ...row };
     for (const field of DATE_FIELDS) {
-      if (out[field] === '') {
-        delete out[field];
-      } else if (out[field] != null) {
+      if (out[field] === '' || out[field] == null) {
+        if (requiredDateFields.includes(field) || field in out) {
+          out[field] = DEFAULT_DATE;
+        }
+      } else {
         out[field] = new Date(out[field]);
       }
     }
