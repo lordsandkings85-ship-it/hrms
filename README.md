@@ -45,13 +45,6 @@ npm install
 npm run dev                       # http://localhost:5173
 ```
 
-### 4. Logins (local dev data)
-
-| Portal | Email | Password |
-|---|---|---|
-| Admin | `2018@lordsandkings.co` | `lord@2018` |
-| HR | `hr@lordsandkings.co` | `lke00000` |
-| Employee | `sathish@lordsandkings.co` | `lke1807` |
 
 ## Verification
 
