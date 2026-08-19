@@ -99,6 +99,10 @@ export class EmployeesService {
     const page = opts.page && opts.page > 0 ? opts.page : 1;
     const pageSize = opts.pageSize && opts.pageSize > 0 ? Math.min(opts.pageSize, 100) : 20;
 
+    const userObj = await this.prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
+    const isSystemAdmin = userObj?.role?.isSystem;
+    const isHR = userObj?.isSuperAdmin || isSystemAdmin || userObj?.role?.name === 'HR Admin';
+
     const where = {
       companyId,
       user: {
@@ -108,6 +112,7 @@ export class EmployeesService {
           }
         }
       },
+      ...(!isHR ? { employeeCode: { not: 'HR-001' } } : {}),
       ...(opts.status ? { status: opts.status } : {}),
       ...(opts.departmentId ? { departmentId: opts.departmentId } : {}),
       ...(opts.search
@@ -139,8 +144,6 @@ export class EmployeesService {
       this.prisma.employee.count({ where }),
     ]);
 
-    const userObj = await this.prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
-    const isSystemAdmin = userObj?.role?.isSystem;
     const reqEmployeeId = userObj?.employeeId;
 
     const decryptedItems = items.map(item => {
@@ -200,7 +203,12 @@ export class EmployeesService {
 
     const userObj = await this.prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
     const isSystemAdmin = userObj?.role?.isSystem;
+    const isHR = userObj?.isSuperAdmin || isSystemAdmin || userObj?.role?.name === 'HR Admin';
     const reqEmployeeId = userObj?.employeeId;
+
+    if (dec.employeeCode === 'HR-001' && !isHR) {
+      throw new NotFoundException('Employee not found');
+    }
 
     if (!isSystemAdmin && dec.id !== reqEmployeeId && dec.managerId !== reqEmployeeId) {
       delete dec.pan;
