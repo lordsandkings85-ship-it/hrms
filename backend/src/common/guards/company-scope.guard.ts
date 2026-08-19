@@ -68,51 +68,39 @@ export class CompanyScopeGuard implements CanActivate {
     }
   }
 
-  /** Resolves a record id to its owning employee/company and verifies ownership. */
   private async assertRecordInCompany(id: string, companyId: string) {
+    // Fast-path: asset table has direct companyId
     const directCompany = await this.prisma.asset.findFirst({
       where: { id, companyId },
       select: { id: true },
     });
     if (directCompany) return;
 
-    const directCompanyScoped = await this.prisma.$transaction(async (tx) => {
-      const tables = [
-        () => tx.hRMaster.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.importMapping.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.hRForm.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.attendancePolicy.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.tDSSlab.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.tDSSection.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.pFConfig.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.eSICConfig.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.lWFConfig.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.professionalTaxSlab.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.kPA.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.kRA.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.kPI.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.kPIAssignment.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.kPITarget.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.evaluationSetup.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.project.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.job.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.holiday.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.shift.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.compOffRequest.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.flexibleHolidayRequest.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.overtimeRequest.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.optionalHolidayRequest.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.loanRequest.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.taxDeclaration.findFirst({ where: { id, companyId }, select: { id: true } }),
-        () => tx.leaveCancellationRequest.findFirst({ where: { id, companyId }, select: { id: true } }),
-      ];
-      for (const find of tables) {
-        if (await find()) return true;
-      }
-      return false;
-    }, { timeout: 30000 });
-    if (directCompanyScoped) return;
+    // Single raw SQL to check all 27 company-scoped tables at once
+    const companyScopedTables = [
+      'HRMaster', 'ImportMapping', 'HRForm', 'AttendancePolicy',
+      'TDSSlab', 'TDSSection', 'PFConfig', 'ESICConfig', 'LWFConfig',
+      'ProfessionalTaxSlab', 'KPA', 'KRA', 'KPI', 'KPIAssignment',
+      'KPITarget', 'EvaluationSetup', 'Project', 'Job', 'Holiday',
+      'Shift', 'CompOffRequest', 'FlexibleHolidayRequest', 'OvertimeRequest',
+      'OptionalHolidayRequest', 'LoanRequest', 'TaxDeclaration', 'LeaveCancellationRequest',
+    ];
 
+    const values: any[] = [];
+    for (const table of companyScopedTables) {
+      values.push(id, companyId);
+    }
+
+    const result: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT 1 AS found FROM (
+        ${companyScopedTables.map((t) => `SELECT id, companyId FROM \`${t}\` WHERE id = ? AND companyId = ?`).join('\n        UNION ALL\n        ')}
+      ) AS combined LIMIT 1`,
+      ...values,
+    );
+
+    if (result.length > 0) return;
+
+    // Check employee-owned records
     const ownedByEmployee = await this.findEmployeeRecordOwner(id, companyId);
     if (ownedByEmployee) return;
 
@@ -120,34 +108,42 @@ export class CompanyScopeGuard implements CanActivate {
   }
 
   private async findEmployeeRecordOwner(id: string, companyId: string): Promise<boolean> {
-    const resolvers: Array<() => Promise<string | null>> = [
-      () => this.prisma.expense.findUnique({ where: { id }, select: { employeeId: true } }).then((r) => r?.employeeId ?? null),
-      () => this.prisma.travelRequest.findUnique({ where: { id }, select: { employeeId: true } }).then((r) => r?.employeeId ?? null),
-      () => this.prisma.timesheet.findUnique({ where: { id }, select: { employeeId: true } }).then((r) => r?.employeeId ?? null),
-      () => this.prisma.exitRequest.findUnique({ where: { id }, select: { employeeId: true } }).then((r) => r?.employeeId ?? null),
-      () => this.prisma.fnfSettlement.findUnique({ where: { id }, select: { employeeId: true } }).then((r) => r?.employeeId ?? null),
-      () => this.prisma.goal.findUnique({ where: { id }, select: { employeeId: true } }).then((r) => r?.employeeId ?? null),
-      () => this.prisma.employeeDocument.findUnique({ where: { id }, select: { employeeId: true } }).then((r) => r?.employeeId ?? null),
-      () => this.prisma.performanceReview.findUnique({ where: { id }, select: { employeeId: true } }).then((r) => r?.employeeId ?? null),
-      () => this.prisma.assetAssignment.findUnique({ where: { id }, select: { employeeId: true } }).then((r) => r?.employeeId ?? null),
-      () => this.prisma.shiftAssignment.findUnique({ where: { id }, select: { employeeId: true } }).then((r) => r?.employeeId ?? null),
-      () => this.prisma.exitChecklist
-        .findUnique({ where: { id }, select: { exitRequest: { select: { employeeId: true } } } })
-        .then((r) => r?.exitRequest.employeeId ?? null),
-      () => this.prisma.shiftChangeRequest.findUnique({ where: { id }, select: { employeeId: true } }).then((r) => r?.employeeId ?? null),
-      () => this.prisma.leaveRequest.findUnique({ where: { id }, select: { employeeId: true } }).then((r) => r?.employeeId ?? null),
+    const employeeOwnedTables = [
+      { table: 'Expense', col: 'employeeId' },
+      { table: 'TravelRequest', col: 'employeeId' },
+      { table: 'Timesheet', col: 'employeeId' },
+      { table: 'ExitRequest', col: 'employeeId' },
+      { table: 'FnfSettlement', col: 'employeeId' },
+      { table: 'Goal', col: 'employeeId' },
+      { table: 'EmployeeDocument', col: 'employeeId' },
+      { table: 'PerformanceReview', col: 'employeeId' },
+      { table: 'AssetAssignment', col: 'employeeId' },
+      { table: 'ShiftAssignment', col: 'employeeId' },
+      { table: 'ShiftChangeRequest', col: 'employeeId' },
+      { table: 'LeaveRequest', col: 'employeeId' },
     ];
 
-    for (const resolve of resolvers) {
-      const employeeId = await resolve();
-      if (employeeId) {
-        const employee = await this.prisma.employee.findUnique({
-          where: { id: employeeId },
-          select: { companyId: true },
-        });
-        return employee?.companyId === companyId;
-      }
+    const values: any[] = [];
+    for (const t of employeeOwnedTables) {
+      values.push(id);
     }
-    return false;
+
+    const result: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT employeeId FROM (
+        ${employeeOwnedTables.map((t) => `SELECT employeeId FROM \`${t.table}\` WHERE id = ?`).join('\n        UNION ALL\n        ')}
+      ) AS combined
+      WHERE employeeId IS NOT NULL
+      LIMIT 1`,
+      ...values,
+    );
+
+    if (result.length === 0) return false;
+
+    const employeeId = result[0].employeeId;
+    const employee = await this.prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { companyId: true },
+    });
+    return employee?.companyId === companyId;
   }
 }

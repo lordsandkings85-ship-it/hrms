@@ -8,20 +8,21 @@ const COMPANY = 'company-A';
  * `employeeOwners` maps record-id -> employeeId (for employee-owned records).
  * `employeeCompany` maps employeeId -> companyId (defaults to COMPANY).
  * `assets` lists direct-company asset ids.
+ * `companyScopedRecords` lists record ids that belong to the company via a company-scoped table.
  */
 function mockPrisma(opts: {
   employeeOwners?: Record<string, string>;
   employeeCompany?: Record<string, string>;
   assets?: string[];
+  companyScopedRecords?: string[];
 } = {}) {
   const {
     employeeOwners = {},
     employeeCompany = {},
     assets = [],
+    companyScopedRecords = [],
   } = opts;
   const companyOf = (employeeId: string) => employeeCompany[employeeId] ?? COMPANY;
-
-  const ownerFor = (recordId: string) => (employeeOwners[recordId] ? { employeeId: employeeOwners[recordId] } : null);
 
   return {
     employee: {
@@ -31,50 +32,21 @@ function mockPrisma(opts: {
       findUnique: jest.fn(async ({ where }) => ({ id: where.id, companyId: companyOf(where.id) })),
     },
     asset: { findFirst: jest.fn(async ({ where }) => (assets.includes(where.id) ? { id: where.id } : null)) },
-    expense: { findUnique: jest.fn(async ({ where }) => ownerFor(where.id)) },
-    travelRequest: { findUnique: jest.fn(async () => null) },
-    timesheet: { findUnique: jest.fn(async () => null) },
-    exitRequest: { findUnique: jest.fn(async () => null) },
-    fnfSettlement: { findUnique: jest.fn(async () => null) },
-    goal: { findUnique: jest.fn(async () => null) },
-    employeeDocument: { findUnique: jest.fn(async () => null) },
-    performanceReview: { findUnique: jest.fn(async () => null) },
-    assetAssignment: { findUnique: jest.fn(async () => null) },
-    shiftAssignment: { findUnique: jest.fn(async () => null) },
-    exitChecklist: { findUnique: jest.fn(async () => null) },
-    shiftChangeRequest: { findUnique: jest.fn(async () => null) },
-    leaveRequest: { findUnique: jest.fn(async () => null) },
-    $transaction: jest.fn(async (fn: any) =>
-      fn({
-        hRMaster: { findFirst: jest.fn(async () => null) },
-        importMapping: { findFirst: jest.fn(async () => null) },
-        hRForm: { findFirst: jest.fn(async () => null) },
-        attendancePolicy: { findFirst: jest.fn(async () => null) },
-        tDSSlab: { findFirst: jest.fn(async () => null) },
-        tDSSection: { findFirst: jest.fn(async () => null) },
-        pFConfig: { findFirst: jest.fn(async () => null) },
-        eSICConfig: { findFirst: jest.fn(async () => null) },
-        lWFConfig: { findFirst: jest.fn(async () => null) },
-        professionalTaxSlab: { findFirst: jest.fn(async () => null) },
-        kPA: { findFirst: jest.fn(async () => null) },
-        kRA: { findFirst: jest.fn(async () => null) },
-        kPI: { findFirst: jest.fn(async () => null) },
-        kPIAssignment: { findFirst: jest.fn(async () => null) },
-        kPITarget: { findFirst: jest.fn(async () => null) },
-        evaluationSetup: { findFirst: jest.fn(async () => null) },
-        project: { findFirst: jest.fn(async () => null) },
-        job: { findFirst: jest.fn(async () => null) },
-        holiday: { findFirst: jest.fn(async () => null) },
-        shift: { findFirst: jest.fn(async () => null) },
-        compOffRequest: { findFirst: jest.fn(async () => null) },
-        flexibleHolidayRequest: { findFirst: jest.fn(async () => null) },
-        overtimeRequest: { findFirst: jest.fn(async () => null) },
-        optionalHolidayRequest: { findFirst: jest.fn(async () => null) },
-        loanRequest: { findFirst: jest.fn(async () => null) },
-        taxDeclaration: { findFirst: jest.fn(async () => null) },
-        leaveCancellationRequest: { findFirst: jest.fn(async () => null) },
-      }),
-    ),
+    $queryRawUnsafe: jest.fn(async (sql: string, ...args: any[]) => {
+      const id = args[0];
+      // Employee-owned record check (UNION of Expense, TravelRequest, etc.)
+      if (sql.includes('Expense')) {
+        if (employeeOwners[id]) {
+          return [{ employeeId: employeeOwners[id] }];
+        }
+        return [];
+      }
+      // Company-scoped table check (UNION of HRMaster, ImportMapping, etc.)
+      if (companyScopedRecords.includes(id)) {
+        return [{ found: 1 }];
+      }
+      return [];
+    }),
   };
 }
 
@@ -128,12 +100,9 @@ describe('CompanyScopeGuard', () => {
   });
 
   it('rejects a record id whose employee belongs to another company', async () => {
-    const guard = new CompanyScopeGuard({
-      ...mockPrisma(),
-    } as any);
-    const prisma = (guard as any).prisma;
-    prisma.expense.findUnique.mockResolvedValue({ employeeId: 'emp-1' });
-    prisma.employee.findUnique.mockResolvedValue({ id: 'emp-1', companyId: 'company-B' });
+    const guard = new CompanyScopeGuard(
+      mockPrisma({ employeeOwners: { 'expense-1': 'emp-1' }, employeeCompany: { 'emp-1': 'company-B' } }) as any,
+    );
     await expect(
       guard.canActivate(ctx({ user: { companyId: COMPANY }, params: { id: 'expense-1' } })),
     ).rejects.toThrow(ForbiddenException);

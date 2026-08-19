@@ -3,12 +3,33 @@ import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PERMISSIONS_KEY, RequiredPermission } from '../decorators/permissions.decorator';
 
+interface CachedPermissions {
+  employeeId: string | null;
+  isSystem: boolean;
+  grants: Array<{ module: string; action: string }>;
+}
+
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 @Injectable()
 export class PermissionsGuard implements CanActivate {
+  private permCache = new Map<string, { data: CachedPermissions; expiresAt: number }>();
+
   constructor(
     private reflector: Reflector,
     private prisma: PrismaService,
   ) {}
+
+  private getCached(userId: string): CachedPermissions | null {
+    const entry = this.permCache.get(userId);
+    if (entry && entry.expiresAt > Date.now()) return entry.data;
+    if (entry) this.permCache.delete(userId);
+    return null;
+  }
+
+  private setCache(userId: string, data: CachedPermissions): void {
+    this.permCache.set(userId, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const required = this.reflector.getAllAndOverride<RequiredPermission[]>(
@@ -24,23 +45,27 @@ export class PermissionsGuard implements CanActivate {
 
     // Check if user is accessing their own employee record or payroll resources
     if (user?.userId) {
-      const dbUser = await this.prisma.user.findUnique({
-        where: { id: user.userId },
-        select: { employeeId: true }
-      });
-      const userEmployeeId = dbUser?.employeeId;
+      const cached = this.getCached(user.userId);
+      const userEmployeeId = cached?.employeeId ?? (
+        await this.prisma.user.findUnique({
+          where: { id: user.userId },
+          select: { employeeId: true }
+        })
+      )?.employeeId ?? null;
+
+      // Cache the employeeId lookup if we didn't have it cached
+      if (!cached && userEmployeeId) {
+        this.setCache(user.userId, { employeeId: userEmployeeId, isSystem: false, grants: [] });
+      }
+
       const bodyEmployeeId = request.body?.employeeId;
       const path = request.route?.path || '';
       const method = request.method || '';
 
-      // Salary data may never be approved via the employee-self bypass, otherwise
-      // an employee could inflate their own salary (salary-structure / salary-revision).
       const isSalaryMutation =
         (path.includes('salary-structure') || path.includes('salary-revision')) &&
         !['GET', 'HEAD', 'OPTIONS'].includes(method);
 
-      // Employees may never mutate their own employee record (status, bank details,
-      // manager, admin fields) — PATCH/PUT/DELETE on /employees/:id requires HR edit.
       const isEmployeeRecordMutation =
         /^\/employees\/[^/]+$/.test(path.replace(/^\/api\/v1/, '')) &&
         !['GET', 'HEAD', 'OPTIONS'].includes(method);
@@ -56,7 +81,6 @@ export class PermissionsGuard implements CanActivate {
       ) {
         return true;
       }
-      // Employees may view their own payslip detail (params.id is the payslip id, not the employee id)
       if (userEmployeeId && params?.id && request.route?.path?.endsWith('payslip/:id')) {
         const payslip = await this.prisma.payslip.findUnique({
           where: { id: params.id },
@@ -64,7 +88,6 @@ export class PermissionsGuard implements CanActivate {
         });
         if (payslip?.employeeId === userEmployeeId) return true;
       }
-      // Employees may list their own payslips
       if (userEmployeeId && method === 'GET' && request.route?.path?.endsWith('payslips/:employeeId') && params?.employeeId === userEmployeeId) {
         return true;
       }
@@ -72,12 +95,33 @@ export class PermissionsGuard implements CanActivate {
 
     if (!user?.roleId) throw new ForbiddenException('No role assigned');
 
-    const role = await this.prisma.role.findUnique({ where: { id: user.roleId } });
-    if (role?.isSystem) return true;
+    // Check cache for role + permissions
+    let isSystem: boolean;
+    let grants: Array<{ module: string; action: string }>;
 
-    const grants = await this.prisma.permission.findMany({
-      where: { roleId: user.roleId },
-    });
+    const cached = this.getCached(user.userId);
+    if (cached && cached.isSystem !== undefined && cached.grants.length > 0) {
+      isSystem = cached.isSystem;
+      grants = cached.grants;
+    } else {
+      const role = await this.prisma.role.findUnique({ where: { id: user.roleId } });
+      isSystem = !!role?.isSystem;
+
+      if (isSystem) {
+        this.setCache(user.userId, { employeeId: cached?.employeeId ?? null, isSystem: true, grants: [] });
+        return true;
+      }
+
+      grants = await this.prisma.permission.findMany({
+        where: { roleId: user.roleId },
+      });
+
+      this.setCache(user.userId, {
+        employeeId: cached?.employeeId ?? null,
+        isSystem: false,
+        grants,
+      });
+    }
 
     const ok = required.every((req) =>
       grants.some(
