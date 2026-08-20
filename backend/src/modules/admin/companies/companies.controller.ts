@@ -49,6 +49,18 @@ export class CompaniesController {
     return this.companiesService.createBranch(user.companyId, body.name, body.address);
   }
 
+  @Patch('organization/branches/:id')
+  @Permissions({ module: 'organization', action: 'create' })
+  updateBranch(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { name?: string; address?: string }) {
+    return this.companiesService.updateBranch(id, user.companyId, body);
+  }
+
+  @Delete('organization/branches/:id')
+  @Permissions({ module: 'organization', action: 'delete' })
+  deleteBranch(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.companiesService.deleteBranch(id, user.companyId);
+  }
+
   @Get('organization/designations')
   listDesignations(@CurrentUser() user: AuthUser) {
     return this.companiesService.listDesignations(user.companyId);

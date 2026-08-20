@@ -1,37 +1,76 @@
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { Megaphone, Send, Bell } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Megaphone, Send, Bell, Pin, Trash2 } from 'lucide-react';
 import { announcementsApi } from '../../../api/client';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { useAuthStore } from '../../../store/useAuthStore';
 import { fmtDate } from '../../../utils/formatDate';
+
+const CATEGORIES = ['Company', 'Events', 'Policy', 'Performance', 'IT', 'Recognition'];
 
 export default function AnnouncementsPage() {
   const { success: toastSuccess, error: toastError } = useToast();
+  const user = useAuthStore((s: any) => s.user);
+  const queryClient = useQueryClient();
+
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [category, setCategory] = useState('Company');
+  const [isPinned, setIsPinned] = useState(false);
 
-  // Fetch announcements list
-  const { data: list, isLoading, refetch } = useQuery({
+  const { data: list, isLoading } = useQuery({
     queryKey: ['announcements-list'],
     queryFn: () => announcementsApi.list(),
   });
 
-  // Create Announcement Mutation
   const createMutation = useMutation({
     mutationFn: announcementsApi.create,
     onSuccess: () => {
       toastSuccess('Announcement published successfully');
       setTitle('');
       setBody('');
-      refetch();
+      setCategory('Company');
+      setIsPinned(false);
+      queryClient.invalidateQueries({ queryKey: ['announcements-list'] });
+      queryClient.invalidateQueries({ queryKey: ['announcements'] });
     },
+    onError: () => toastError('Failed to publish announcement'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => announcementsApi.delete(id),
+    onSuccess: () => {
+      toastSuccess('Announcement deleted');
+      queryClient.invalidateQueries({ queryKey: ['announcements-list'] });
+      queryClient.invalidateQueries({ queryKey: ['announcements'] });
+    },
+    onError: () => toastError('Failed to delete announcement'),
+  });
+
+  const pinMutation = useMutation({
+    mutationFn: ({ id, isPinned }: { id: string; isPinned: boolean }) =>
+      announcementsApi.update(id, { isPinned }),
+    onSuccess: () => {
+      toastSuccess('Announcement updated');
+      queryClient.invalidateQueries({ queryKey: ['announcements-list'] });
+      queryClient.invalidateQueries({ queryKey: ['announcements'] });
+    },
+    onError: () => toastError('Failed to update announcement'),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !body.trim()) return toastError('Please enter required parameters');
-    createMutation.mutate({ title, body });
+    const authorName = user?.employee?.firstName
+      ? `${user.employee.firstName} ${user.employee.lastName || ''}`
+      : 'HR Team';
+    createMutation.mutate({ title, body, category, author: authorName, isPinned });
+  };
+
+  const handleDelete = (id: string) => {
+    if (!confirm('Are you sure you want to delete this announcement?')) return;
+    deleteMutation.mutate(id);
   };
 
   return (
@@ -75,6 +114,29 @@ export default function AnnouncementsPage() {
               />
             </div>
 
+            <div>
+              <label className="block text-xs text-muted mb-1">Category</label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full px-3 py-2 rounded-md border border-line bg-white text-sm"
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-muted cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isPinned}
+                onChange={(e) => setIsPinned(e.target.checked)}
+                className="rounded border-line"
+              />
+              Is Pinned
+            </label>
+
             <button
               type="submit"
               disabled={createMutation.isPending}
@@ -98,10 +160,41 @@ export default function AnnouncementsPage() {
             {list?.map((ann: any) => (
               <div key={ann.id} className="p-6 hover:bg-paper/40">
                 <div className="flex justify-between items-start gap-4 mb-2">
-                  <h4 className="text-base font-semibold text-ink">{ann.title}</h4>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-base font-semibold text-ink">{ann.title}</h4>
+                    {ann.category && (
+                      <span className="text-xs px-2 py-0.5 rounded-full border border-line bg-paper/50 text-muted">
+                        {ann.category}
+                      </span>
+                    )}
+                    {ann.isPinned && (
+                      <span className="text-xs px-2 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-amber-700 flex items-center gap-1">
+                        <Pin size={10} /> Pinned
+                      </span>
+                    )}
+                  </div>
                   <span className="text-xs text-muted font-mono whitespace-nowrap">{fmtDate(ann.createdAt)}</span>
                 </div>
-                <p className="text-sm text-muted font-body leading-relaxed whitespace-pre-wrap">{ann.body}</p>
+                <p className="text-sm text-muted font-body leading-relaxed whitespace-pre-wrap">
+                  {ann.body?.length > 200 ? ann.body.slice(0, 200) + '...' : ann.body}
+                </p>
+                <div className="flex items-center justify-between mt-3">
+                  <span className="text-xs text-muted">{ann.author || 'HR Team'}</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => pinMutation.mutate({ id: ann.id, isPinned: !ann.isPinned })}
+                      className="text-xs px-2 py-1 rounded border border-line text-muted hover:bg-paper/60 flex items-center gap-1"
+                    >
+                      <Pin size={12} /> {ann.isPinned ? 'Unpin' : 'Pin'}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(ann.id)}
+                      className="text-xs px-2 py-1 rounded border border-red-200 text-red-500 hover:bg-red-50 flex items-center gap-1"
+                    >
+                      <Trash2 size={12} /> Delete
+                    </button>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -110,5 +203,3 @@ export default function AnnouncementsPage() {
     </div>
   );
 }
-
-

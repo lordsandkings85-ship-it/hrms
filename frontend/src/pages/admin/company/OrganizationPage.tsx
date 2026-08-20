@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Building2, Landmark, ShieldAlert, Award, Plus, Trash2, MapPin, Users, Layers, Loader2, Search, Download, Check, Settings } from 'lucide-react';
+import { Building2, Landmark, ShieldAlert, Award, Plus, Trash2, MapPin, Users, Layers, Loader2, Search, Download, Check, Settings, Pencil, X } from 'lucide-react';
 import { organizationApi, settingsApi, orgMastersApi } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { useForm } from 'react-hook-form';
@@ -164,6 +164,28 @@ export default function OrganizationPage() {
     onError: (e: any) => toastError(e.message || 'Failed to create')
   });
 
+  const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
+  const [editBranchForm, setEditBranchForm] = useState({ name: '', address: '' });
+
+  const updateBranchMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { name?: string; address?: string } }) => organizationApi.updateBranch(id, data),
+    onSuccess: () => {
+      toastSuccess('Branch updated');
+      setEditingBranchId(null);
+      queryClient.invalidateQueries({ queryKey: ['branches-list'] });
+    },
+    onError: (e: any) => toastError(e.message || 'Failed to update')
+  });
+
+  const deleteBranchMutation = useMutation({
+    mutationFn: (id: string) => organizationApi.deleteBranch(id),
+    onSuccess: () => {
+      toastSuccess('Branch deleted');
+      queryClient.invalidateQueries({ queryKey: ['branches-list'] });
+    },
+    onError: (e: any) => toastError(e.message || 'Failed to delete')
+  });
+
   const createDesigMutation = useMutation({
     mutationFn: (data: z.infer<typeof desigSchema>) => organizationApi.createDesignation(data),
     onSuccess: () => {
@@ -291,6 +313,14 @@ export default function OrganizationPage() {
   const branchColumns: Column<any>[] = [
     { key: 'name', header: 'Branch Name', render: (row) => <span className="font-bold text-[var(--text-primary)]">{row.name}</span> },
     { key: 'address', header: 'Address', render: (row) => <span className="text-[var(--text-muted)] text-xs">{row.address || '—'}</span> },
+    {
+      key: 'actions', header: '', render: (row) => (
+        <div className="flex gap-1.5 justify-end">
+          <button onClick={() => { setEditingBranchId(row.id); setEditBranchForm({ name: row.name, address: row.address || '' }); }} className="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-500/10"><Pencil size={14} /></button>
+          <button onClick={() => { if (confirm(`Delete branch "${row.name}"?`)) deleteBranchMutation.mutate(row.id); }} className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10"><Trash2 size={14} /></button>
+        </div>
+      ),
+    },
   ];
 
   const desigColumns: Column<any>[] = [
@@ -567,6 +597,25 @@ export default function OrganizationPage() {
             )}
 
             {tab === 'branches' && (
+              editingBranchId ? (
+                <div className="space-y-4">
+                  <p className="text-xs font-bold text-[var(--text-primary)]">Edit Branch</p>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-[var(--text-primary)]">Branch Name</label>
+                    <input value={editBranchForm.name} onChange={(e) => setEditBranchForm({ ...editBranchForm, name: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-[var(--text-primary)]">Address</label>
+                    <input value={editBranchForm.address} onChange={(e) => setEditBranchForm({ ...editBranchForm, address: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setEditingBranchId(null)} className="flex-1 py-2 border border-[var(--border)] rounded-xl text-sm font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)]"><X size={14} className="inline mr-1" />Cancel</button>
+                    <button onClick={() => updateBranchMutation.mutate({ id: editingBranchId, data: editBranchForm })} disabled={!editBranchForm.name.trim() || updateBranchMutation.isPending} className="flex-1 py-2 bg-purple-500 text-white rounded-xl text-sm font-bold hover:bg-purple-600 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">
+                      {updateBranchMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Save
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <form onSubmit={branchForm.handleSubmit((d) => createBranchMutation.mutate(d))} className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-[var(--text-primary)]">Branch Name</label>
@@ -581,6 +630,7 @@ export default function OrganizationPage() {
                   {createBranchMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Create Branch
                 </button>
               </form>
+              )
             )}
 
             {tab === 'designations' && (

@@ -43,10 +43,10 @@ export default function MyAnnouncementsPage() {
     id: a.id,
     title: a.title,
     content: a.body,
-    category: 'Company',
-    isPinned: false,
+    category: a.category || 'Company',
+    isPinned: a.isPinned ?? false,
     publishedAt: a.createdAt,
-    author: 'HR Team',
+    author: a.author || 'HR Team',
   }));
   const categories = Array.from(new Set(announcements.map(a => a.category)));
 

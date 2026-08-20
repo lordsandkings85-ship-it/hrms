@@ -8,12 +8,19 @@ datasource db {
 }
 
 model Announcement {
-  id        String   @id @default(uuid())
-  companyId String
-  title     String
-  body      String
-  createdAt DateTime @default(now())
-  company   Company  @relation(fields: [companyId], references: [id])
+  id         String   @id @default(uuid())
+  companyId  String
+  title      String
+  body       String
+  category   String   @default("Company")
+  author     String   @default("HR Team")
+  isPinned   Boolean  @default(false)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  company    Company  @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
 }
 
 model Asset {

@@ -41,6 +41,20 @@ export class CompaniesService {
     return this.prisma.branch.create({ data: { companyId, name, address } });
   }
 
+  async updateBranch(id: string, companyId: string, data: { name?: string; address?: string }) {
+    const existing = await this.prisma.branch.findFirst({ where: { id, companyId } });
+    if (!existing) throw new Error('Branch not found');
+    return this.prisma.branch.update({ where: { id }, data });
+  }
+
+  async deleteBranch(id: string, companyId: string) {
+    const existing = await this.prisma.branch.findFirst({ where: { id, companyId } });
+    if (!existing) throw new Error('Branch not found');
+    const employeeCount = await this.prisma.employee.count({ where: { branchId: id } });
+    if (employeeCount > 0) throw new Error(`Cannot delete: ${employeeCount} employee(s) are assigned to this branch`);
+    return this.prisma.branch.delete({ where: { id } });
+  }
+
   listDesignations(companyId: string) {
     return this.prisma.designation.findMany({ where: { companyId } });
   }

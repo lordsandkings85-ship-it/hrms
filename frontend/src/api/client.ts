@@ -490,8 +490,12 @@ export const projectsApi = {
 
 export const announcementsApi = {
   list: () => api<any[]>('/announcements'),
-  create: (data: { title: string; body: string }) =>
+  create: (data: { title: string; body: string; category?: string; author?: string; isPinned?: boolean }) =>
     api<any>('/announcements', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: { title?: string; body?: string; category?: string; isPinned?: boolean; isActive?: boolean }) =>
+    api<any>(`/announcements/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: string) =>
+    api<any>(`/announcements/${id}`, { method: 'DELETE' }),
 };
 
 export const trainingApi = {
@@ -513,6 +517,10 @@ export const organizationApi = {
   listBranches: () => api<any[]>('/organization/branches'),
   createBranch: (data: { name: string; address?: string }) =>
     api<any>('/organization/branches', { method: 'POST', body: JSON.stringify(data) }),
+  updateBranch: (id: string, data: { name?: string; address?: string }) =>
+    api<any>(`/organization/branches/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteBranch: (id: string) =>
+    api<any>(`/organization/branches/${id}`, { method: 'DELETE' }),
   listDesignations: () => api<any[]>('/organization/designations'),
   createDesignation: (data: { title: string; grade?: string }) =>
     api<any>('/organization/designations', { method: 'POST', body: JSON.stringify(data) }),

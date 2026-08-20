@@ -1,7 +1,7 @@
 import { useAuthStore } from '../../../store/useAuthStore';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { payrollApi, payrollApiExt, attendanceApiExt, leaveApi, dashboardApi, attendanceApi } from '../../../api/client';
+import { payrollApi, payrollApiExt, attendanceApiExt, leaveApi, dashboardApi, attendanceApi, announcementsApi } from '../../../api/client';
 import { Fingerprint, Calendar, Download, Shield, ArrowRight, TrendingUp, Megaphone, Bell, Clock, User, Banknote, CalendarDays, Receipt, Headphones, Target, ChevronRight, UserMinus } from 'lucide-react';
 import { Spinner } from '../../../components/ui/Spinner';
 import { generatePayslipPDF } from '../../../utils/payslipPDF';
@@ -10,6 +10,7 @@ import { useToast } from '../../../components/ui/ToastProvider';
 import React, { useState, useEffect } from 'react';
 import { useServerTime } from '../../../hooks/useServerTime';
 import { getServerDate, getServerYear, getServerMonth } from '../../../utils/serverTime';
+import { fmtDate } from '../../../utils/formatDate';
 
 // SVG ring chart using CSS variables
 function RingChart({ value, max, color = 'var(--info)' }: { value: number; max: number; color?: string }) {
@@ -85,6 +86,11 @@ export default function EmployeeDashboard() {
          return res || [];
       },
       enabled: !!emp,
+   });
+
+   const { data: announcements = [] } = useQuery({
+      queryKey: ['announcements'],
+      queryFn: () => announcementsApi.list(),
    });
 
    const checkInMutation = useMutation({
@@ -312,24 +318,33 @@ export default function EmployeeDashboard() {
                      <Megaphone size={16} /> Company Announcements
                   </h2>
                   <span className="text-[10px] bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400 px-2 py-0.5 rounded-full font-bold">
-                     {(dashboardData?.notifications || []).length} New
+                     {announcements.length} New
                   </span>
                </div>
                <div className="space-y-3">
-                  {dashboardData?.notifications && dashboardData.notifications.length > 0 ? (
-                     dashboardData.notifications.slice(0, 3).map((notif: any) => (
-                        <div key={notif.id} className="flex gap-3 p-3 rounded-lg border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                  {announcements.length > 0 ? (
+                     announcements.slice(0, 3).map((ann: any) => (
+                        <div key={ann.id} className="flex gap-3 p-3 rounded-lg border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
                            <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-500 shrink-0">
-                              <Bell size={14} />
+                              <Megaphone size={14} />
                            </div>
-                           <div>
-                              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{notif.title}</p>
-                              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">{notif.message || 'Official company announcement for all employees.'}</p>
+                           <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                 <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{ann.title}</p>
+                                 {ann.isPinned && (
+                                    <span className="text-[9px] bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded-full font-bold shrink-0">Pinned</span>
+                                 )}
+                                 {ann.category && (
+                                    <span className="text-[9px] bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400 px-1.5 py-0.5 rounded-full font-bold shrink-0">{ann.category}</span>
+                                 )}
+                              </div>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{ann.body?.length > 100 ? ann.body.slice(0, 100) + '…' : ann.body}</p>
+                              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">{fmtDate(ann.createdAt)}</p>
                            </div>
                         </div>
                      ))
                   ) : (
-                     <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>No new announcements.</p>
+                     <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>No announcements yet.</p>
                   )}
                </div>
             </div>
