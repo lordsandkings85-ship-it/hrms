@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, Calendar, Plus, Loader2, Search, Send, Clock, CheckCircle } from 'lucide-react';
 import { recruitmentApi } from '../../../api/client';
+import { fmtDateTime } from '../../../utils/formatDate';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -72,7 +73,7 @@ export default function InterviewSchedulePage() {
       const latest = row.interview[row.interview.length - 1];
       return (
         <div className="text-xs space-y-0.5">
-          <div className="text-[var(--text-primary)] font-medium">{new Date(latest.scheduledAt).toLocaleString()}</div>
+          <div className="text-[var(--text-primary)] font-medium">{fmtDateTime(latest.scheduledAt)}</div>
           <div className="text-[var(--text-muted)]">With: {latest.interviewer}</div>
         </div>
       );

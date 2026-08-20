@@ -5,6 +5,7 @@ import { timesheetsApi, employeesApi, projectsApi } from '../../../api/client';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { fmtDate } from '../../../utils/formatDate';
 
 export default function TimesheetsPage() {
   const queryClient = useQueryClient();
@@ -208,7 +209,7 @@ export default function TimesheetsPage() {
                             </span>
                           </div>
                           <div className="text-xs text-muted mt-1">
-                            Date: <span className="font-mono text-ink">{new Date(ts.date).toLocaleDateString()}</span>
+                            Date: <span className="font-mono text-ink">{fmtDate(ts.date)}</span>
                           </div>
                         </div>
                       </div>

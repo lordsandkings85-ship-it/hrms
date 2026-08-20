@@ -11,6 +11,7 @@ import { downloadHtmlDoc } from '../../../utils/htmlDoc';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Spinner } from '../../../components/ui/Spinner';
 import { isAdminOrHr } from '../../../utils/role';
+import { fmtDateFull } from '../../../utils/formatDate';
 
 interface SalaryRevision {
   id: string;
@@ -91,9 +92,9 @@ export default function SalaryRevisionHistoryPage() {
       <h1>Compensation Revision Letter</h1>
       <div class="muted">Confidential — for the employee only</div>
       <br/>
-      <p>Date: ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+      <p>Date: ${fmtDateFull(new Date())}</p>
       <p>Dear ${name},</p>
-      <p>We are pleased to inform you that your compensation has been revised, effective <b>${new Date(rev.effectiveFrom).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</b>, on account of <b>${cfg.label}</b>.</p>
+      <p>We are pleased to inform you that your compensation has been revised, effective <b>${fmtDateFull(rev.effectiveFrom)}</b>, on account of <b>${cfg.label}</b>.</p>
       <p>Your annual CTC stands revised from <b>Rs. ${(rev.previousCTC || 0).toLocaleString('en-IN')}</b> to <b>Rs. ${rev.revisedCTC.toLocaleString('en-IN')}</b>, an increment of <b>Rs. ${(rev.incrementAmount || 0).toLocaleString('en-IN')} (${rev.incrementPercent || 0}%)</b>.</p>
       <p>The revised salary structure is as follows:</p>
       <table><thead><tr><th>Component</th><th class="right">Previous (Rs.)</th><th class="right">Revised (Rs.)</th></tr></thead>
@@ -208,7 +209,7 @@ export default function SalaryRevisionHistoryPage() {
                             )}
                           </div>
                           <div className="flex items-center gap-3 text-xs text-[var(--text-muted)] font-medium">
-                            <span className="flex items-center gap-1"><Calendar size={13} /> Effective: {new Date(rev.effectiveFrom).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</span>
+                            <span className="flex items-center gap-1"><Calendar size={13} /> Effective: {fmtDateFull(rev.effectiveFrom)}</span>
                             <span className="hidden sm:inline text-slate-300 dark:text-slate-700">•</span>
                             <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${cfg.color}`}>
                               <Icon size={10} /> {cfg.label}

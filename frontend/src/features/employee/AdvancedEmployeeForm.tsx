@@ -4,6 +4,7 @@ import { employeesApi, organizationApi } from '../../api/client';
 import { Save, RefreshCw } from 'lucide-react';
 import { useToast } from '../../components/ui/ToastProvider';
 import { useNavigate } from 'react-router-dom';
+import { getServerNow } from '../../utils/serverTime';
 
 interface AdvancedEmployeeFormProps {
   onClose: () => void;
@@ -19,7 +20,7 @@ const TABS = [
 const calculateExperience = (joiningDateStr: string | null | undefined) => {
   if (!joiningDateStr) return { years: 0, months: 0 };
   const joinDate = new Date(joiningDateStr);
-  const today = new Date();
+  const today = getServerNow();
   
   if (isNaN(joinDate.getTime()) || today < joinDate) return { years: 0, months: 0 };
 
@@ -145,11 +146,11 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
       departments.find(d => d.id === formData.branchId)?.name;
 
     const payload: any = {
-      employeeCode: formData.employeeCode || `EMP${Date.now()}`,
+      employeeCode: formData.employeeCode || `EMP${crypto.randomUUID().slice(0, 8)}`,
       firstName: formData.firstName || 'Unknown',
       middleName: formData.middleName,
       lastName: formData.lastName || '.',
-      email: formData.companyEmail || (initialData?.id ? undefined : `emp${Date.now()}@company.com`),
+      email: formData.companyEmail || (initialData?.id ? undefined : `emp${crypto.randomUUID().slice(0, 8)}@company.com`),
       dob: formData.dob || undefined,
       joiningDate: formData.joiningDate || undefined,
       state: formData.state,

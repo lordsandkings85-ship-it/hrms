@@ -1,6 +1,8 @@
 
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
+import React from 'react';
+import { useServerTime } from '../../hooks/useServerTime';
 import {
   LayoutDashboard, Users, Fingerprint, CalendarDays, Banknote, Briefcase,
   TrendingUp, FileText, Laptop, Receipt, Plane, Clock3, ListChecks,
@@ -13,6 +15,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { dashboardApi } from '../../api/client';
 import { useTheme, type ThemeMode } from '../../components/ui/ThemeProvider';
 import CommandPalette from '../../components/ui/CommandPalette';
+import TitleBar, { isElectron } from '../../components/ui/TitleBar';
 import workoraIcon from '../../assets/brand/workora-icon.png';
 
 type NavChild = {
@@ -520,18 +523,14 @@ const ROUTE_LABELS: Record<string, string> = {
   'tax-calculator': 'Tax Calculator', helpdesk: 'Helpdesk', more: 'More',
 };
 
-function LiveClock() {
-  const [time, setTime] = useState(new Date());
-  useEffect(() => {
-    const id = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
+const LiveClock = React.memo(function LiveClock() {
+  const { now } = useServerTime();
   return (
     <span className="font-mono text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
-      {time.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+      {now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
     </span>
   );
-}
+});
 
 function UserAvatar({ name }: { name: string }) {
   const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -1037,6 +1036,7 @@ export default function Layout() {
 
       {/* ── MAIN CONTENT ────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0" style={{ background: 'var(--bg-primary)' }}>
+        {isElectron() && <TitleBar />}
         {/* Topbar */}
         <header
           className="h-12 flex items-center gap-2 px-4 shrink-0 sticky top-0 z-30"

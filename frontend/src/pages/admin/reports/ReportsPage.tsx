@@ -5,6 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import { BarChart3, TrendingUp, DollarSign, Calendar, Users, UserMinus, FileText, Clock, Wallet } from 'lucide-react';
 import { reportsApi, organizationApi } from '../../../api/client';
 import { PageHeader } from '../../../components/ui/PageHeader';
+import { getServerYear } from '../../../utils/serverTime';
 
 const COLORS = ['#071104', '#1F6F5C', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6'];
 
@@ -14,7 +15,7 @@ export default function ReportsPage() {
   const pathParts = location.pathname.split('/');
   const activeSub = pathParts.length > 2 ? pathParts[2] : 'employee-info';
 
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState(getServerYear());
 
   const { data: departments } = useQuery({ queryKey: ['departments-list'], queryFn: () => organizationApi.listDepartments() });
   const { data: headcount }   = useQuery({ queryKey: ['report-headcount'], queryFn: () => reportsApi.headcount() });

@@ -5,6 +5,7 @@ import { attendanceApiExt, attendanceApi } from '../../../api/client';
 import { Calendar as CalendarIcon, CheckCircle, XCircle, Clock as ClockIcon, AlertCircle, Search, Users } from 'lucide-react';
 import { Spinner } from '../../../components/ui/Spinner';
 import { DataTable, Column } from '../../../components/ui/DataTable';
+import { getServerYear, getServerMonth } from '../../../utils/serverTime';
 
 function useIsAdmin() {
   const { user } = useAuthStore();
@@ -22,8 +23,8 @@ function fmtDuration(checkIn?: string | null, checkOut?: string | null) {
 }
 
 function AdminSummary() {
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [year, setYear] = useState(getServerYear());
+  const [month, setMonth] = useState(getServerMonth());
   const [searchTerm, setSearchTerm] = useState('');
 
   const { data: logs, isLoading: logsLoading } = useQuery({
@@ -107,7 +108,7 @@ function AdminSummary() {
           <select value={year} onChange={(e) => setYear(Number(e.target.value))}
             className="px-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500">
             {[...Array(5)].map((_, i) => (
-              <option key={i} value={new Date().getFullYear() - i}>{new Date().getFullYear() - i}</option>
+              <option key={i} value={getServerYear() - i}>{getServerYear() - i}</option>
             ))}
           </select>
         </div>
@@ -177,8 +178,8 @@ function EmployeeSummary() {
   const { user } = useAuthStore();
   const empId = user?.employee?.id;
 
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [year, setYear] = useState(getServerYear());
+  const [month, setMonth] = useState(getServerMonth());
 
   const { data: summary, isLoading } = useQuery({
     queryKey: ['attendance-summary', empId, year, month],
@@ -208,7 +209,7 @@ function EmployeeSummary() {
           <select value={year} onChange={(e) => setYear(Number(e.target.value))}
             className="px-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500">
             {[...Array(5)].map((_, i) => (
-              <option key={i} value={new Date().getFullYear() - i}>{new Date().getFullYear() - i}</option>
+              <option key={i} value={getServerYear() - i}>{getServerYear() - i}</option>
             ))}
           </select>
         </div>

@@ -8,6 +8,7 @@ import { fmtINR, SectionCard, EmployeeSelect } from './shared';
 import { MONTHS } from './shared';
 import { generatePayslipPDF } from '../../../../utils/payslipPDF';
 import { useAuthStore } from '../../../../store/useAuthStore';
+import { fmtDate } from '../../../../utils/formatDate';
 
 async function downloadPayslip(payslip: any) {
   const { user } = useAuthStore.getState();
@@ -225,7 +226,7 @@ export function HistorySection() {
     enabled: !!employeeId,
   });
   const columns: Column<any>[] = [
-    { key: 'date', header: 'Revision Date', render: (r: any) => <span className="font-semibold text-[var(--text-primary)]">{new Date(r.createdAt || r.effectiveFrom || r.date).toLocaleDateString('en-IN')}</span> },
+    { key: 'date', header: 'Revision Date', render: (r: any) => <span className="font-semibold text-[var(--text-primary)]">{fmtDate(r.createdAt || r.effectiveFrom || r.date)}</span> },
     { key: 'ctc', header: 'New CTC', render: (r: any) => <span className="font-mono font-bold text-emerald-500">{fmtINR(r.newCtc ?? r.ctc ?? r.salary)}</span> },
     { key: 'reason', header: 'Reason', render: (r: any) => <span className="text-[var(--text-muted)] text-xs">{r.reason || r.type || '—'}</span> },
   ];

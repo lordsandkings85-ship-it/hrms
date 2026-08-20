@@ -10,6 +10,7 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Spinner } from '../../../components/ui/Spinner';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { fmtDate } from '../../../utils/formatDate';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -184,7 +185,7 @@ export default function LoansAdvancesPage() {
                       <div>
                         <div className="text-sm font-bold text-[var(--text-primary)]">{loan.purpose}</div>
                         <div className="text-xs text-[var(--text-muted)] mt-1 flex items-center gap-1.5">
-                          <Calendar size={12} /> Next EMI: {new Date(loan.nextEmiDate).toLocaleDateString('en-IN')}
+                          <Calendar size={12} /> Next EMI: {fmtDate(loan.nextEmiDate)}
                         </div>
                       </div>
                       <div className="text-right">

@@ -11,6 +11,8 @@ import { PageHeader } from '../../../components/ui/PageHeader';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { exitApi } from '../../../api/client';
 import { Spinner } from '../../../components/ui/Spinner';
+import { getServerDate } from '../../../utils/serverTime';
+import { fmtDate } from '../../../utils/formatDate';
 
 type TabKey = 'request' | 'clearance' | 'interview';
 
@@ -109,7 +111,7 @@ export default function MySeparationPage() {
     if (!resignReason || !lastWorkingDay) { toastError('Please fill all required fields'); return; }
     initiateMutation.mutate({
       employeeId: myEmpId,
-      resignationDate: new Date().toISOString().split('T')[0],
+      resignationDate: getServerDate(),
       lastWorkingDay,
       reason: resignReason + (resignNotes ? `: ${resignNotes}` : '')
     });
@@ -203,8 +205,8 @@ export default function MySeparationPage() {
               <h3 className="text-lg font-semibold text-[var(--text-primary)]">Resignation Request Submitted</h3>
               <p className="text-sm text-[var(--text-muted)]">Your request is currently under review by your Manager and HR.</p>
               <div className="border border-[var(--border)] rounded-xl p-4 bg-[var(--surface)] inline-block text-left text-xs space-y-2">
-                <div><strong>Submission Date:</strong> {new Date(request.resignationDate).toLocaleDateString('en-IN')}</div>
-                <div><strong>Requested LWD:</strong> {new Date(request.lastWorkingDay).toLocaleDateString('en-IN')}</div>
+                <div><strong>Submission Date:</strong> {fmtDate(request.resignationDate)}</div>
+                <div><strong>Requested LWD:</strong> {fmtDate(request.lastWorkingDay)}</div>
                 <div><strong>Reason:</strong> {request.reason || '—'}</div>
                 <div><strong>Status:</strong> <span className="capitalize font-semibold text-indigo-400">{request.status}</span></div>
               </div>

@@ -7,6 +7,8 @@ import { DataTable, Column } from '../../../components/ui/DataTable';
 import { StatusBadge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { Modal } from '../../../components/ui/Modal';
+import { getServerDate } from '../../../utils/serverTime';
+import { fmtDate } from '../../../utils/formatDate';
 
 function useIsAdmin() {
   const { user } = useAuthStore();
@@ -22,7 +24,7 @@ function AdminDailyAttendance() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedEmpId, setSelectedEmpId] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(getServerDate);
   const [time, setTime] = useState('');
   const [type, setType] = useState<'IN' | 'OUT'>('IN');
   const [reason, setReason] = useState('');
@@ -219,11 +221,7 @@ function EmployeeDailyAttendance() {
   const empId = user?.employee?.id;
   const queryClient = useQueryClient();
   const { error: toastError } = useToast();
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const today = new Date();
-    const tzOffset = today.getTimezoneOffset() * 60000;
-    return new Date(today.getTime() - tzOffset).toISOString().split('T')[0];
-  });
+  const [selectedDate, setSelectedDate] = useState(() => getServerDate());
 
   const { data: logs, isLoading } = useQuery({
     queryKey: ['attendance', empId, selectedDate],
@@ -246,7 +244,7 @@ function EmployeeDailyAttendance() {
   const activeLog = logs?.find((l: any) => !l.checkOut);
 
   const columns: Column<any>[] = [
-    { key: 'date', header: 'Date', render: (row: any) => <span className="font-bold text-slate-800 dark:text-slate-200">{new Date(row.date).toLocaleDateString()}</span> },
+    { key: 'date', header: 'Date', render: (row: any) => <span className="font-bold text-slate-800 dark:text-slate-200">{fmtDate(row.date)}</span> },
     { key: 'checkIn', header: 'Check In', render: (row: any) => (
       <div className="flex items-center gap-2"><LogIn size={14} className="text-emerald-500" /><span className="font-mono text-sm">{row.checkIn ? new Date(row.checkIn).toLocaleTimeString() : '--'}</span></div>
     ) },

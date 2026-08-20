@@ -4,6 +4,7 @@ import { Star, Users, Target, Loader2, Send } from 'lucide-react';
 import { performanceApi, employeesApi } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { StatusBadge } from '../../../components/ui/Badge';
+import { fmtDate } from '../../../utils/formatDate';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -95,7 +96,7 @@ export default function ManagerEvaluationPage() {
         </div>
       ) 
     },
-    { key: 'date', header: 'Date', render: (row: any) => <span className="font-mono text-xs text-[var(--text-muted)]">{new Date(row.createdAt).toLocaleDateString()}</span> },
+    { key: 'date', header: 'Date', render: (row: any) => <span className="font-mono text-xs text-[var(--text-muted)]">{fmtDate(row.createdAt)}</span> },
   ];
 
   return (

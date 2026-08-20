@@ -6,6 +6,7 @@ import * as z from 'zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { attendanceApi, employeesApi } from '../../../api/client';
+import { getServerDate } from '../../../utils/serverTime';
 import { useAuthStore } from '../../../store/useAuthStore';
 
 function useIsAdmin() {
@@ -37,7 +38,7 @@ function AdminManualPunch() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<PunchData>({
     resolver: zodResolver(punchSchema),
-    defaultValues: { date: new Date().toISOString().split('T')[0], type: 'IN', time: '', reason: '' }
+    defaultValues: { date: getServerDate(), type: 'IN', time: '', reason: '' }
   });
 
   const onSubmit = async (data: PunchData) => {
@@ -47,7 +48,7 @@ function AdminManualPunch() {
       await attendanceApi.manualPunch({ employeeId: selectedEmpId, ...data });
       toastSuccess(`Manual ${data.type} punch submitted for approval!`);
       queryClient.invalidateQueries({ queryKey: ['attendance-today'] });
-      reset({ date: new Date().toISOString().split('T')[0], type: 'IN', time: '', reason: '' });
+      reset({ date: getServerDate(), type: 'IN', time: '', reason: '' });
       setSelectedEmpId('');
     } catch (err: any) {
       toastError(err.message || 'Failed to submit manual punch');
@@ -137,7 +138,7 @@ function EmployeeManualPunch() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<PunchData>({
     resolver: zodResolver(punchSchema),
-    defaultValues: { date: new Date().toISOString().split('T')[0], type: 'IN', time: '', reason: '' }
+    defaultValues: { date: getServerDate(), type: 'IN', time: '', reason: '' }
   });
 
   const onSubmit = async (data: PunchData) => {
@@ -148,7 +149,7 @@ function EmployeeManualPunch() {
       queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
       queryClient.invalidateQueries({ queryKey: ['attendance-today'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
-      reset({ date: new Date().toISOString().split('T')[0], type: 'IN', time: '', reason: '' });
+      reset({ date: getServerDate(), type: 'IN', time: '', reason: '' });
     } catch (err: any) {
       toastError(err.message || 'Failed to submit manual punch');
     } finally {

@@ -10,13 +10,15 @@ import { attendanceApi } from '../../../api/client';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Spinner as CustomSpinner } from '../../../components/ui/Spinner';
+import { getServerYear, getServerMonth } from '../../../utils/serverTime';
+import { fmtDateCompact } from '../../../utils/formatDate';
 
 export default function MyViewAttendancePage() {
   const { user } = useAuthStore();
   const myEmpId = user?.employee?.id || '';
 
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
+  const [currentYear, setCurrentYear] = useState(getServerYear());
+  const [currentMonth, setCurrentMonth] = useState(getServerMonth());
 
   const { data: historyLogs, isLoading: isLoadingHistory } = useQuery({
     queryKey: ['attendance-history-view', myEmpId, currentYear, currentMonth],
@@ -165,7 +167,7 @@ export default function MyViewAttendancePage() {
                 <div key={row.id} className="py-3 flex items-center justify-between text-xs hover:bg-[var(--surface-alt)] px-2 rounded-lg transition-colors">
                   <div>
                     <div className="font-semibold text-[var(--text-primary)]">
-                      {new Date(row.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                      {fmtDateCompact(row.date)}
                     </div>
                     <div className="text-[11px] text-[var(--text-muted)] mt-0.5 flex items-center gap-2">
                       <span>In: {row.checkIn ? new Date(row.checkIn).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}</span>

@@ -8,6 +8,7 @@ import { PageHeader } from '../../../components/ui/PageHeader';
 import { Spinner } from '../../../components/ui/Spinner';
 import { useToast } from '../../../components/ui/ToastProvider';
 
+import { fmtDate } from '../../../utils/formatDate';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -169,7 +170,7 @@ export default function MyExpensesPage() {
                           {exp.category}
                         </div>
                         <div className="text-xs text-[var(--text-muted)] mt-0.5">
-                          Submitted on {new Date(exp.createdAt).toLocaleDateString('en-IN')}
+                          Submitted on {fmtDate(exp.createdAt)}
                           {exp.receiptUrl && (
                             <a
                               href={exp.receiptUrl}

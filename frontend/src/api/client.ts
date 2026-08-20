@@ -283,8 +283,10 @@ export const attendanceApi = {
 
 export const leaveApi = {
   listTypes: () => api<any[]>('/leave/types'),
-  createType: (data: { name: string; paid: boolean }) =>
+  createType: (data: { name: string; paid: boolean; code?: string; accrualRate?: number; annualAllocation?: number; maxConsecutiveDays?: number; halfDayAllowed?: boolean; carryForward?: boolean; carryForwardLimit?: number; encashment?: boolean; negativeBalanceAllowed?: boolean; attachmentRequired?: boolean; applicableAfterDays?: number; approvalRequired?: boolean; gender?: string }) =>
     api<any>('/leave/types', { method: 'POST', body: JSON.stringify(data) }),
+  updateType: (id: string, data: Record<string, any>) =>
+    api<any>(`/leave/types/${id}`, { method: 'POST', body: JSON.stringify(data) }),
   deleteType: (id: string) =>
     api<any>(`/leave/types/${id}`, { method: 'DELETE' }),
   apply: (data: { employeeId: string; leaveTypeId: string; startDate: string; endDate: string; isHalfDay?: boolean; reason?: string }) =>
@@ -329,6 +331,30 @@ export const leaveApi = {
   setPolicies: (data: any) => api<any>('/leave/policies', { method: 'POST', body: JSON.stringify(data) }),
   bulkApprove: (ids: string[]) => api<any>('/leave/bulk-approve', { method: 'POST', body: JSON.stringify({ ids }) }),
   bulkReject: (ids: string[]) => api<any>('/leave/bulk-reject', { method: 'POST', body: JSON.stringify({ ids }) }),
+
+  // Balance allocation & transactions
+  adjustBalance: (data: { employeeId: string; leaveTypeId: string; year: number; amount: number; reason?: string }) =>
+    api<any>('/leave/balances/adjust', { method: 'POST', body: JSON.stringify(data) }),
+  bulkAllocate: (data: { employeeIds: string[]; leaveTypeId: string; year: number; amount: number; reason?: string }) =>
+    api<any>('/leave/balances/bulk-allocate', { method: 'POST', body: JSON.stringify(data) }),
+  transactions: (employeeId: string, year?: number) => {
+    const qs = new URLSearchParams();
+    if (year) qs.set('year', String(year));
+    return api<any[]>(`/leave/balances/${employeeId}/transactions?${qs.toString()}`);
+  },
+
+  // Leave Year
+  listLeaveYears: () => api<any[]>('/leave/years'),
+  createLeaveYear: (data: { name: string; startDate: string; endDate: string }) =>
+    api<any>('/leave/years', { method: 'POST', body: JSON.stringify(data) }),
+  updateLeaveYear: (id: string, data: { isActive?: boolean; carryForwardProcessed?: boolean }) =>
+    api<any>(`/leave/years/${id}`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteLeaveYear: (id: string) =>
+    api<any>(`/leave/years/${id}`, { method: 'DELETE' }),
+
+  // Carry Forward
+  processCarryForward: (fromYearId: string) =>
+    api<any>('/leave/carry-forward', { method: 'POST', body: JSON.stringify({ fromYearId }) }),
 };
 
 export const payrollApi = {

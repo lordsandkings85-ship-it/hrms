@@ -6,6 +6,7 @@ import { useToast } from '../../../components/ui/ToastProvider';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { employeeServicesApi, leaveApi } from '../../../api/client';
 import { Spinner } from '../../../components/ui/Spinner';
+import { fmtDateShort, fmtDateCompact } from '../../../utils/formatDate';
 
 const STATUS_STYLES: Record<string, string> = {
   approved: 'bg-green-500/10 text-green-400 border-green-500/20',
@@ -89,7 +90,7 @@ export default function MyFlexibleHolidayPage() {
                     .filter((h: any) => h.type === 'restricted' || h.type === 'optional')
                     .map((h: any) => (
                       <option key={h.id} value={h.id}>
-                        {h.name} ({new Date(h.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})
+                        {h.name} ({fmtDateShort(h.date)})
                       </option>
                     ))
                 )}
@@ -123,7 +124,7 @@ export default function MyFlexibleHolidayPage() {
                   <div>
                     <div className="font-semibold text-[var(--text-primary)]">{r.holidayName || 'Restricted holiday request'}</div>
                     <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                      Date: {new Date(r.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                      Date: {fmtDateCompact(r.date)}
                     </div>
                   </div>
                   <div>

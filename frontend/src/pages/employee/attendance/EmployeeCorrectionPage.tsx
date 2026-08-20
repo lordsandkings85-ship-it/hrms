@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { attendanceApi } from '../../../api/client';
+import { getServerDate } from '../../../utils/serverTime';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { FileEdit, CheckCircle2, Clock } from 'lucide-react';
 import { useState } from 'react';
@@ -82,7 +83,7 @@ export default function EmployeeCorrectionPage() {
                   <input 
                     type="date" 
                     {...register('date')}
-                    max={new Date().toISOString().split('T')[0]}
+                    max={getServerDate()}
                     className="w-full pl-4 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 dark:focus:border-amber-400 transition-colors"
                   />
                 </div>

@@ -6,6 +6,8 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { documentsApi } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { isAdminOrHr } from '../../../utils/role';
+import { getServerISO } from '../../../utils/serverTime';
+import { fmtDate } from '../../../utils/formatDate';
 
 type TabKey = 'hr-forms' | 'payroll-forms';
 
@@ -60,7 +62,7 @@ export default function MyDocumentsPage() {
     description: d.description || `Uploaded file category: ${d.type || 'General'}`,
     url: d.fileUrl,
     fileType: d.fileUrl?.endsWith('.pdf') ? 'pdf' : d.fileUrl?.startsWith('http') ? 'link' : 'doc',
-    date: d.createdAt || new Date().toISOString()
+    date: d.createdAt || getServerISO()
   }));
 
   const filteredDocs = documents.filter(d => {
@@ -97,7 +99,7 @@ export default function MyDocumentsPage() {
       ) 
     },
     { key: 'category', header: 'Category', render: (row) => <span className="text-[var(--text-muted)] text-xs font-semibold uppercase tracking-wider bg-[var(--surface-alt)] px-2 py-0.5 rounded border border-[var(--border)]">{row.category.replace('_', ' ')}</span> },
-    { key: 'date', header: 'Date Added', render: (row) => <span className="font-mono text-xs text-[var(--text-primary)]">{new Date(row.date).toLocaleDateString()}</span> },
+    { key: 'date', header: 'Date Added', render: (row) => <span className="font-mono text-xs text-[var(--text-primary)]">{fmtDate(row.date)}</span> },
     { 
       key: 'actions', 
       header: 'Actions', 

@@ -6,6 +6,7 @@ import { DataTable, Column } from '../../../../components/ui/DataTable';
 import { Modal } from '../../../../components/ui/Modal';
 import { useToast } from '../../../../components/ui/ToastProvider';
 import { MONTHS, currentMonthYear, fmtINR, SectionCard, MonthYearControls, EmployeeSelect } from './shared';
+import { fmtDate } from '../../../../utils/formatDate';
 
 export function AttendanceProcessSection() {
   const { month: m, year: y } = currentMonthYear();
@@ -242,7 +243,7 @@ export function ProcessedSection() {
     { key: 'deductions', header: 'Deductions', render: (r: any) => <span className="font-mono text-rose-500">− {fmtINR(r.totalDeductions)}</span> },
     { key: 'net', header: 'Net Pay', render: (r: any) => <span className="font-mono font-bold text-emerald-500">{fmtINR(r.netPay)}</span> },
     { key: 'tds', header: 'TDS', render: (r: any) => <span className="font-mono text-[var(--text-muted)]">{fmtINR(r.breakdown?.tdsMonthly)}</span> },
-    { key: 'generated', header: 'Generated', render: (r: any) => <span className="text-xs text-[var(--text-muted)]">{new Date(r.generatedAt).toLocaleDateString('en-IN')}</span> },
+    { key: 'generated', header: 'Generated', render: (r: any) => <span className="text-xs text-[var(--text-muted)]">{fmtDate(r.generatedAt)}</span> },
   ];
   const columns: Column<any>[] = [
     { key: 'label', header: 'Period', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{MONTHS[(r.month || 1) - 1]} {r.year}</span> },

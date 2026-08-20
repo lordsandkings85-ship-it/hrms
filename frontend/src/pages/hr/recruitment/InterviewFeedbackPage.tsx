@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { MessageSquare, Search, Loader2, Send, Star, CheckCircle, Clock } from 'lucide-react';
 import { recruitmentApi } from '../../../api/client';
+import { fmtDateTime } from '../../../utils/formatDate';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -61,7 +62,7 @@ export default function InterviewFeedbackPage() {
   const columns: Column<any>[] = [
     { key: 'candidate', header: 'Candidate', render: (row: any) => <span className="font-bold text-[var(--text-primary)]">{row.candidate?.name}</span> },
     { key: 'jobTitle', header: 'Applied For', render: (row: any) => <span className="text-[var(--text-primary)] text-sm">{row.candidate?.job?.title}</span> },
-    { key: 'scheduledAt', header: 'Date', render: (row: any) => <span className="text-sm text-[var(--text-muted)]">{new Date(row.scheduledAt).toLocaleString()}</span> },
+    { key: 'scheduledAt', header: 'Date', render: (row: any) => <span className="text-sm text-[var(--text-muted)]">{fmtDateTime(row.scheduledAt)}</span> },
     { key: 'interviewer', header: 'Interviewer', render: (row: any) => <span className="text-sm font-medium">{row.interviewer}</span> },
     { key: 'status', header: 'Status', render: (row: any) => (
       row.rating ? (

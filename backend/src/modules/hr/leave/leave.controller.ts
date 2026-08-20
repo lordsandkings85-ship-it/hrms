@@ -47,8 +47,14 @@ export class LeaveController {
 
   @Post('types')
   @Permissions({ module: 'leave', action: 'edit' })
-  createType(@CurrentUser() user: AuthUser, @Body() body: { name: string; paid: boolean }) {
-    return this.leaveService.createType(user.companyId, body.name, body.paid);
+  createType(@CurrentUser() user: AuthUser, @Body() body: { name: string; paid: boolean; code?: string; accrualRate?: number; annualAllocation?: number; maxConsecutiveDays?: number; halfDayAllowed?: boolean; carryForward?: boolean; carryForwardLimit?: number; encashment?: boolean; negativeBalanceAllowed?: boolean; attachmentRequired?: boolean; applicableAfterDays?: number; approvalRequired?: boolean; gender?: string }) {
+    return this.leaveService.createType(user.companyId, body);
+  }
+
+  @Post('types/:id')
+  @Permissions({ module: 'leave', action: 'edit' })
+  updateType(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: Record<string, any>) {
+    return this.leaveService.updateType(user.companyId, id, body);
   }
 
   @Delete('types/:id')
@@ -186,6 +192,60 @@ export class LeaveController {
   @Permissions({ module: 'leave', action: 'edit' })
   deleteHoliday(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.leaveService.deleteHoliday(user.companyId, id);
+  }
+
+  // --- Leave Balance Allocation ---
+
+  @Post('balances/adjust')
+  @Permissions({ module: 'leave', action: 'edit' })
+  adjustBalance(@CurrentUser() user: AuthUser, @Body() body: { employeeId: string; leaveTypeId: string; year: number; amount: number; reason?: string }) {
+    return this.leaveService.adjustBalance(user.companyId, body, user.userId);
+  }
+
+  @Post('balances/bulk-allocate')
+  @Permissions({ module: 'leave', action: 'edit' })
+  bulkAllocate(@CurrentUser() user: AuthUser, @Body() body: { employeeIds: string[]; leaveTypeId: string; year: number; amount: number; reason?: string }) {
+    return this.leaveService.bulkAllocate(user.companyId, body, user.userId);
+  }
+
+  @Get('balances/:employeeId/transactions')
+  @Permissions({ module: 'leave', action: 'view' })
+  transactions(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string, @Query('year') year?: string) {
+    return this.leaveService.transactions(user.companyId, employeeId, year ? Number(year) : undefined);
+  }
+
+  // --- Leave Year ---
+
+  @Get('years')
+  @Permissions({ module: 'leave', action: 'view' })
+  listLeaveYears(@CurrentUser() user: AuthUser) {
+    return this.leaveService.listLeaveYears(user.companyId);
+  }
+
+  @Post('years')
+  @Permissions({ module: 'leave', action: 'edit' })
+  createLeaveYear(@CurrentUser() user: AuthUser, @Body() body: { name: string; startDate: string; endDate: string }) {
+    return this.leaveService.createLeaveYear(user.companyId, body);
+  }
+
+  @Post('years/:id')
+  @Permissions({ module: 'leave', action: 'edit' })
+  updateLeaveYear(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { isActive?: boolean; carryForwardProcessed?: boolean }) {
+    return this.leaveService.updateLeaveYear(user.companyId, id, body);
+  }
+
+  @Delete('years/:id')
+  @Permissions({ module: 'leave', action: 'edit' })
+  deleteLeaveYear(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.leaveService.deleteLeaveYear(user.companyId, id);
+  }
+
+  // --- Carry Forward ---
+
+  @Post('carry-forward')
+  @Permissions({ module: 'leave', action: 'edit' })
+  processCarryForward(@CurrentUser() user: AuthUser, @Body() body: { fromYearId: string }) {
+    return this.leaveService.processCarryForward(user.companyId, body.fromYearId, user.userId);
   }
 }
 

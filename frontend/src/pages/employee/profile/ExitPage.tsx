@@ -4,6 +4,7 @@ import { exitApi, employeesApi } from '../../../api/client';
 import { LogOut, CheckCircle2, Circle, ClipboardList, UserMinus, ChevronRight } from 'lucide-react';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { fmtDate } from '../../../utils/formatDate';
 
 const STATUS_STEPS = ['initiated', 'clearance', 'fnf', 'completed'];
 
@@ -152,7 +153,7 @@ export default function ExitPage() {
                   >
                     <div>
                       <div className="text-sm font-medium">{ex.employee?.firstName} {ex.employee?.lastName}</div>
-                      <div className="text-xs text-muted">LWD: {new Date(ex.lastWorkingDay).toLocaleDateString()}</div>
+                      <div className="text-xs text-muted">LWD: {fmtDate(ex.lastWorkingDay)}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium capitalize ${statusColor[ex.status] || ''}`}>{ex.status}</span>
@@ -242,7 +243,7 @@ export default function ExitPage() {
                       <div className="flex-1">
                         <p className={`text-sm ${item.completedAt ? 'line-through text-muted' : 'text-ink'}`}>{item.task}</p>
                         {item.completedAt && (
-                          <p className="text-xs text-ledger">Done by {item.completedBy} � {new Date(item.completedAt).toLocaleDateString()}</p>
+                          <p className="text-xs text-ledger">Done by {item.completedBy} � {fmtDate(item.completedAt)}</p>
                         )}
                       </div>
                     </label>

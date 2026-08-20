@@ -9,6 +9,7 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { announcementsApi } from '../../../api/client';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Spinner } from '../../../components/ui/Spinner';
+import { fmtDateFull, fmtDateShort } from '../../../utils/formatDate';
 
 interface Announcement {
   id: string;
@@ -77,7 +78,7 @@ export default function MyAnnouncementsPage() {
                 <div className="flex items-center gap-3 mt-2 text-xs text-[var(--text-muted)]">
                   <span>{selected.author}</span>
                   <span>·</span>
-                  <span>{new Date(selected.publishedAt).toLocaleDateString('en-IN', { dateStyle: 'long' })}</span>
+                  <span>{fmtDateFull(selected.publishedAt)}</span>
                 </div>
               </div>
             </div>
@@ -143,7 +144,7 @@ export default function MyAnnouncementsPage() {
                       <p className="text-sm text-[var(--text-muted)] mt-1 line-clamp-2">{ann.content}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-xs text-[var(--text-muted)]">{new Date(ann.publishedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</div>
+                      <div className="text-xs text-[var(--text-muted)]">{fmtDateShort(ann.publishedAt)}</div>
                       <ChevronRight size={16} className="text-[var(--text-muted)] mt-1 ml-auto group-hover:text-indigo-400 transition-colors" />
                     </div>
                   </div>
@@ -168,7 +169,7 @@ export default function MyAnnouncementsPage() {
                       </div>
                       <h3 className="font-semibold text-[var(--text-primary)] group-hover:text-indigo-400 transition-colors">{ann.title}</h3>
                       <p className="text-sm text-[var(--text-muted)] mt-1 line-clamp-2">{ann.content}</p>
-                      <div className="text-xs text-[var(--text-muted)] mt-2">{ann.author} · {new Date(ann.publishedAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })}</div>
+                      <div className="text-xs text-[var(--text-muted)] mt-2">{ann.author} · {fmtDateShort(ann.publishedAt)}</div>
                     </div>
                     <ChevronRight size={16} className="text-[var(--text-muted)] mt-1 group-hover:text-indigo-400 transition-colors flex-shrink-0" />
                   </div>

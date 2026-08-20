@@ -6,6 +6,7 @@ import { useToast } from '../../../components/ui/ToastProvider';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { employeeServicesApi } from '../../../api/client';
 import { Spinner } from '../../../components/ui/Spinner';
+import { fmtDateCompact } from '../../../utils/formatDate';
 
 const STATUS_STYLES: Record<string, string> = {
   approved: 'bg-green-500/10 text-green-400 border-green-500/20',
@@ -147,7 +148,7 @@ export default function MyCompOffPage() {
                   <div key={row.id} className="py-4 flex flex-col sm:flex-row justify-between sm:items-center gap-2 text-xs">
                     <div>
                       <div className="font-semibold text-sm text-[var(--text-primary)]">
-                        {new Date(row.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                        {fmtDateCompact(row.date)}
                       </div>
                       {row.reason && (
                         <div className="text-[var(--text-muted)] mt-1 font-medium flex items-center gap-1.5">

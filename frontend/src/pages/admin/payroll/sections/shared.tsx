@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { employeesApi } from '../../../../api/client';
+import { getServerNow } from '../../../../utils/serverTime';
 
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 export function currentMonthYear() {
-  const now = new Date();
+  const now = getServerNow();
   return { month: now.getMonth() + 1, year: now.getFullYear() };
 }
 

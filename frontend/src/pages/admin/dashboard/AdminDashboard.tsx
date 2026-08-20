@@ -7,6 +7,7 @@ import {
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
 } from 'recharts';
 import { Users, Briefcase, TrendingDown, Target, Building } from 'lucide-react';
+import { fmtDate } from '../../../utils/formatDate';
 
 const CHART_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#14B8A6', '#F43F5E', '#6366F1'];
 
@@ -16,7 +17,7 @@ export default function AdminDashboard() {
   const emp = user?.employee as any;
   const empCode = emp?.employeeCode || '—';
   const hireDate = emp?.joiningDate
-    ? new Date(emp.joiningDate).toLocaleDateString()
+    ? fmtDate(emp.joiningDate)
     : '—';
   const locationName = emp?.branch?.name || '—';
   const deptName = emp?.department?.name || '—';

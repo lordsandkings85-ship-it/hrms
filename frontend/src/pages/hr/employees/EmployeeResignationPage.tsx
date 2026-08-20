@@ -5,6 +5,7 @@ import { exitApi } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { StatusBadge } from '../../../components/ui/Badge';
+import { fmtDate } from '../../../utils/formatDate';
 
 export default function EmployeeResignationPage() {
   const queryClient = useQueryClient();
@@ -53,7 +54,7 @@ export default function EmployeeResignationPage() {
       );
     }},
     { key: 'department', header: 'Department', render: (row: any) => <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">{row.employee?.department?.name || 'N/A'}</span> },
-    { key: 'resignationDate', header: 'Resignation Date', render: (row: any) => <span className="font-mono text-xs text-[var(--text-primary)] font-bold">{new Date(row.resignationDate || row.createdAt).toLocaleDateString()}</span> },
+    { key: 'resignationDate', header: 'Resignation Date', render: (row: any) => <span className="font-mono text-xs text-[var(--text-primary)] font-bold">{fmtDate(row.resignationDate || row.createdAt)}</span> },
     { key: 'lastWorkingDay', header: 'Last Working Day', render: (row: any) => <span className="font-mono text-xs text-[var(--text-primary)] font-bold">{row.lastWorkingDay ? new Date(row.lastWorkingDay).toLocaleDateString() : '—'}</span> },
     { key: 'status', header: 'Status', render: (row: any) => (
       <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${

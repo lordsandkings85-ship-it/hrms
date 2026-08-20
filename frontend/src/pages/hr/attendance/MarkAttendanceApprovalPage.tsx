@@ -5,6 +5,7 @@ import { attendanceApi, employeesApi } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { Modal } from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { getServerDate } from '../../../utils/serverTime';
 
 const STATUS_OPTIONS = ['all', 'present', 'late', 'absent', 'half_day', 'on_leave'];
 
@@ -14,7 +15,7 @@ export default function MarkAttendanceApprovalPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [employeeId, setEmployeeId] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(getServerDate());
   const [time, setTime] = useState('');
   const [type, setType] = useState<'IN' | 'OUT'>('IN');
   const [reason, setReason] = useState('');

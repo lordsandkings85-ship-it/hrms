@@ -13,6 +13,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { DataTable, Column } from '../../../components/ui/DataTable';
+import { fmtDate, fmtDateFull } from '../../../utils/formatDate';
 
 type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
@@ -157,11 +158,11 @@ export default function MyHelpdeskPage() {
               </div>
               <div>
                 <label className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-wide">Submitted</label>
-                <div className="mt-2 text-sm font-mono text-[var(--text-primary)] font-bold">{new Date(selectedTicket.createdAt).toLocaleDateString('en-IN', { dateStyle: 'long' })}</div>
+                <div className="mt-2 text-sm font-mono text-[var(--text-primary)] font-bold">{fmtDateFull(selectedTicket.createdAt)}</div>
               </div>
               <div>
                 <label className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-wide">Last Updated</label>
-                <div className="mt-2 text-sm font-mono text-[var(--text-primary)] font-bold">{new Date(selectedTicket.updatedAt).toLocaleDateString('en-IN', { dateStyle: 'long' })}</div>
+                <div className="mt-2 text-sm font-mono text-[var(--text-primary)] font-bold">{fmtDateFull(selectedTicket.updatedAt)}</div>
               </div>
             </div>
             <div>
@@ -184,7 +185,7 @@ export default function MyHelpdeskPage() {
     )},
     { key: 'priority', header: 'Priority', render: row => <PriorityBadge priority={row.priority} /> },
     { key: 'status', header: 'Status', render: row => <StatusBadge status={row.status} /> },
-    { key: 'createdAt', header: 'Date', render: row => <span className="font-mono text-xs text-[var(--text-muted)]">{new Date(row.createdAt).toLocaleDateString()}</span> },
+    { key: 'createdAt', header: 'Date', render: row => <span className="font-mono text-xs text-[var(--text-muted)]">{fmtDate(row.createdAt)}</span> },
     { key: 'actions', header: 'Actions', render: row => (
         <button onClick={() => setSelectedTicket(row)} className="p-2 bg-[var(--surface-alt)] border border-[var(--border)] hover:bg-[var(--surface-hover)] rounded-xl transition-colors">
           <Eye size={16} className="text-[var(--text-muted)] hover:text-indigo-500" />

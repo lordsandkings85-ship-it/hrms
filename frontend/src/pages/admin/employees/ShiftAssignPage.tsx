@@ -3,7 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Clock3, Loader2, Check, CalendarDays } from 'lucide-react';
 import { employeesApi, shiftsApi } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
+import { getServerNow } from '../../../utils/serverTime';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { fmtDate } from '../../../utils/formatDate';
 
 const formatTime12 = (time24: string) => {
   if (!time24) return '';
@@ -17,7 +19,7 @@ const formatTime12 = (time24: string) => {
 
 function currentAssignment(row: any) {
   const list = row?.shiftAssignment ?? [];
-  return list.find((sa: any) => !sa.effectiveTo || new Date(sa.effectiveTo) > new Date()) || list[0];
+  return list.find((sa: any) => !sa.effectiveTo || new Date(sa.effectiveTo) > getServerNow()) || list[0];
 }
 
 export default function ShiftAssignPage() {
@@ -78,7 +80,7 @@ export default function ShiftAssignPage() {
       render: (row: any) => {
         const ca = currentAssignment(row);
         return ca?.effectiveFrom ? (
-          <span className="text-xs text-[var(--text-muted)]">{new Date(ca.effectiveFrom).toLocaleDateString('en-IN')}</span>
+          <span className="text-xs text-[var(--text-muted)]">{fmtDate(ca.effectiveFrom)}</span>
         ) : (
           <span className="text-xs text-[var(--text-muted)]">—</span>
         );

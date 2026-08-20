@@ -1,58 +1,67 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarCheck2, Scale, CalendarClock, FileStack, CalendarPlus, CalendarHeart, CalendarOff, Sparkles, Tag, Users, Clock, CheckCircle2, XCircle, CalendarDays } from 'lucide-react';
-import { LeaveRequestsSection, LeaveBalancesSection, CompOffSection, LeavePoliciesSection, HolidaysSection, FlexibleHolidaysSection, WeeklyOffSection, SpecialHolidaySection, LeaveTypesSection } from './sections/LeaveSections';
+import { CalendarCheck2, Scale, CalendarClock, FileStack, CalendarPlus, CalendarHeart, CalendarOff, Sparkles, Tag, Users, Clock, CheckCircle2, XCircle, CalendarDays, BookOpen, History } from 'lucide-react';
+import { LeaveRequestsSection, LeaveBalancesSection, CompOffSection, LeavePoliciesSection, HolidaysSection, FlexibleHolidaysSection, WeeklyOffSection, SpecialHolidaySection, LeaveTypesSection, LeaveTransactionsSection, LeaveYearsSection } from './sections/LeaveSections';
 import { leaveApi } from '../../../api/client';
+import { fmtDateShort } from '../../../utils/formatDate';
 
-type TabKey = 'types' | 'requests' | 'balances' | 'compoff' | 'policies' | 'holidays' | 'flexible' | 'weekly-off' | 'special';
+type TabKey = 'types' | 'requests' | 'balances' | 'transactions' | 'compoff' | 'policies' | 'holidays' | 'flexible' | 'weekly-off' | 'special' | 'leave-years';
 
 const SUB_TO_TAB: Record<string, TabKey> = {
   types: 'types',
   requests: 'requests',
   balances: 'balances',
+  transactions: 'transactions',
   compoff: 'compoff',
   policies: 'policies',
   holidays: 'holidays',
   flexible: 'flexible',
   'weekly-off': 'weekly-off',
   special: 'special',
+  'leave-years': 'leave-years',
 };
 
 const TAB_TO_SUB: Record<TabKey, string> = {
   types: 'types',
   requests: 'requests',
   balances: 'balances',
+  transactions: 'transactions',
   compoff: 'compoff',
   policies: 'policies',
   holidays: 'holidays',
   flexible: 'flexible',
   'weekly-off': 'weekly-off',
   special: 'special',
+  'leave-years': 'leave-years',
 };
 
 const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
   { key: 'types', label: 'Leave Types', icon: <Tag size={16} /> },
   { key: 'requests', label: 'Leave Requests', icon: <CalendarCheck2 size={16} /> },
   { key: 'balances', label: 'Leave Balances', icon: <Scale size={16} /> },
+  { key: 'transactions', label: 'Transactions', icon: <History size={16} /> },
   { key: 'compoff', label: 'Comp Off', icon: <CalendarClock size={16} /> },
   { key: 'policies', label: 'Leave Policies', icon: <FileStack size={16} /> },
   { key: 'holidays', label: 'General Holidays', icon: <CalendarPlus size={16} /> },
   { key: 'flexible', label: 'Flexible Holidays', icon: <CalendarHeart size={16} /> },
   { key: 'weekly-off', label: 'Weekly Off', icon: <CalendarOff size={16} /> },
   { key: 'special', label: 'Special Holiday', icon: <Sparkles size={16} /> },
+  { key: 'leave-years', label: 'Leave Years', icon: <BookOpen size={16} /> },
 ];
 
 const CONTENT: Record<TabKey, React.ReactNode> = {
   types: <LeaveTypesSection />,
   requests: <LeaveRequestsSection />,
   balances: <LeaveBalancesSection />,
+  transactions: <LeaveTransactionsSection />,
   compoff: <CompOffSection />,
   policies: <LeavePoliciesSection />,
   holidays: <HolidaysSection />,
   flexible: <FlexibleHolidaysSection />,
   'weekly-off': <WeeklyOffSection />,
   special: <SpecialHolidaySection />,
+  'leave-years': <LeaveYearsSection />,
 };
 
 export default function LeaveAdminPage() {
@@ -75,7 +84,7 @@ export default function LeaveAdminPage() {
       value: Array.isArray(summary?.upcomingHolidays) ? summary.upcomingHolidays.length : undefined,
       icon: CalendarDays,
       color: 'text-sky-500',
-      sub: nextHoliday ? `${nextHoliday.name} · ${new Date(nextHoliday.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : undefined,
+      sub: nextHoliday ? `${nextHoliday.name} · ${fmtDateShort(nextHoliday.date)}` : undefined,
     },
   ];
 

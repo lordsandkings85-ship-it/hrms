@@ -6,6 +6,7 @@ import { DataTable, Column } from '../../../components/ui/DataTable';
 import { AdminSection, StatusBadge } from '../../../components/ui/AdminSection';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { useEmployeeList } from '../payroll/sections/shared';
+import { fmtDate } from '../../../utils/formatDate';
 
 const formatTime12 = (time24: string) => {
   if (!time24) return '';
@@ -92,7 +93,7 @@ export default function ShiftsAdminPage() {
     { key: 'employee', header: 'Employee', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.employee?.firstName} {r.employee?.lastName || ''} <span className="text-[var(--text-muted)] font-mono text-xs uppercase">({r.employee?.employeeCode || '—'})</span></span> },
     { key: 'dept', header: 'Department', render: (r: any) => <span className="text-xs">{r.employee?.department?.name || '—'}</span> },
     { key: 'shift', header: 'Shift', render: (r: any) => <span className="text-xs font-bold text-indigo-500">{r.shift?.name || '—'} {r.shift?.startTime ? <span className="text-[var(--text-muted)] font-mono">({formatTime12(r.shift.startTime)} - {formatTime12(r.shift.endTime)})</span> : null}</span> },
-    { key: 'effectiveFrom', header: 'Effective From', render: (r: any) => <span className="text-xs">{new Date(r.effectiveFrom).toLocaleDateString('en-IN')}</span> },
+    { key: 'effectiveFrom', header: 'Effective From', render: (r: any) => <span className="text-xs">{fmtDate(r.effectiveFrom)}</span> },
     {
       key: 'actions', header: '', render: (r: any) => (
         <div className="flex gap-1.5 justify-end">
@@ -111,7 +112,7 @@ export default function ShiftsAdminPage() {
   const requestColumns: Column<any>[] = [
     { key: 'employee', header: 'Employee', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.employee?.firstName} {r.employee?.lastName || ''}</span> },
     { key: 'shift', header: 'Requested Shift', render: (r: any) => <span className="text-xs">{r.requestedShift?.name || r.requestedShiftId || '—'}</span> },
-    { key: 'from', header: 'Effective From', render: (r: any) => <span className="text-xs">{new Date(r.effectiveFrom).toLocaleDateString('en-IN')}</span> },
+    { key: 'from', header: 'Effective From', render: (r: any) => <span className="text-xs">{fmtDate(r.effectiveFrom)}</span> },
     { key: 'status', header: 'Status', render: (r: any) => <StatusBadge status={r.status} /> },
     {
       key: 'actions', header: '', render: (r: any) => (

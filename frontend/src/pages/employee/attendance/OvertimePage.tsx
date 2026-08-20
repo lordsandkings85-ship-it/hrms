@@ -5,6 +5,7 @@ import { employeeServicesApi } from '../../../api/client';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { fmtDateShort } from '../../../utils/formatDate';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -61,7 +62,7 @@ function AdminOvertime() {
         </div>
       </div>
     )},
-    { key: 'date', header: 'Date', render: (row: any) => <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span> },
+    { key: 'date', header: 'Date', render: (row: any) => <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{fmtDateShort(row.date)}</span> },
     { key: 'hours', header: 'Hours', render: (row: any) => <span className="text-sm font-bold text-sky-500">{row.hours} hrs</span> },
     { key: 'reason', header: 'Reason', render: (row: any) => <span className="text-xs text-[var(--text-muted)] max-w-[200px] truncate block">{row.reason}</span> },
     { key: 'status', header: 'Status', render: (row: any) => (
@@ -134,7 +135,7 @@ function EmployeeOvertime() {
   });
 
   const columns: Column<any>[] = [
-    { key: 'date', header: 'Date', render: (row: any) => <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span> },
+    { key: 'date', header: 'Date', render: (row: any) => <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{fmtDateShort(row.date)}</span> },
     { key: 'hours', header: 'Hours', render: (row: any) => <span className="text-sm font-bold text-sky-500">{row.hours} hrs</span> },
     { key: 'reason', header: 'Reason', render: (row: any) => <span className="text-xs text-[var(--text-muted)]">{row.reason}</span> },
     { key: 'status', header: 'Status', render: (row: any) => (

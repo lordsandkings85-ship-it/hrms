@@ -34,6 +34,7 @@ import { FnfModule } from './modules/employee/fnf/fnf.module';
 import { ExitModule } from './modules/employee/exit/exit.module';
 import { HelpdeskModule } from './modules/employee/helpdesk/helpdesk.module';
 import { EmployeeServicesModule } from './modules/employee/employee-services/employee-services.module';
+import { TimeModule } from './modules/time/time.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { EmployeeServicesModule } from './modules/employee/employee-services/emp
     ExitModule,
     HelpdeskModule,
     EmployeeServicesModule,
+    TimeModule,
   ],
   providers: [
     {

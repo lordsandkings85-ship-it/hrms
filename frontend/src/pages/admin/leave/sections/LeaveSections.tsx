@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CalendarCheck2, Scale, CalendarClock, FileStack, CalendarPlus, CalendarHeart, CalendarOff, Sparkles, Check, X, Plus, Trash2, Loader2, Save, Tag } from 'lucide-react';
+import { CalendarCheck2, Scale, CalendarClock, FileStack, CalendarPlus, CalendarHeart, CalendarOff, Sparkles, Check, X, Plus, Trash2, Loader2, Save, Tag, Pencil } from 'lucide-react';
 import { leaveApi, employeeServicesApi } from '../../../../api/client';
 import { DataTable, Column } from '../../../../components/ui/DataTable';
 import { AdminSection, StatusBadge } from '../../../../components/ui/AdminSection';
 import { useToast } from '../../../../components/ui/ToastProvider';
 import { useBackedConfig } from '../../../../hooks/useBackedConfig';
+import { fmtDate, fmtDateShort, fmtDateCompact } from '../../../../utils/formatDate';
 
 function useData<T>(key: string, fn: () => Promise<T>) {
   return useQuery({ queryKey: [key], queryFn: fn });
@@ -63,7 +64,7 @@ export function LeaveRequestsSection() {
   const columns: Column<any>[] = [
     { key: 'employee', header: 'Employee', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.employee?.firstName} {r.employee?.lastName || ''}</span> },
     { key: 'type', header: 'Leave Type', render: (r: any) => <span className="text-[var(--text-muted)] text-xs">{r.leaveType?.name || r.leaveType || '—'}</span> },
-    { key: 'period', header: 'Period', render: (r: any) => <span className="text-xs">{new Date(r.startDate).toLocaleDateString('en-IN')} → {new Date(r.endDate).toLocaleDateString('en-IN')}</span> },
+    { key: 'period', header: 'Period', render: (r: any) => <span className="text-xs">{fmtDate(r.startDate)} → {fmtDate(r.endDate)}</span> },
     { key: 'days', header: 'Days', render: (r: any) => <span className="font-semibold">{r.days ?? r.totalDays ?? 1}</span> },
     { key: 'status', header: 'Status', render: (r: any) => <StatusBadge status={r.status} /> },
     {
@@ -101,29 +102,103 @@ export function LeaveRequestsSection() {
 }
 
 export function LeaveBalancesSection() {
-  const { data, isLoading } = useData('leave-balances', () => leaveApi.balancesOverview({}));
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [showAllocate, setShowAllocate] = useState(false);
+  const [allocForm, setAllocForm] = useState({ employeeId: '', leaveTypeId: '', amount: 1, reason: '' });
+  const queryClient = useQueryClient();
+  const { success, error: toastError } = useToast();
+  const { data, isLoading } = useData('leave-balances', () => leaveApi.balancesOverview({ year }));
+  const { data: types } = useData('leave-types', () => leaveApi.listTypes());
+  const { data: employees } = useData('employees-list', async () => {
+    const res = await fetch('/api/v1/employees?page=1&pageSize=200', { headers: { Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` } });
+    const json = await res.json();
+    return json.data || [];
+  });
+  const allocMutation = useMutation({
+    mutationFn: (d: typeof allocForm) => leaveApi.adjustBalance({ ...d, year, amount: Number(d.amount) }),
+    onSuccess: () => { success('Balance allocated'); setShowAllocate(false); setAllocForm({ employeeId: '', leaveTypeId: '', amount: 1, reason: '' }); queryClient.invalidateQueries({ queryKey: ['leave-balances'] }); },
+    onError: (e: any) => toastError(e.message || 'Failed'),
+  });
   const rows = (data ?? []).flatMap((e: any) => {
     const balances = Array.isArray(e.balances) ? e.balances : e.leaveBalances && Array.isArray(e.leaveBalances) ? e.leaveBalances : [];
-    if (balances.length === 0) return [{ key: `${e.employeeId}-0`, employee: `${e.employee?.firstName || ''} ${e.employee?.lastName || ''}`.trim() || e.employeeId, leaveType: '—', allocated: e.allocated ?? 0, used: e.used ?? 0, balance: e.remaining ?? ((e.allotted ?? 0) - (e.used ?? 0)) }];
+    const displayName = e.name || `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.employeeCode || e.employeeId;
+    if (balances.length === 0) return [{ key: `${e.employeeId}-0`, employee: displayName, employeeCode: e.employeeCode, department: e.department, leaveType: '—', allotted: 0, used: 0, carriedOver: 0, remaining: 0 }];
     return balances.map((b: any) => ({
-      key: `${e.employeeId}-${b.leaveTypeId || b.id}`,
-      employee: `${e.employee?.firstName || ''} ${e.employee?.lastName || ''}`.trim() || e.employeeId,
+      key: `${e.employeeId}-${b.leaveType || 'unknown'}`,
+      employee: displayName,
+      employeeCode: e.employeeCode,
+      department: e.department,
       leaveType: b.leaveType?.name || b.leaveType || '—',
-      allocated: b.allocated ?? b.annual ?? 0,
+      allotted: b.allotted ?? 0,
       used: b.used ?? 0,
-      balance: b.remaining ?? ((b.allotted ?? 0) - (b.used ?? 0)),
+      carriedOver: b.carriedOver ?? 0,
+      remaining: b.remaining ?? Math.max(0, (b.allotted ?? 0) + (b.carriedOver ?? 0) - (b.used ?? 0)),
     }));
   });
   const columns: Column<any>[] = [
-    { key: 'employee', header: 'Employee', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.employee}</span> },
+    { key: 'employee', header: 'Employee', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.employee}{r.employeeCode ? <span className="ml-1.5 text-[10px] text-[var(--text-muted)] font-normal">({r.employeeCode})</span> : null}</span> },
+    { key: 'department', header: 'Dept', render: (r: any) => <span className="text-[var(--text-muted)] text-xs">{r.department || '—'}</span> },
     { key: 'leaveType', header: 'Leave Type', render: (r: any) => <span className="text-[var(--text-muted)] text-xs">{r.leaveType}</span> },
-    { key: 'allocated', header: 'Allocated', render: (r: any) => <span className="font-semibold">{r.allocated}</span> },
+    { key: 'allotted', header: 'Allocated', render: (r: any) => <span className="font-semibold">{r.allotted}</span> },
+    { key: 'carriedOver', header: 'Carry Fwd', render: (r: any) => <span className="font-semibold text-sky-500">{r.carriedOver || '—'}</span> },
     { key: 'used', header: 'Used', render: (r: any) => <span className="font-semibold text-amber-500">{r.used}</span> },
-    { key: 'balance', header: 'Balance', render: (r: any) => <span className="font-bold text-emerald-500">{r.balance}</span> },
+    { key: 'remaining', header: 'Balance', render: (r: any) => <span className="font-bold text-emerald-500">{r.remaining}</span> },
   ];
+  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
   return (
-    <AdminSection title="Leave Balances" icon={Scale} subtitle="Leave allocation and usage per employee">
+    <AdminSection
+      title="Leave Balances"
+      icon={Scale}
+      subtitle="Leave allocation and usage per employee"
+      right={
+        <div className="flex items-center gap-2">
+          <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="px-2 py-1.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-lg text-xs font-bold">
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <button onClick={() => setShowAllocate(true)} className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500 text-white rounded-xl text-xs font-bold hover:bg-indigo-600">
+            <span>+</span> Allocate
+          </button>
+        </div>
+      }
+    >
       <DataTable columns={columns} data={rows} loading={isLoading} keyField="key" emptyTitle="No balance data" emptyMessage="No leave balances found." />
+      {showAllocate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAllocate(false)}>
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-black text-[var(--text-primary)] mb-4">Allocate Leave Balance</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-[var(--text-muted)] mb-1 block">Employee</label>
+                <select value={allocForm.employeeId} onChange={(e) => setAllocForm({ ...allocForm, employeeId: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm">
+                  <option value="">Select employee</option>
+                  {(employees ?? []).map((emp: any) => <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName} ({emp.employeeCode})</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-[var(--text-muted)] mb-1 block">Leave Type</label>
+                <select value={allocForm.leaveTypeId} onChange={(e) => setAllocForm({ ...allocForm, leaveTypeId: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm">
+                  <option value="">Select leave type</option>
+                  {(types ?? []).filter((t: any) => t.isActive !== false).map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-[var(--text-muted)] mb-1 block">Days to Allocate</label>
+                <input type="number" min={0.5} step={0.5} value={allocForm.amount} onChange={(e) => setAllocForm({ ...allocForm, amount: Number(e.target.value) })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-[var(--text-muted)] mb-1 block">Reason</label>
+                <input type="text" value={allocForm.reason} onChange={(e) => setAllocForm({ ...allocForm, reason: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm" placeholder="Optional reason" />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-6 justify-end">
+              <button onClick={() => setShowAllocate(false)} className="px-4 py-2 text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)]">Cancel</button>
+              <button onClick={() => allocMutation.mutate(allocForm)} disabled={!allocForm.employeeId || !allocForm.leaveTypeId || allocMutation.isPending} className="px-4 py-2 bg-indigo-500 text-white rounded-xl text-xs font-bold hover:bg-indigo-600 disabled:opacity-50">
+                {allocMutation.isPending ? 'Allocating…' : 'Allocate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminSection>
   );
 }
@@ -134,7 +209,7 @@ export function CompOffSection() {
   const reject = useMutate('compoff', (id: string) => employeeServicesApi.rejectCompOff(id), 'Comp off rejected', ['leave-compoff', 'comp-off-mine']);
   const columns: Column<any>[] = [
     { key: 'employee', header: 'Employee', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.employee?.firstName} {r.employee?.lastName || ''}</span> },
-    { key: 'date', header: 'Date', render: (r: any) => <span className="text-xs">{new Date(r.date).toLocaleDateString('en-IN')}</span> },
+    { key: 'date', header: 'Date', render: (r: any) => <span className="text-xs">{fmtDate(r.date)}</span> },
     { key: 'reason', header: 'Reason', render: (r: any) => <span className="text-[var(--text-muted)] text-xs">{r.reason || '—'}</span> },
     { key: 'status', header: 'Status', render: (r: any) => <StatusBadge status={r.status} /> },
     {
@@ -219,7 +294,7 @@ export function HolidaysSection() {
   const remove = useMutate('holidays', (id: string) => leaveApi.deleteHoliday(id), 'Holiday removed', ['leave-holidays']);
   const columns: Column<any>[] = [
     { key: 'name', header: 'Holiday', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.name}</span> },
-    { key: 'date', header: 'Date', render: (r: any) => <span className="text-xs">{new Date(r.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</span> },
+    { key: 'date', header: 'Date', render: (r: any) => <span className="text-xs">{fmtDateCompact(r.date)}</span> },
     {
       key: 'actions', header: '', render: (r: any) => (
         <button onClick={() => remove.mutate(r.id)} className="p-1.5 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 size={14} /></button>
@@ -247,7 +322,7 @@ export function FlexibleHolidaysSection() {
   const reject = useMutate('flexible', (id: string) => employeeServicesApi.rejectFlexibleHoliday(id), 'Flexible holiday rejected', ['leave-flexible', 'flexible-holiday-mine']);
   const columns: Column<any>[] = [
     { key: 'employee', header: 'Employee', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.employee?.firstName} {r.employee?.lastName || ''}</span> },
-    { key: 'date', header: 'Date', render: (r: any) => <span className="text-xs">{new Date(r.date).toLocaleDateString('en-IN')}</span> },
+    { key: 'date', header: 'Date', render: (r: any) => <span className="text-xs">{fmtDate(r.date)}</span> },
     { key: 'status', header: 'Status', render: (r: any) => <StatusBadge status={r.status} /> },
     {
       key: 'actions', header: '', render: (r: any) => (
@@ -323,7 +398,7 @@ export function SpecialHolidaySection() {
 
   const columns: Column<any>[] = [
     { key: 'name', header: 'Holiday', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.name}</span> },
-    { key: 'date', header: 'Date', render: (r: any) => <span className="text-xs">{new Date(r.date).toLocaleDateString('en-IN')}</span> },
+    { key: 'date', header: 'Date', render: (r: any) => <span className="text-xs">{fmtDate(r.date)}</span> },
     {
       key: 'actions', header: '', render: (r: any) => (
         <button onClick={() => remove.mutate(r.id)} className="p-1.5 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 size={14} /></button>
@@ -352,30 +427,71 @@ export function LeaveTypesSection() {
   const { data, isLoading } = useData('leave-types', () => leaveApi.listTypes());
   const queryClient = useQueryClient();
   const { success, error } = useToast();
-  const [name, setName] = useState('');
-  const [paid, setPaid] = useState(true);
+
+  const defaultForm = {
+    code: '', name: '', paid: true, annualAllocation: 0, accrualRate: 0,
+    carryForward: false, carryForwardLimit: 0, maxConsecutiveDays: 0,
+    halfDayAllowed: false, negativeBalanceAllowed: false, encashment: false,
+    attachmentRequired: false, approvalRequired: true, isActive: true,
+  };
+  const [form, setForm] = useState(defaultForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, any>>({});
+
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['leave-types'] });
     queryClient.invalidateQueries({ queryKey: ['leave-all'] });
     queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
   };
+
   const create = useMutation({
-    mutationFn: () => leaveApi.createType({ name, paid }),
-    onSuccess: () => { success('Leave type created'); setName(''); invalidate(); },
+    mutationFn: () => leaveApi.createType(form),
+    onSuccess: () => { success('Leave type created'); setForm(defaultForm); invalidate(); },
     onError: (e: any) => error(e.message || 'Failed to create leave type'),
   });
+
+  const update = useMutation({
+    mutationFn: ({ id, ...data }: any) => leaveApi.updateType(id, data),
+    onSuccess: () => { success('Leave type updated'); setEditingId(null); invalidate(); },
+    onError: (e: any) => error(e.message || 'Failed to update leave type'),
+  });
+
   const remove = useMutation({
     mutationFn: (id: string) => leaveApi.deleteType(id),
     onSuccess: () => { success('Leave type deleted'); invalidate(); },
     onError: (e: any) => error(e.message || 'Failed to delete leave type'),
   });
+
+  const setField = (obj: typeof form | Record<string, any>, setFn: (v: any) => void, field: string, value: any) => {
+    setFn({ ...obj, [field]: value });
+  };
+
+  const Checkbox = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) => (
+    <label className="flex items-center gap-1.5 cursor-pointer">
+      <input type="checkbox" checked={checked} onChange={onChange} className="accent-indigo-500 w-4 h-4" />
+      <span className="text-xs font-bold text-[var(--text-muted)]">{label}</span>
+    </label>
+  );
+
   const columns: Column<any>[] = [
-    { key: 'name', header: 'Leave Type', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.name}</span> },
+    { key: 'code', header: 'Code', render: (r: any) => <span className="text-xs font-mono font-semibold text-[var(--text-primary)]">{r.code || '—'}</span> },
+    { key: 'name', header: 'Name', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.name}</span> },
     { key: 'paid', header: 'Paid', render: (r: any) => <StatusBadge status={r.paid ? 'paid' : 'unpaid'} /> },
+    { key: 'annualAllocation', header: 'Annual Alloc', render: (r: any) => <span className="text-xs font-semibold">{r.annualAllocation ?? 0}</span> },
     { key: 'accrualRate', header: 'Accrual / Month', render: (r: any) => <span className="text-xs font-semibold">{r.accrualRate ?? 0}</span> },
+    { key: 'carryForward', header: 'Carry Forward', render: (r: any) => r.carryForward ? <StatusBadge status="active" /> : <span className="text-xs text-[var(--text-muted)]">No</span> },
+    { key: 'isActive', header: 'Active', render: (r: any) => <StatusBadge status={r.isActive ? 'active' : 'inactive'} /> },
     {
       key: 'actions', header: '', render: (r: any) => (
         <div className="flex gap-1.5 justify-end">
+          <button
+            onClick={() => { setEditingId(r.id); setEditForm({ ...r }); }}
+            disabled={update.isPending}
+            title="Edit leave type"
+            className="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-500/10 disabled:opacity-30"
+          >
+            <Pencil size={14} />
+          </button>
           <button
             onClick={() => { if (confirm(`Delete leave type "${r.name}"? This removes its balances and requests.`)) remove.mutate(r.id); }}
             disabled={remove.isPending}
@@ -388,20 +504,242 @@ export function LeaveTypesSection() {
       ),
     },
   ];
+
+  const rows = (data ?? []).flatMap((r: any) => {
+    const row = { ...r, _editing: false };
+    return [row];
+  });
+
+  const expandedRows = rows.flatMap((r: any) => {
+    const items: any[] = [{ ...r, _rowKey: r.id }];
+    if (editingId === r.id) {
+      items.push({ _isEditRow: true, _rowKey: `${r.id}-edit` });
+    }
+    return items;
+  });
+
+  const buildFormFields = (formObj: Record<string, any>, setFormFn: (v: any) => void) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl">
+      <div>
+        <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Code</label>
+        <input value={formObj.code || ''} onChange={(e) => setFormFn({ ...formObj, code: e.target.value })} placeholder="e.g. PL" className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-indigo-500" />
+      </div>
+      <div>
+        <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Name</label>
+        <input value={formObj.name || ''} onChange={(e) => setFormFn({ ...formObj, name: e.target.value })} placeholder="e.g. Privilege Leave" className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-indigo-500" />
+      </div>
+      <div>
+        <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Annual Allocation (days)</label>
+        <input type="number" value={formObj.annualAllocation ?? 0} onChange={(e) => setFormFn({ ...formObj, annualAllocation: Number(e.target.value) })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-indigo-500" />
+      </div>
+      <div>
+        <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Accrual Rate (/month)</label>
+        <input type="number" value={formObj.accrualRate ?? 0} onChange={(e) => setFormFn({ ...formObj, accrualRate: Number(e.target.value) })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-indigo-500" />
+      </div>
+      <div>
+        <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Carry Forward Limit</label>
+        <input type="number" value={formObj.carryForwardLimit ?? 0} onChange={(e) => setFormFn({ ...formObj, carryForwardLimit: Number(e.target.value) })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-indigo-500" />
+      </div>
+      <div>
+        <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Max Consecutive Days</label>
+        <input type="number" value={formObj.maxConsecutiveDays ?? 0} onChange={(e) => setFormFn({ ...formObj, maxConsecutiveDays: Number(e.target.value) })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-indigo-500" />
+      </div>
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-2 pt-2">
+        <Checkbox label="Paid" checked={!!formObj.paid} onChange={() => setFormFn({ ...formObj, paid: !formObj.paid })} />
+        <Checkbox label="Carry Forward" checked={!!formObj.carryForward} onChange={() => setFormFn({ ...formObj, carryForward: !formObj.carryForward })} />
+        <Checkbox label="Half Day Allowed" checked={!!formObj.halfDayAllowed} onChange={() => setFormFn({ ...formObj, halfDayAllowed: !formObj.halfDayAllowed })} />
+        <Checkbox label="Negative Balance" checked={!!formObj.negativeBalanceAllowed} onChange={() => setFormFn({ ...formObj, negativeBalanceAllowed: !formObj.negativeBalanceAllowed })} />
+        <Checkbox label="Encashment" checked={!!formObj.encashment} onChange={() => setFormFn({ ...formObj, encashment: !formObj.encashment })} />
+        <Checkbox label="Attachment Required" checked={!!formObj.attachmentRequired} onChange={() => setFormFn({ ...formObj, attachmentRequired: !formObj.attachmentRequired })} />
+        <Checkbox label="Approval Required" checked={!!formObj.approvalRequired} onChange={() => setFormFn({ ...formObj, approvalRequired: !formObj.approvalRequired })} />
+        <Checkbox label="Active" checked={!!formObj.isActive} onChange={() => setFormFn({ ...formObj, isActive: !formObj.isActive })} />
+      </div>
+    </div>
+  );
+
   return (
     <AdminSection
       title="Leave Types"
       icon={Tag}
       subtitle="Leave categories available to employees"
     >
-      <div className="flex items-end gap-2 flex-wrap mb-4">
-        <div><label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Name</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Privilege Leave" className="px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-indigo-500 w-44" /></div>
-        <div className="flex items-center gap-1.5 pb-2"><input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} className="accent-indigo-500 w-4 h-4" /><span className="text-xs font-bold text-[var(--text-muted)]">Paid</span></div>
-        <button onClick={() => create.mutate()} disabled={!name.trim() || create.isPending} className="flex items-center gap-1.5 px-4 py-2 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 text-xs font-bold uppercase tracking-wider disabled:opacity-50">
-          {create.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add
-        </button>
+      <div className="mb-4">
+        {buildFormFields(form, setForm)}
+        <div className="flex justify-end mt-3">
+          <button onClick={() => create.mutate()} disabled={!form.code.trim() || !form.name.trim() || create.isPending} className="flex items-center gap-1.5 px-4 py-2 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 text-xs font-bold uppercase tracking-wider disabled:opacity-50">
+            {create.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add Leave Type
+          </button>
+        </div>
       </div>
-      <DataTable columns={columns} data={data ?? []} loading={isLoading} keyField="id" emptyTitle="No leave types" emptyMessage="Add a leave type to get started." />
+
+      {isLoading ? (
+        <div className="flex justify-center py-8"><Loader2 className="animate-spin text-[var(--text-muted)]" size={20} /></div>
+      ) : expandedRows.length === 0 ? (
+        <div className="text-center py-8 text-sm text-[var(--text-muted)]">No leave types defined.</div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
+          <table className="w-full text-sm">
+            <thead className="bg-[var(--surface-alt)]">
+              <tr className="text-left text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                {columns.map((c) => (
+                  <th key={c.key} className="px-4 py-3 font-bold">{c.header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {expandedRows.map((r: any) => {
+                if (r._isEditRow) {
+                  return (
+                    <tr key={r._rowKey} className="border-t border-[var(--border)]">
+                      <td colSpan={columns.length} className="p-0">
+                        {buildFormFields(editForm, setEditForm)}
+                        <div className="flex justify-end gap-2 px-4 pb-3">
+                          <button onClick={() => setEditingId(null)} className="px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => update.mutate({ id: editForm.id, code: editForm.code, name: editForm.name, paid: editForm.paid, annualAllocation: editForm.annualAllocation, accrualRate: editForm.accrualRate, carryForward: editForm.carryForward, carryForwardLimit: editForm.carryForwardLimit, maxConsecutiveDays: editForm.maxConsecutiveDays, halfDayAllowed: editForm.halfDayAllowed, negativeBalanceAllowed: editForm.negativeBalanceAllowed, encashment: editForm.encashment, attachmentRequired: editForm.attachmentRequired, approvalRequired: editForm.approvalRequired, isActive: editForm.isActive })}
+                            disabled={!editForm.code?.trim() || !editForm.name?.trim() || update.isPending}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 text-xs font-bold uppercase tracking-wider disabled:opacity-50"
+                          >
+                            {update.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+                return (
+                  <tr key={r._rowKey} className="border-t border-[var(--border)] hover:bg-[var(--surface-alt)]/50 transition-colors">
+                    {columns.map((c) => (
+                      <td key={c.key} className="px-4 py-3">{c.render(r)}</td>
+                    ))}
+                   </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </AdminSection>
+  );
+}
+
+export function LeaveTransactionsSection() {
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [selectedEmployee, setSelectedEmployee] = useState('');
+  const { data: employees } = useData('employees-list', async () => {
+    const res = await fetch('/api/v1/employees?page=1&pageSize=200', { headers: { Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` } });
+    const json = await res.json();
+    return json.data || [];
+  });
+  const { data: txns, isLoading } = useData(
+    ['leave-txn', selectedEmployee, year],
+    () => selectedEmployee ? leaveApi.transactions(selectedEmployee, year) : Promise.resolve([])
+  );
+  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
+  const txnTypeBadge = (type: string) => {
+    const colors: Record<string, string> = {
+      ALLOCATION: 'bg-emerald-500/15 text-emerald-500',
+      LEAVE_TAKEN: 'bg-rose-500/15 text-rose-500',
+      CARRY_FORWARD: 'bg-sky-500/15 text-sky-500',
+      ADJUSTMENT_CREDIT: 'bg-emerald-500/15 text-emerald-500',
+      ADJUSTMENT_DEBIT: 'bg-rose-500/15 text-rose-500',
+      ENCASHMENT: 'bg-amber-500/15 text-amber-500',
+      CANCELLATION_CREDIT: 'bg-sky-500/15 text-sky-500',
+      EXPIRY: 'bg-gray-500/15 text-gray-500',
+    };
+    return <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${colors[type] || 'bg-gray-500/15 text-gray-500'}`}>{type}</span>;
+  };
+  const columns: Column<any>[] = [
+    { key: 'createdAt', header: 'Date', render: (r: any) => <span className="text-xs font-mono">{fmtDateShort(r.createdAt)}</span> },
+    { key: 'type', header: 'Type', render: (r: any) => txnTypeBadge(r.type) },
+    { key: 'leaveType', header: 'Leave Type', render: (r: any) => <span className="text-xs">{r.leaveType?.name || r.leaveTypeId || '—'}</span> },
+    { key: 'amount', header: 'Amount', render: (r: any) => <span className={`font-bold ${r.amount > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{r.amount > 0 ? '+' : ''}{r.amount}</span> },
+    { key: 'reason', header: 'Reason', render: (r: any) => <span className="text-[var(--text-muted)] text-xs">{r.reason || '—'}</span> },
+  ];
+  return (
+    <AdminSection title="Transaction History" icon={FileStack} subtitle="View leave allocation and deduction history">
+      <div className="flex items-center gap-2 mb-4">
+        <select value={selectedEmployee} onChange={(e) => setSelectedEmployee(e.target.value)} className="px-3 py-1.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-lg text-xs font-bold">
+          <option value="">Select employee</option>
+          {(employees ?? []).map((emp: any) => <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName} ({emp.employeeCode})</option>)}
+        </select>
+        <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="px-2 py-1.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-lg text-xs font-bold">
+          {years.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
+      </div>
+      {selectedEmployee ? (
+        <DataTable columns={columns} data={(txns ?? []).map((t: any) => ({ ...t, key: t.id }))} loading={isLoading} keyField="key" emptyTitle="No transactions" emptyMessage="No transactions found for this employee." />
+      ) : (
+        <div className="text-center py-12 text-[var(--text-muted)] text-sm">Select an employee to view transactions</div>
+      )}
+    </AdminSection>
+  );
+}
+
+export function LeaveYearsSection() {
+  const queryClient = useQueryClient();
+  const { success, error: toastError } = useToast();
+  const { data: leaveYears, isLoading } = useData('leave-years', () => leaveApi.listLeaveYears());
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: '', startDate: '', endDate: '' });
+  const create = useMutation({
+    mutationFn: (d: typeof form) => leaveApi.createLeaveYear(d),
+    onSuccess: () => { success('Leave year created'); setShowForm(false); setForm({ name: '', startDate: '', endDate: '' }); queryClient.invalidateQueries({ queryKey: ['leave-years'] }); },
+    onError: (e: any) => toastError(e.message || 'Failed'),
+  });
+  const toggleActive = useMutation({
+    mutationFn: (d: { id: string; isActive: boolean }) => leaveApi.updateLeaveYear(d.id, { isActive: d.isActive }),
+    onSuccess: () => { success('Leave year updated'); queryClient.invalidateQueries({ queryKey: ['leave-years'] }); },
+    onError: (e: any) => toastError(e.message || 'Failed'),
+  });
+  const del = useMutation({
+    mutationFn: (id: string) => leaveApi.deleteLeaveYear(id),
+    onSuccess: () => { success('Leave year deleted'); queryClient.invalidateQueries({ queryKey: ['leave-years'] }); },
+    onError: (e: any) => toastError(e.message || 'Failed'),
+  });
+  const carryForward = useMutation({
+    mutationFn: (fromYearId: string) => leaveApi.processCarryForward(fromYearId),
+    onSuccess: () => { success('Carry forward processed'); queryClient.invalidateQueries({ queryKey: ['leave-years'] }); },
+    onError: (e: any) => toastError(e.message || 'Failed'),
+  });
+  const columns: Column<any>[] = [
+    { key: 'name', header: 'Year', render: (r: any) => <span className="font-bold">{r.name}</span> },
+    { key: 'startDate', header: 'Start', render: (r: any) => <span className="text-xs font-mono">{fmtDate(r.startDate)}</span> },
+    { key: 'endDate', header: 'End', render: (r: any) => <span className="text-xs font-mono">{fmtDate(r.endDate)}</span> },
+    { key: 'isActive', header: 'Status', render: (r: any) => <StatusBadge status={r.isActive ? 'active' : 'inactive'} /> },
+    { key: 'carryForwardProcessed', header: 'Carry Fwd', render: (r: any) => r.carryForwardProcessed ? <Check size={14} className="text-emerald-500" /> : <X size={14} className="text-[var(--text-muted)]" /> },
+    {
+      key: 'actions', header: '', render: (r: any) => (
+        <div className="flex gap-1.5 justify-end">
+          <button onClick={() => toggleActive.mutate({ id: r.id, isActive: !r.isActive })} className="px-2 py-1 rounded-lg text-[10px] font-bold border border-[var(--border)] hover:bg-[var(--surface-alt)]">
+            {r.isActive ? 'Deactivate' : 'Activate'}
+          </button>
+          {!r.carryForwardProcessed && (
+            <button onClick={() => carryForward.mutate(r.id)} disabled={carryForward.isPending} className="px-2 py-1 rounded-lg text-[10px] font-bold bg-sky-500 text-white hover:bg-sky-600 disabled:opacity-50">
+              Carry Forward
+            </button>
+          )}
+          <button onClick={() => { if (confirm('Delete this leave year?')) del.mutate(r.id); }} className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10"><Trash2 size={14} /></button>
+        </div>
+      ),
+    },
+  ];
+  return (
+    <AdminSection title="Leave Years" icon={CalendarDays} subtitle="Manage leave year periods and carry-forward"
+      right={<button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500 text-white rounded-xl text-xs font-bold hover:bg-indigo-600"><Plus size={14} /> New Leave Year</button>}>
+      {showForm && (
+        <div className="bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl p-4 mb-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" placeholder="e.g. 2026" />
+          <input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} className="px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
+          <input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} className="px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
+          <button onClick={() => create.mutate(form)} disabled={!form.name || !form.startDate || !form.endDate || create.isPending} className="px-4 py-2 bg-indigo-500 text-white rounded-xl text-xs font-bold hover:bg-indigo-600 disabled:opacity-50">
+            {create.isPending ? 'Creating…' : 'Create'}
+          </button>
+        </div>
+      )}
+      <DataTable columns={columns} data={(leaveYears ?? []).map((y: any) => ({ ...y, key: y.id }))} loading={isLoading} keyField="key" emptyTitle="No leave years" emptyMessage="No leave years configured." />
     </AdminSection>
   );
 }

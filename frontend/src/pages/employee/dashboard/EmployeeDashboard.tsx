@@ -7,7 +7,9 @@ import { Spinner } from '../../../components/ui/Spinner';
 import { generatePayslipPDF } from '../../../utils/payslipPDF';
 import { StatusBadge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/ToastProvider';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useServerTime } from '../../../hooks/useServerTime';
+import { getServerDate, getServerYear, getServerMonth } from '../../../utils/serverTime';
 
 // SVG ring chart using CSS variables
 function RingChart({ value, max, color = 'var(--info)' }: { value: number; max: number; color?: string }) {
@@ -29,12 +31,11 @@ function RingChart({ value, max, color = 'var(--info)' }: { value: number; max: 
    );
 }
 
-function LiveClock() {
-   const [now, setNow] = useState(new Date());
-   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
+const LiveClock = React.memo(function LiveClock() {
+   const { now } = useServerTime();
    const time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
    return <span className="font-mono">{time}</span>;
-}
+});
 
 export default function EmployeeDashboard() {
    const { user } = useAuthStore();
@@ -42,8 +43,8 @@ export default function EmployeeDashboard() {
    const queryClient = useQueryClient();
    const { error: toastError, success: toastSuccess } = useToast();
 
-   const currentYear = new Date().getFullYear();
-   const currentMonth = new Date().getMonth() + 1;
+   const currentYear = getServerYear();
+   const currentMonth = getServerMonth();
 
    const { data: salaryStructure } = useQuery({
       queryKey: ['salary-structure', emp?.id],
@@ -79,9 +80,7 @@ export default function EmployeeDashboard() {
       queryKey: ['attendance-today', emp?.id],
       queryFn: async () => {
          if (!emp?.id) return [];
-         const today = new Date();
-         const tzOffset = today.getTimezoneOffset() * 60000;
-         const localISODate = new Date(today.getTime() - tzOffset).toISOString().split('T')[0];
+         const localISODate = getServerDate();
          const res = await attendanceApi.list(emp.id, localISODate, localISODate);
          return res || [];
       },

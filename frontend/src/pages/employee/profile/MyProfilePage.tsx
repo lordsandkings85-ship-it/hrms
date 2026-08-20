@@ -8,6 +8,7 @@ import {
   MapPin, Landmark, Users, Award, FileText, Info, Building, Edit3
 } from 'lucide-react';
 import { useState } from 'react';
+import { getServerNow } from '../../../utils/serverTime';
 import { EditProfileModal } from '../../../features/employee/EditProfileModal';
 
 export default function MyProfilePage() {
@@ -73,7 +74,7 @@ export default function MyProfilePage() {
   const dobValue = (emp as any).dob || emp.personalInfo?.dob || null;
 
   const activeShift = (emp as any)?.shiftAssignment
-    ?.find((sa: any) => !sa.effectiveTo || new Date(sa.effectiveTo) > new Date())
+    ?.find((sa: any) => !sa.effectiveTo || new Date(sa.effectiveTo) > getServerNow())
     ?.shift;
   const shiftLabel = activeShift
     ? `${activeShift.name || 'Shift'}${activeShift.startTime ? ` (${activeShift.startTime}${activeShift.endTime ? ' - ' + activeShift.endTime : ''})` : ''}`
@@ -81,7 +82,7 @@ export default function MyProfilePage() {
 
   const experienceData = emp.joiningDate ? (() => {
     const start = new Date(emp.joiningDate);
-    const end = new Date();
+    const end = getServerNow();
     let diff = end.getTime() - start.getTime();
     if (diff < 0) return '0 Months';
     const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));

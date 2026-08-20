@@ -6,6 +6,7 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Spinner } from '../../../components/ui/Spinner';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { fmtDate } from '../../../utils/formatDate';
 
 export default function MyTravelPage() {
   const queryClient = useQueryClient();
@@ -153,7 +154,7 @@ export default function MyTravelPage() {
                         </span>
                       </div>
                       <div className="text-[10px] text-slate-400 mt-1">
-                        Duration: <span className="font-mono text-slate-600 dark:text-slate-300 font-bold">{new Date(req.fromDate).toLocaleDateString('en-IN')}</span> to <span className="font-mono text-slate-600 dark:text-slate-300 font-bold">{new Date(req.toDate).toLocaleDateString('en-IN')}</span>
+                        Duration: <span className="font-mono text-slate-600 dark:text-slate-300 font-bold">{fmtDate(req.fromDate)}</span> to <span className="font-mono text-slate-600 dark:text-slate-300 font-bold">{fmtDate(req.toDate)}</span>
                         {req.advance > 0 && <span className="text-indigo-500 ml-2 font-mono font-bold">Advance: ₹{req.advance.toLocaleString('en-IN')}</span>}
                       </div>
                       {req.purpose && <p className="text-xs text-slate-400 italic mt-1 font-medium">"{req.purpose}"</p>}

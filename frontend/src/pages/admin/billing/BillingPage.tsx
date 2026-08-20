@@ -2,6 +2,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { jsPDF } from 'jspdf';
 import { CreditCard, ShieldCheck, Download, Loader2, Zap, Rocket, Star } from 'lucide-react';
 import { billingApi } from '../../../api/client';
+import { fmtDate, fmtDateFull } from '../../../utils/formatDate';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 
@@ -37,7 +38,7 @@ function handleDownloadReceipt(row: any) {
     y += 7;
   };
   detail('Invoice Number', row.invoiceNumber);
-  detail('Billing Date', new Date(row.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }));
+  detail('Billing Date', fmtDateFull(row.date));
   detail('Status', String(row.status || '-').toUpperCase());
 
   y += 6;
@@ -87,7 +88,7 @@ export default function BillingPage() {
 
   const invoiceColumns: Column<any>[] = [
     { key: 'invoiceNumber', header: 'Invoice #', render: (row) => <span className="font-mono text-sm font-bold text-[var(--text-primary)]">{row.invoiceNumber}</span> },
-    { key: 'date', header: 'Billing Date', render: (row) => <span className="font-mono text-xs text-[var(--text-muted)]">{new Date(row.date).toLocaleDateString()}</span> },
+    { key: 'date', header: 'Billing Date', render: (row) => <span className="font-mono text-xs text-[var(--text-muted)]">{fmtDate(row.date)}</span> },
     { key: 'amount', header: 'Amount', render: (row) => <span className="font-mono text-sm font-bold text-emerald-500">₹{row.amount.toLocaleString()}</span> },
     { 
       key: 'status', 
@@ -156,7 +157,7 @@ export default function BillingPage() {
                   {subscription.renewsAt && (
                     <div className="flex justify-between text-sm">
                       <span className="text-[var(--text-muted)] font-medium">Next Billing Date</span>
-                      <span className="font-bold font-mono text-[var(--text-primary)]">{new Date(subscription.renewsAt).toLocaleDateString()}</span>
+                      <span className="font-bold font-mono text-[var(--text-primary)]">{fmtDate(subscription.renewsAt)}</span>
                     </div>
                   )}
                 </div>

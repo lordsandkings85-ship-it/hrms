@@ -1,0 +1,85 @@
+{
+  "name": "workora-hrms-desktop",
+  "version": "0.1.0",
+  "description": "Workora HRMS — Enterprise Human Resource Management System",
+  "author": "Lords & Kings Enterprise",
+  "license": "MIT",
+  "main": "out/main/main.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "build:frontend": "cd ../frontend && npm run build",
+    "build:desktop": "electron-vite build",
+    "build:all": "npm run build:frontend && npm run build:desktop && xcopy /E /I /Y ..\\frontend\\dist dist\\renderer",
+    "electron:build:win": "npm run build:all && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win",
+    "electron:build:linux": "npm run build:all && electron-builder --linux",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "electron-log": "^5.2.0",
+    "electron-store": "^8.2.0",
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "@electron-toolkit/preload": "^3.0.1",
+    "@electron-toolkit/utils": "^3.0.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "png-to-ico": "^3.0.2",
+    "sharp": "^0.35.3",
+    "typescript": "^5.5.4"
+  },
+  "build": {
+    "appId": "com.workora.hrms",
+    "productName": "Workora HRMS",
+    "directories": {
+      "output": "release",
+      "buildResources": "resources"
+    },
+    "files": [
+      "out/**/*",
+      "dist/renderer/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "resources",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Workora HRMS",
+      "artifactName": "Workora-HRMS-${version}-Setup.${ext}",
+      "uninstallDisplayName": "Workora HRMS",
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico",
+      "installerHeaderIcon": "resources/icon.ico"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Workora",
+      "repo": "hrms"
+    }
+  }
+}

@@ -148,6 +148,8 @@ model Company {
   invoice                 Invoice[]
   job                     Job[]
   leaveType               LeaveType[]
+  leaveTransactions       LeaveTransaction[]
+  leaveYears              LeaveYear[]
   project                 Project[]
   role                    Role[]
   setting                 Setting[]
@@ -301,6 +303,7 @@ model Employee {
   overtimeRequests        OvertimeRequest[]
   optionalHolidayRequests OptionalHolidayRequest[]
   leaveCancellations      LeaveCancellationRequest[]
+  leaveTransactions       LeaveTransaction[]
   salaryRevisions         SalaryRevision[]
   taxDeclarations         TaxDeclaration[]
   contactInfo             EmployeeContactInfo?
@@ -457,8 +460,11 @@ model LeaveBalance {
   employeeId  String
   leaveTypeId String
   year        Int
-  allotted    Float
+  allotted    Float     @default(0)
   used        Float     @default(0)
+  carriedOver Float     @default(0)
+  encashed    Float     @default(0)
+  pending     Float     @default(0)
   employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id])
 
@@ -479,20 +485,38 @@ model LeaveRequest {
   employee      Employee                   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   leaveType     LeaveType                  @relation(fields: [leaveTypeId], references: [id])
   cancellations LeaveCancellationRequest[]
+  transactions  LeaveTransaction[]
 
   @@index([employeeId, status])
   @@index([status])
 }
 
 model LeaveType {
-  id            String         @id @default(uuid())
-  companyId     String
-  name          String
-  paid          Boolean        @default(true)
-  accrualRate   Float          @default(0) // How many leaves earned per month
-  leaveBalances LeaveBalance[]
-  leaveRequest  LeaveRequest[]
-  company       Company        @relation(fields: [companyId], references: [id])
+  id                     String         @id @default(uuid())
+  companyId              String
+  code                   String?
+  name                   String
+  paid                   Boolean        @default(true)
+  accrualRate            Float          @default(0)
+  annualAllocation       Float          @default(0)
+  maxConsecutiveDays     Float?
+  halfDayAllowed         Boolean        @default(true)
+  carryForward           Boolean        @default(false)
+  carryForwardLimit      Float?
+  encashment             Boolean        @default(false)
+  negativeBalanceAllowed Boolean        @default(false)
+  attachmentRequired     Boolean        @default(false)
+  applicableAfterDays    Float?
+  approvalRequired       Boolean        @default(true)
+  gender                 String?
+  isActive               Boolean        @default(true)
+  leaveBalances          LeaveBalance[]
+  leaveRequest           LeaveRequest[]
+  leaveTransactions      LeaveTransaction[]
+  company                Company        @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, code])
+  @@index([companyId])
 }
 
 model Offer {
@@ -1302,4 +1326,42 @@ model HRForm {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   company   Company  @relation(fields: [companyId], references: [id])
+}
+
+model LeaveTransaction {
+  id             String        @id @default(uuid())
+  companyId      String
+  employeeId     String
+  leaveTypeId    String
+  leaveRequestId String?
+  year           Int
+  type           String
+  amount         Float
+  reason         String?
+  approvedBy     String?
+  createdAt      DateTime      @default(now())
+  company        Company       @relation(fields: [companyId], references: [id])
+  employee       Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType      LeaveType     @relation(fields: [leaveTypeId], references: [id])
+  leaveRequest   LeaveRequest? @relation(fields: [leaveRequestId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId, year])
+  @@index([companyId, year])
+  @@index([leaveRequestId])
+}
+
+model LeaveYear {
+  id                       String   @id @default(uuid())
+  companyId                String
+  name                     String
+  startDate                DateTime
+  endDate                  DateTime
+  isActive                 Boolean  @default(false)
+  carryForwardProcessed    Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  company                  Company  @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, name])
+  @@index([companyId])
 }

@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { Spinner } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/ToastProvider';
+import { getServerISO } from '../../utils/serverTime';
+import { fmtDate } from '../../utils/formatDate';
 
 export function EmployeeTransferForm() {
   const qc = useQueryClient();
@@ -174,7 +176,7 @@ export function EmployeePromotionForm() {
         conveyance: Number(conveyance),
         medical: Number(medical),
         specialAllowance: Number(special),
-        effectiveFrom: new Date().toISOString(),
+        effectiveFrom: getServerISO(),
         reason: 'promotion',
       });
     },
@@ -356,8 +358,8 @@ export function ResignationWorkflowPanel({ isAdmin }: { isAdmin: boolean }) {
                 {exitList.map((ex: any) => (
                   <tr key={ex.id}>
                     <td className="py-2.5 font-medium">{ex.employee?.firstName} {ex.employee?.lastName}</td>
-                    <td className="py-2.5">{new Date(ex.resignationDate).toLocaleDateString()}</td>
-                    <td className="py-2.5">{new Date(ex.lastWorkingDay).toLocaleDateString()}</td>
+                    <td className="py-2.5">{fmtDate(ex.resignationDate)}</td>
+                    <td className="py-2.5">{fmtDate(ex.lastWorkingDay)}</td>
                     <td className="py-2.5">
                       <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
                         ex.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
@@ -439,7 +441,7 @@ export function ExitClearanceDashboard() {
               >
                 <div>
                   <div className="font-bold text-slate-700 dark:text-slate-200">{ex.employee?.firstName} {ex.employee?.lastName}</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">LWD: {new Date(ex.lastWorkingDay).toLocaleDateString()}</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">LWD: {fmtDate(ex.lastWorkingDay)}</div>
                 </div>
                 <ChevronRight size={16} className="text-slate-400" />
               </button>

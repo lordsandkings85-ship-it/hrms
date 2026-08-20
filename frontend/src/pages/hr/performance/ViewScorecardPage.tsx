@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { BarChart3, Users, Star, Award, TrendingUp } from 'lucide-react';
 import { performanceApi, employeesApi } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
+import { fmtDate } from '../../../utils/formatDate';
 
 export default function ViewScorecardPage() {
   const [selectedEmp, setSelectedEmp] = useState('');
@@ -40,7 +41,7 @@ export default function ViewScorecardPage() {
         </div>
       ) 
     },
-    { key: 'date', header: 'Date', render: (row: any) => <span className="font-mono text-xs text-[var(--text-muted)]">{new Date(row.createdAt).toLocaleDateString()}</span> },
+    { key: 'date', header: 'Date', render: (row: any) => <span className="font-mono text-xs text-[var(--text-muted)]">{fmtDate(row.createdAt)}</span> },
   ];
 
   return (

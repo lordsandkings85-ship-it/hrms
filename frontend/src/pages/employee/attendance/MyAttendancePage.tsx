@@ -8,6 +8,8 @@ import { attendanceApi, attendanceApiExt } from '../../../api/client';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { getServerDate, getServerYear, getServerMonth, getServerISO } from '../../../utils/serverTime';
+import { fmtDateShort } from '../../../utils/formatDate';
 
 type TabKey = 'checkin' | 'regularize';
 
@@ -32,8 +34,8 @@ export default function MyAttendancePage() {
   const initialTab = sub ? SUB_TO_TAB[sub] || 'checkin' : 'checkin';
   const [tab, setTab] = useState<TabKey>(initialTab);
 
-  const [currentYear] = useState(new Date().getFullYear());
-  const [currentMonth] = useState(new Date().getMonth() + 1);
+  const [currentYear] = useState(() => getServerYear());
+  const [currentMonth] = useState(() => getServerMonth());
 
   // Regularization state
   const [selectedLogId, setSelectedLogId] = useState('');
@@ -92,9 +94,7 @@ export default function MyAttendancePage() {
   const { data: todayLogs } = useQuery({
     queryKey: ['attendance-today', myEmpId],
     queryFn: async () => {
-      const today = new Date();
-      const tzOffset = today.getTimezoneOffset() * 60000;
-      const localISODate = new Date(today.getTime() - tzOffset).toISOString().split('T')[0];
+      const localISODate = getServerDate();
       return await attendanceApi.list(myEmpId, localISODate, localISODate) || [];
     },
     enabled: !!myEmpId
@@ -103,9 +103,8 @@ export default function MyAttendancePage() {
   const { data: historyLogs, isLoading: isLoadingHistory } = useQuery({
     queryKey: ['attendance-history', myEmpId],
     queryFn: async () => {
-      const today = new Date();
-      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-      const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+      const firstDay = new Date(currentYear, currentMonth - 1, 1).toISOString().split('T')[0];
+      const lastDay = new Date(currentYear, currentMonth, 0).toISOString().split('T')[0];
       return await attendanceApi.list(myEmpId, firstDay, lastDay) || [];
     },
     enabled: !!myEmpId,
@@ -147,7 +146,7 @@ export default function MyAttendancePage() {
 
   const regularizeMutation = useMutation({
     mutationFn: ({ logId, reason }: { logId: string; reason: string }) => {
-      const logDate = historyLogs?.find((l: any) => l.id === logId)?.date || new Date().toISOString();
+      const logDate = historyLogs?.find((l: any) => l.id === logId)?.date || getServerISO();
       const dateStr = new Date(logDate).toISOString().split('T')[0];
       return attendanceApi.regularize(logId, { 
         employeeId: myEmpId, 
@@ -302,7 +301,7 @@ export default function MyAttendancePage() {
                   <option value="">Choose log entry...</option>
                   {historyLogs?.map((log: any) => (
                     <option key={log.id} value={log.id}>
-                      {new Date(log.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} (In: {log.checkIn ? new Date(log.checkIn).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Missed'})
+                      {fmtDateShort(log.date)} (In: {log.checkIn ? new Date(log.checkIn).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Missed'})
                     </option>
                   ))}
                 </select>

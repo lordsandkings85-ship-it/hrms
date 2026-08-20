@@ -9,6 +9,7 @@ import { DataTable, type Column } from '../../components/ui/DataTable';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { fmtDate } from '../../utils/formatDate';
 
 type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
@@ -128,7 +129,7 @@ export default function HelpdeskPage() {
     )},
     { key: 'priority', header: 'Priority', render: row => <PriorityBadge priority={row.priority} /> },
     { key: 'status', header: 'Status', render: row => <StatusBadge status={row.status} /> },
-    { key: 'createdAt', header: 'Date', sortable: true, render: row => <span className="font-mono text-xs text-[var(--text-muted)]">{new Date(row.createdAt).toLocaleDateString()}</span> },
+    { key: 'createdAt', header: 'Date', sortable: true, render: row => <span className="font-mono text-xs text-[var(--text-muted)]">{fmtDate(row.createdAt)}</span> },
     {
       key: 'actions' as keyof Ticket,
       header: 'Admin Actions',

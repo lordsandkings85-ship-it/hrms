@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { FileText, Calendar, Filter, Search } from 'lucide-react';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { attendanceApi } from '../../../api/client';
+import { getServerNow, getServerDate } from '../../../utils/serverTime';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { Spinner } from '../../../components/ui/Spinner';
 
@@ -141,10 +142,10 @@ function EmployeeDailyReport() {
   });
 
   const setThisMonth = () => {
-    const today = new Date();
-    const first = new Date(today.getFullYear(), today.getMonth(), 1);
+    const now = getServerNow();
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
     setFrom(first.toISOString().slice(0, 10));
-    setTo(today.toISOString().slice(0, 10));
+    setTo(getServerDate());
   };
 
   const rows = (Array.isArray(logs) ? logs : [])

@@ -4,6 +4,7 @@ import { travelApi } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { AdminSection, StatusBadge } from '../../../components/ui/AdminSection';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { fmtDate } from '../../../utils/formatDate';
 
 export default function TravelAdminPage() {
   const { data, isLoading } = useQuery({ queryKey: ['admin-travel'], queryFn: travelApi.listForCompany });
@@ -22,7 +23,7 @@ export default function TravelAdminPage() {
   });
   const columns: Column<any>[] = [
     { key: 'employee', header: 'Employee', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.employee?.firstName} {r.employee?.lastName || ''}</span> },
-    { key: 'period', header: 'Period', render: (r: any) => <span className="text-xs">{new Date(r.fromDate).toLocaleDateString('en-IN')} → {new Date(r.toDate).toLocaleDateString('en-IN')}</span> },
+    { key: 'period', header: 'Period', render: (r: any) => <span className="text-xs">{fmtDate(r.fromDate)} → {fmtDate(r.toDate)}</span> },
     { key: 'purpose', header: 'Purpose', render: (r: any) => <span className="text-[var(--text-muted)] text-xs">{r.purpose || '—'}</span> },
     { key: 'advance', header: 'Advance', render: (r: any) => <span className="font-mono font-semibold">₹{r.advance ?? 0}</span> },
     { key: 'status', header: 'Status', render: (r: any) => <StatusBadge status={r.status} /> },

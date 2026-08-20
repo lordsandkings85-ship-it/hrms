@@ -3,12 +3,14 @@ import { shiftsApi, employeesApi } from '../../../api/client';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Spinner } from '../../../components/ui/Spinner';
+import { getServerNow, getServerDate } from '../../../utils/serverTime';
 import { Clock3, CalendarDays, Sun, Repeat } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useState } from 'react';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { fmtDateShort } from '../../../utils/formatDate';
 
 const formatTime12 = (time24: string) => {
   if (!time24) return '';
@@ -52,7 +54,7 @@ export default function MyShiftsPage() {
     queryFn: () => shiftsApi.listHolidays(),
   });
 
-  const activeAssignment = (emp as any)?.shiftAssignment?.find((sa: any) => !sa.effectiveTo || new Date(sa.effectiveTo) > new Date());
+  const activeAssignment = (emp as any)?.shiftAssignment?.find((sa: any) => !sa.effectiveTo || new Date(sa.effectiveTo) > getServerNow());
   const activeShift = activeAssignment?.shift;
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<ChangeFormData>({
@@ -127,7 +129,7 @@ export default function MyShiftsPage() {
                 {holidays.map((h: any) => (
                   <div key={h.id} className="py-2.5 flex justify-between items-center text-xs">
                     <span className="font-bold text-slate-700 dark:text-slate-300">{h.name}</span>
-                    <span className="font-mono font-semibold text-slate-400">{new Date(h.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                    <span className="font-mono font-semibold text-slate-400">{fmtDateShort(h.date)}</span>
                   </div>
                 ))}
               </div>
@@ -184,7 +186,7 @@ export default function MyShiftsPage() {
                   <input 
                     type="date"
                     {...register('effectiveFrom')}
-                    min={new Date().toISOString().split('T')[0]}
+                    min={getServerDate()}
                     className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition-colors"
                   />
                   {errors.effectiveFrom && <p className="text-xs text-rose-500">{errors.effectiveFrom.message}</p>}

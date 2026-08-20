@@ -5,6 +5,7 @@ import {
   CalendarDays, Calendar, FileText, CalendarPlus, CheckCircle2, Clock, XCircle, Send, Award
 } from 'lucide-react';
 import { leaveApi } from '../../../api/client';
+import { fmtDate, fmtDateFull } from '../../../utils/formatDate';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Spinner } from '../../../components/ui/Spinner';
@@ -245,7 +246,7 @@ export default function MyLeavePage() {
                           {row.leaveType?.name}
                         </div>
                         <div className="text-xs text-[var(--text-muted)] mt-0.5">
-                          {new Date(row.startDate).toLocaleDateString('en-IN')} to {new Date(row.endDate).toLocaleDateString('en-IN')}
+                          {fmtDate(row.startDate)} to {fmtDate(row.endDate)}
                           {row.isHalfDay && ' (Half Day)'}
                         </div>
                         {row.reason && (
@@ -296,9 +297,10 @@ export default function MyLeavePage() {
                 {balances.map((bal: any) => {
                   const used = bal.used ?? 0;
                   const allotted = bal.allotted ?? 0;
-                  const balance = allotted - used;
-                  const total = bal.leaveType?.daysPerYear ?? (allotted);
-                  const pct = total > 0 ? Math.min(100, (balance / total) * 100) : 0;
+                  const carriedOver = bal.carriedOver ?? 0;
+                  const remaining = bal.remaining ?? Math.max(0, allotted + carriedOver - used);
+                  const total = allotted + carriedOver;
+                  const pct = total > 0 ? Math.min(100, (remaining / total) * 100) : 0;
                   return (
                     <div key={bal.id} className="p-4 border border-[var(--border)] rounded-2xl bg-[var(--surface-alt)] space-y-3">
                       <div className="flex justify-between items-start">
@@ -306,7 +308,7 @@ export default function MyLeavePage() {
                           <p className="text-sm font-bold text-[var(--text-primary)]">{bal.leaveType?.name}</p>
                           <p className="text-[10px] text-[var(--text-muted)] font-bold uppercase mt-0.5">Year: {bal.year}</p>
                         </div>
-                        <span className="text-2xl font-black text-indigo-400 font-mono">{balance}</span>
+                        <span className="text-2xl font-black text-indigo-400 font-mono">{remaining}</span>
                       </div>
                       <div className="space-y-1">
                         <div className="h-2 rounded-full bg-[var(--surface)] overflow-hidden">
@@ -314,8 +316,12 @@ export default function MyLeavePage() {
                         </div>
                         <div className="flex justify-between text-[10px] text-[var(--text-muted)]">
                           <span>{used} Used</span>
-                          <span>{total} Total</span>
+                          <span>{total} Available</span>
                         </div>
+                      </div>
+                      <div className="flex gap-3 text-[10px] font-bold">
+                        <span className="text-[var(--text-muted)]">Allocated: <span className="text-[var(--text-primary)]">{allotted}</span></span>
+                        {carriedOver > 0 && <span className="text-sky-500">Carry Fwd: {carriedOver}</span>}
                       </div>
                     </div>
                   );
@@ -343,7 +349,7 @@ export default function MyLeavePage() {
                     <div>
                       <div className="font-semibold text-sm text-[var(--text-primary)]">{h.name}</div>
                       <div className="text-xs text-[var(--text-muted)] mt-0.5">
-                        {new Date(h.date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                        {fmtDateFull(h.date)}
                       </div>
                     </div>
                   </div>

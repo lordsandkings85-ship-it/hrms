@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { ShieldCheck, HardDrive, Cpu, Terminal, Building, Loader2, Database, Network } from 'lucide-react';
 import { superAdminApi } from '../../../api/client';
+import { fmtDate, fmtDateTime } from '../../../utils/formatDate';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 
 export default function SuperAdminPage() {
@@ -22,7 +23,7 @@ export default function SuperAdminPage() {
   const tenantColumns: Column<any>[] = [
     { key: 'name', header: 'Tenant Workspace', render: (row) => <span className="font-bold text-[var(--text-primary)]">{row.name}</span> },
     { key: 'id', header: 'Tenant ID', render: (row) => <span className="font-mono text-xs text-[var(--text-muted)] font-bold">{row.id}</span> },
-    { key: 'createdAt', header: 'Provisioned', render: (row) => <span className="font-mono text-xs text-[var(--text-muted)]">{new Date(row.createdAt).toLocaleDateString()}</span> },
+    { key: 'createdAt', header: 'Provisioned', render: (row) => <span className="font-mono text-xs text-[var(--text-muted)]">{fmtDate(row.createdAt)}</span> },
   ];
 
   const logColumns: Column<any>[] = [
@@ -34,7 +35,7 @@ export default function SuperAdminPage() {
       </div>
     )},
     { key: 'tenant', header: 'Tenant ID', render: (row) => <span className="font-mono text-xs text-[var(--text-muted)] font-bold">{row.companyId}</span> },
-    { key: 'timestamp', header: 'Timestamp', render: (row) => <span className="font-mono text-[10px] text-[var(--text-muted)]">{new Date(row.createdAt).toLocaleString()}</span> },
+    { key: 'timestamp', header: 'Timestamp', render: (row) => <span className="font-mono text-[10px] text-[var(--text-muted)]">{fmtDateTime(row.createdAt)}</span> },
   ];
 
   return (

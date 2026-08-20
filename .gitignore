@@ -1,5 +1,6 @@
 ﻿node_modules/
 dist/
+dist-electron/
 .env
 .DS_Store
 coverage/
@@ -8,3 +9,10 @@ build/
 *.log
 *.zip
 *.tsbuildinfo
+
+# Desktop
+desktop/node_modules/
+desktop/dist-electron/
+desktop/release/
+desktop/.vite/
+desktop/.env.local

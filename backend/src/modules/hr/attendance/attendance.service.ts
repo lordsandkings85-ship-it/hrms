@@ -107,6 +107,14 @@ export class AttendanceService {
     const [h, m] = time.split(':').map(Number);
     if (isNaN(h) || isNaN(m)) throw new BadRequestException('Invalid time');
     const ts = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
+
+    // Validate: submitted time must be within 5 minutes of server time
+    const now = Date.now();
+    const TOLERANCE_MS = 5 * 60 * 1000;
+    const diff = Math.abs(ts.getTime() - now);
+    if (diff > TOLERANCE_MS) {
+      throw new BadRequestException('Submitted time deviates from server time by more than 5 minutes');
+    }
     const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 

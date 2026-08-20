@@ -7,6 +7,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 
 import { Spinner } from '../../../components/ui/Spinner';
+import { fmtDate } from '../../../utils/formatDate';
 import {
   Users, AlertTriangle, Calendar, FileClock,
   Briefcase, HandCoins,
@@ -15,7 +16,8 @@ import {
   Fingerprint, FileText, MonitorSmartphone, Megaphone, Bell, History, Search,
   TrendingUp, Sparkles, UserCheck, UserMinus, ShieldCheck
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useServerTime } from '../../../hooks/useServerTime';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
@@ -24,9 +26,8 @@ import {
 const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f43f5e', '#3b82f6'];
 const GENDER_COLORS = ['#3b82f6', '#ec4899', '#9ca3af'];
 
-function LiveClock() {
-  const [now, setNow] = useState(new Date());
-  useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
+const LiveClock = React.memo(function LiveClock() {
+  const { now } = useServerTime();
   const day = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
   return (
@@ -35,7 +36,7 @@ function LiveClock() {
       <div className="text-xs mt-0.5 text-[var(--text-muted)] font-medium uppercase tracking-wider">{day}</div>
     </div>
   );
-}
+});
 
 export default function HrDashboard() {
   const navigate = useNavigate();
@@ -110,7 +111,7 @@ export default function HrDashboard() {
     .map((r: any) => ({
       title: `${r.employee?.firstName || 'Emp'} Leave`,
       start: r.startDate,
-      end: new Date(new Date(r.endDate).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      end: r.endDate ? new Date(new Date(r.endDate).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0] : '',
       allDay: true,
       backgroundColor: '#f59e0b',
       borderColor: '#f59e0b',
@@ -345,7 +346,7 @@ export default function HrDashboard() {
                         </div>
                         <div className="text-[11px] text-[var(--text-muted)] mt-3 flex items-center gap-2 font-medium">
                           <Calendar size={12} className="text-indigo-400"/>
-                          {new Date(req.startDate).toLocaleDateString('en-IN', {day:'numeric', month:'short'})} - {new Date(req.endDate).toLocaleDateString('en-IN', {day:'numeric', month:'short'})}
+                          {fmtDate(req.startDate)} - {fmtDate(req.endDate)}
                         </div>
                         <div className="flex gap-2 mt-4 pt-3 border-t border-[var(--border)]">
                           <button

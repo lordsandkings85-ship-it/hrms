@@ -4,6 +4,7 @@ import { Megaphone, Send, Bell } from 'lucide-react';
 import { announcementsApi } from '../../../api/client';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { fmtDate } from '../../../utils/formatDate';
 
 export default function AnnouncementsPage() {
   const { success: toastSuccess, error: toastError } = useToast();
@@ -98,7 +99,7 @@ export default function AnnouncementsPage() {
               <div key={ann.id} className="p-6 hover:bg-paper/40">
                 <div className="flex justify-between items-start gap-4 mb-2">
                   <h4 className="text-base font-semibold text-ink">{ann.title}</h4>
-                  <span className="text-xs text-muted font-mono whitespace-nowrap">{new Date(ann.createdAt).toLocaleDateString()}</span>
+                  <span className="text-xs text-muted font-mono whitespace-nowrap">{fmtDate(ann.createdAt)}</span>
                 </div>
                 <p className="text-sm text-muted font-body leading-relaxed whitespace-pre-wrap">{ann.body}</p>
               </div>

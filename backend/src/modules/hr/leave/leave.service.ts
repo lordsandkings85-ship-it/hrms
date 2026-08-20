@@ -10,8 +10,19 @@ export class LeaveService {
     return this.prisma.leaveType.findMany({ where: { companyId } });
   }
 
-  createType(companyId: string, name: string, paid: boolean) {
-    return this.prisma.leaveType.create({ data: { companyId, name, paid } });
+  createType(companyId: string, data: { name: string; paid: boolean; code?: string; accrualRate?: number; annualAllocation?: number; maxConsecutiveDays?: number; halfDayAllowed?: boolean; carryForward?: boolean; carryForwardLimit?: number; encashment?: boolean; negativeBalanceAllowed?: boolean; attachmentRequired?: boolean; applicableAfterDays?: number; approvalRequired?: boolean; gender?: string }) {
+    return this.prisma.leaveType.create({ data: { companyId, ...data } });
+  }
+
+  async updateType(companyId: string, id: string, data: Record<string, any>) {
+    const type = await this.prisma.leaveType.findFirst({ where: { id, companyId } });
+    if (!type) throw new NotFoundException('Leave type not found');
+    const allowed = ['code', 'name', 'paid', 'isActive', 'accrualRate', 'annualAllocation', 'maxConsecutiveDays', 'halfDayAllowed', 'carryForward', 'carryForwardLimit', 'encashment', 'negativeBalanceAllowed', 'attachmentRequired', 'applicableAfterDays', 'approvalRequired', 'gender'];
+    const updateData: Record<string, any> = {};
+    for (const key of allowed) {
+      if (data[key] !== undefined) updateData[key] = data[key];
+    }
+    return this.prisma.leaveType.update({ where: { id }, data: updateData });
   }
 
   async deleteType(companyId: string, id: string) {
@@ -155,6 +166,19 @@ export class LeaveService {
       this.prisma.leaveRequest.update({
         where: { id },
         data: { status: 'approved', approverId },
+      }),
+      this.prisma.leaveTransaction.create({
+        data: {
+          companyId,
+          employeeId: req.employeeId,
+          leaveTypeId: req.leaveTypeId,
+          year: req.startDate.getFullYear(),
+          type: 'LEAVE_TAKEN',
+          amount: days,
+          reason: `Approved ${days} day(s) of leave`,
+          approvedBy: approverId,
+          leaveRequestId: id,
+        },
       }),
       ...(onLeaveLogs.length > 0
         ? [this.prisma.attendanceLog.createMany({ data: onLeaveLogs })]
@@ -314,6 +338,19 @@ export class LeaveService {
       }),
       ...(restoreBalance ? [restoreBalance] : []),
       deleteAttendance,
+      ...(restoreDays > 0 ? [this.prisma.leaveTransaction.create({
+        data: {
+          companyId,
+          employeeId: leave.employeeId,
+          leaveTypeId: leave.leaveTypeId,
+          year: leave.startDate.getFullYear(),
+          type: 'CANCELLATION_CREDIT',
+          amount: restoreDays,
+          reason: `Cancellation approved — ${restoreDays} day(s) restored`,
+          approvedBy: approverId,
+          leaveRequestId: cancel.leaveRequestId,
+        },
+      })] : []),
     ]);
     return updatedCancel;
   }
@@ -422,7 +459,10 @@ async balances(employeeId: string, year: number, companyId: string) {
         leaveType: b.leaveType.name,
         allotted: b.allotted,
         used: b.used,
-        remaining: Math.max(0, b.allotted - b.used),
+        carriedOver: b.carriedOver,
+        encashed: b.encashed,
+        pending: b.pending,
+        remaining: Math.max(0, b.allotted + b.carriedOver - b.used - b.encashed),
       })),
     }));
   }
@@ -480,6 +520,179 @@ async balances(employeeId: string, year: number, companyId: string) {
     const existing = await this.prisma.holiday.findFirst({ where: { id, companyId } });
     if (!existing) throw new NotFoundException('Holiday not found');
     return this.prisma.holiday.delete({ where: { id } });
+  }
+
+  // --- Leave Balance Allocation ---
+
+  async adjustBalance(companyId: string, data: { employeeId: string; leaveTypeId: string; year: number; amount: number; reason?: string }, approvedBy: string) {
+    const employee = await this.prisma.employee.findFirst({ where: { id: data.employeeId, companyId } });
+    if (!employee) throw new NotFoundException('Employee not found');
+    const type = await this.prisma.leaveType.findFirst({ where: { id: data.leaveTypeId, companyId } });
+    if (!type) throw new NotFoundException('Leave type not found');
+
+    const upsert = this.prisma.leaveBalance.upsert({
+      where: {
+        employeeId_leaveTypeId_year: {
+          employeeId: data.employeeId,
+          leaveTypeId: data.leaveTypeId,
+          year: data.year,
+        },
+      },
+      update: { allotted: { increment: data.amount } },
+      create: {
+        employeeId: data.employeeId,
+        leaveTypeId: data.leaveTypeId,
+        year: data.year,
+        allotted: data.amount,
+        used: 0,
+      },
+    });
+
+    const transaction = this.prisma.leaveTransaction.create({
+      data: {
+        companyId,
+        employeeId: data.employeeId,
+        leaveTypeId: data.leaveTypeId,
+        year: data.year,
+        type: 'ALLOCATION',
+        amount: data.amount,
+        reason: data.reason || `Admin allocation of ${data.amount} days`,
+        approvedBy,
+      },
+    });
+
+    const [balance] = await this.prisma.$transaction([upsert, transaction]);
+    return balance;
+  }
+
+  async bulkAllocate(companyId: string, data: { employeeIds: string[]; leaveTypeId: string; year: number; amount: number; reason?: string }, approvedBy: string) {
+    const type = await this.prisma.leaveType.findFirst({ where: { id: data.leaveTypeId, companyId } });
+    if (!type) throw new NotFoundException('Leave type not found');
+
+    const results: { employeeId: string; success: boolean; error?: string }[] = [];
+
+    for (const empId of data.employeeIds) {
+      try {
+        await this.adjustBalance(companyId, {
+          employeeId: empId,
+          leaveTypeId: data.leaveTypeId,
+          year: data.year,
+          amount: data.amount,
+          reason: data.reason || `Bulk allocation of ${data.amount} days`,
+        }, approvedBy);
+        results.push({ employeeId: empId, success: true });
+      } catch (e: any) {
+        results.push({ employeeId: empId, success: false, error: e.message });
+      }
+    }
+
+    return { total: data.employeeIds.length, succeeded: results.filter(r => r.success).length, failed: results.filter(r => !r.success).length, results };
+  }
+
+  async transactions(companyId: string, employeeId: string, year?: number) {
+    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+    if (!employee) throw new NotFoundException('Employee not found');
+    return this.prisma.leaveTransaction.findMany({
+      where: {
+        employeeId,
+        ...(year ? { year } : {}),
+      },
+      include: { leaveType: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // --- Leave Year CRUD ---
+
+  listLeaveYears(companyId: string) {
+    return this.prisma.leaveYear.findMany({ where: { companyId }, orderBy: { startDate: 'desc' } });
+  }
+
+  async createLeaveYear(companyId: string, data: { name: string; startDate: string; endDate: string }) {
+    if (data.startDate >= data.endDate) throw new BadRequestException('startDate must be before endDate');
+    return this.prisma.leaveYear.create({
+      data: { companyId, name: data.name, startDate: new Date(data.startDate), endDate: new Date(data.endDate) },
+    });
+  }
+
+  async updateLeaveYear(companyId: string, id: string, data: { isActive?: boolean; carryForwardProcessed?: boolean }) {
+    const ly = await this.prisma.leaveYear.findFirst({ where: { id, companyId } });
+    if (!ly) throw new NotFoundException('Leave year not found');
+    if (data.isActive) {
+      await this.prisma.leaveYear.updateMany({ where: { companyId, isActive: true }, data: { isActive: false } });
+    }
+    return this.prisma.leaveYear.update({ where: { id }, data });
+  }
+
+  async deleteLeaveYear(companyId: string, id: string) {
+    const ly = await this.prisma.leaveYear.findFirst({ where: { id, companyId } });
+    if (!ly) throw new NotFoundException('Leave year not found');
+    return this.prisma.leaveYear.delete({ where: { id } });
+  }
+
+  // --- Carry Forward ---
+
+  async processCarryForward(companyId: string, fromYearId: string, approvedBy: string) {
+    const fromYear = await this.prisma.leaveYear.findFirst({ where: { id: fromYearId, companyId } });
+    if (!fromYear) throw new NotFoundException('Source leave year not found');
+    if (fromYear.carryForwardProcessed) throw new BadRequestException('Carry forward already processed for this year');
+
+    const toYearName = `${parseInt(fromYear.name) + 1}`;
+    let toYear = await this.prisma.leaveYear.findFirst({ where: { companyId, name: toYearName } });
+    if (!toYear) {
+      const nextStart = new Date(fromYear.endDate);
+      nextStart.setDate(nextStart.getDate() + 1);
+      const nextEnd = new Date(nextStart);
+      nextEnd.setFullYear(nextEnd.getFullYear() + 1);
+      nextEnd.setDate(nextEnd.getDate() - 1);
+      toYear = await this.prisma.leaveYear.create({
+        data: { companyId, name: toYearName, startDate: nextStart, endDate: nextEnd },
+      });
+    }
+
+    const fromYearNum = parseInt(fromYear.name);
+    const toYearNum = parseInt(toYearName);
+
+    const eligibleTypes = await this.prisma.leaveType.findMany({
+      where: { companyId, carryForward: true, isActive: true },
+    });
+
+    if (eligibleTypes.length === 0) {
+      await this.prisma.leaveYear.update({ where: { id: fromYearId }, data: { carryForwardProcessed: true } });
+      return { carried: 0, message: 'No leave types eligible for carry forward' };
+    }
+
+    const typeIds = eligibleTypes.map(t => t.id);
+    const balances = await this.prisma.leaveBalance.findMany({
+      where: { employee: { companyId }, year: fromYearNum, leaveTypeId: { in: typeIds } },
+    });
+
+    let carried = 0;
+    for (const bal of balances) {
+      const remaining = Math.max(0, bal.allotted - bal.used);
+      if (remaining <= 0) continue;
+      const type = eligibleTypes.find(t => t.id === bal.leaveTypeId);
+      const maxCarry = type?.carryForwardLimit ?? remaining;
+      const carryAmount = Math.min(remaining, maxCarry);
+      if (carryAmount <= 0) continue;
+
+      await this.prisma.leaveBalance.upsert({
+        where: {
+          employeeId_leaveTypeId_year: { employeeId: bal.employeeId, leaveTypeId: bal.leaveTypeId, year: toYearNum },
+        },
+        update: { carriedOver: { increment: carryAmount } },
+        create: { employeeId: bal.employeeId, leaveTypeId: bal.leaveTypeId, year: toYearNum, allotted: 0, used: 0, carriedOver: carryAmount },
+      });
+
+      await this.prisma.leaveTransaction.create({
+        data: { companyId, employeeId: bal.employeeId, leaveTypeId: bal.leaveTypeId, year: toYearNum, type: 'CARRY_FORWARD', amount: carryAmount, reason: `Carry forward from ${fromYear.name}`, approvedBy },
+      });
+
+      carried++;
+    }
+
+    await this.prisma.leaveYear.update({ where: { id: fromYearId }, data: { carryForwardProcessed: true } });
+    return { carried, message: `Carried forward ${carried} balance records` };
   }
 
   // --- PHASE 4: Enterprise Leave Features ---

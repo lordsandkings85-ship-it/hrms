@@ -765,3 +765,28 @@ textarea.input { resize: vertical; }
 .toggle-thumb-on  { @apply translate-x-6; }
 .toggle-thumb-off { @apply translate-x-1; }
 
+/* ── Electron Desktop Styles ─────────────────────────── */
+body.electron {
+  padding-top: 0;
+  overflow: hidden;
+}
+.electron-titlebar {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+.electron-titlebar-btn {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+.electron-titlebar-btn:hover {
+  background: var(--surface-hover) !important;
+}
+.electron-titlebar-close:hover {
+  background: #e81123 !important;
+  color: #ffffff !important;
+}
+/* Ensure sidebar respects titlebar offset */
+body.electron .sidebar-container {
+  top: 32px !important;
+}
+

@@ -4,6 +4,7 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Spinner } from '../../../components/ui/Spinner';
 import { Laptop, Package, Calendar } from 'lucide-react';
+import { fmtDate } from '../../../utils/formatDate';
 
 export default function MyAssetsPage() {
   const { user } = useAuthStore();
@@ -44,7 +45,7 @@ export default function MyAssetsPage() {
                     <p className="text-xs font-mono font-semibold text-indigo-500">{asset.identifier}</p>
                     <div className="flex items-center gap-1 text-[10px] text-slate-400 font-semibold pt-1">
                       <Calendar size={12} />
-                      <span>Assigned: {new Date(assignment.assignedAt).toLocaleDateString('en-IN')}</span>
+                      <span>Assigned: {fmtDate(assignment.assignedAt)}</span>
                     </div>
                   </div>
                 </div>

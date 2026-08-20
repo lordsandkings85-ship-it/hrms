@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ClipboardCheck, Search, Plus, Loader2, Send } from 'lucide-react';
 import { recruitmentApi } from '../../../api/client';
+import { fmtDate } from '../../../utils/formatDate';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { StatusBadge } from '../../../components/ui/Badge';
 import { useForm } from 'react-hook-form';
@@ -51,7 +52,7 @@ export default function RequisitionsPage() {
     { key: 'description', header: 'Description', render: (row: any) => <span className="text-[var(--text-muted)] text-xs truncate max-w-[200px] block">{row.description || '-'}</span> },
     { key: 'status', header: 'Status', render: (row: any) => <StatusBadge status={row.status || 'open'} /> },
     { key: 'candidates', header: 'Candidates', render: (row: any) => <span className="font-mono font-bold text-[var(--text-primary)]">{row.candidates?.length || 0} Applied</span> },
-    { key: 'date', header: 'Posted Date', render: (row: any) => <span className="font-mono text-xs">{new Date(row.createdAt).toLocaleDateString()}</span> },
+    { key: 'date', header: 'Posted Date', render: (row: any) => <span className="font-mono text-xs">{fmtDate(row.createdAt)}</span> },
   ];
 
   const filteredJobs = jobs?.filter((j: any) => j.title.toLowerCase().includes(searchTerm.toLowerCase()));
