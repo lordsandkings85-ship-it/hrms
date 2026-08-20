@@ -17,6 +17,7 @@ export async function syncServerTime(): Promise<void> {
       const t0 = Date.now();
       const res = await fetch(`${API_BASE}/time`);
       const t1 = Date.now();
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const roundTrip = t1 - t0;
       const serverTime = data.unix;
