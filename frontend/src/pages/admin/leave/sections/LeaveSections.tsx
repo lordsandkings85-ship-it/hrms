@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CalendarCheck2, Scale, CalendarClock, FileStack, CalendarPlus, CalendarHeart, CalendarOff, Sparkles, Check, X, Plus, Trash2, Loader2, Save, Tag, Pencil } from 'lucide-react';
+import { CalendarCheck2, Scale, CalendarClock, FileStack, CalendarPlus, CalendarHeart, CalendarOff, Sparkles, Check, X, Plus, Trash2, Loader2, Save, Tag, Pencil, CalendarDays } from 'lucide-react';
 import { leaveApi, employeeServicesApi } from '../../../../api/client';
 import { DataTable, Column } from '../../../../components/ui/DataTable';
 import { AdminSection, StatusBadge } from '../../../../components/ui/AdminSection';
@@ -582,7 +582,7 @@ export function LeaveTypesSection() {
             <thead className="bg-[var(--surface-alt)]">
               <tr className="text-left text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
                 {columns.map((c) => (
-                  <th key={c.key} className="px-4 py-3 font-bold">{c.header}</th>
+                  <th key={String(c.key)} className="px-4 py-3 font-bold">{c.header}</th>
                 ))}
               </tr>
             </thead>
@@ -612,7 +612,7 @@ export function LeaveTypesSection() {
                 return (
                   <tr key={r._rowKey} className="border-t border-[var(--border)] hover:bg-[var(--surface-alt)]/50 transition-colors">
                     {columns.map((c) => (
-                      <td key={c.key} className="px-4 py-3">{c.render(r)}</td>
+                      <td key={String(c.key)} className="px-4 py-3">{c.render?.(r)}</td>
                     ))}
                    </tr>
                 );
@@ -633,9 +633,8 @@ export function LeaveTransactionsSection() {
     const json = await res.json();
     return json.data || [];
   });
-  const { data: txns, isLoading } = useData(
-    ['leave-txn', selectedEmployee, year],
-    () => selectedEmployee ? leaveApi.transactions(selectedEmployee, year) : Promise.resolve([])
+  const { data: txns, isLoading } = useQuery(
+    { queryKey: ['leave-txn', selectedEmployee, year], queryFn: () => selectedEmployee ? leaveApi.transactions(selectedEmployee, year) : Promise.resolve([]) }
   );
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
   const txnTypeBadge = (type: string) => {
