@@ -97,7 +97,7 @@ export class EmployeesService {
     opts: { page?: number; pageSize?: number; search?: string; departmentId?: string; status?: string },
   ) {
     const page = opts.page && opts.page > 0 ? opts.page : 1;
-    const pageSize = opts.pageSize && opts.pageSize > 0 ? Math.min(opts.pageSize, 100) : 20;
+    const pageSize = opts.pageSize && opts.pageSize > 0 ? Math.min(opts.pageSize, 100) : 50;
 
     const userObj = await this.prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
     const isSystemAdmin = userObj?.role?.isSystem;
@@ -118,10 +118,9 @@ export class EmployeesService {
       ...(opts.search
         ? {
             OR: [
-              { firstName: { contains: opts.search, mode: 'insensitive' as const } },
-              { lastName: { contains: opts.search, mode: 'insensitive' as const } },
-              { email: { contains: opts.search, mode: 'insensitive' as const } },
-              { employeeCode: { contains: opts.search, mode: 'insensitive' as const } },
+              { firstName: { contains: opts.search } },
+              { lastName: { contains: opts.search } },
+              { employeeCode: { contains: opts.search } },
             ],
           }
         : {}),
