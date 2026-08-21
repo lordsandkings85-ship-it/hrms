@@ -27,6 +27,7 @@ export interface DataTableProps<T> {
   pageSize?: number;
   toolbar?: React.ReactNode;
   onRowClick?: (row: T) => void;
+  rowClassName?: (row: T) => string;
   // Server-side support
   serverPagination?: boolean;
   totalRecords?: number;
@@ -61,7 +62,7 @@ export function DataTable<T extends object>({
   emptyTitle = 'No records found', emptyMessage = 'No data matches your current filters.',
   searchable = true, searchPlaceholder = 'Search…', bulkActions = [],
   showToolbar = true, selectable = true,
-  pageSize = 15, toolbar, onRowClick,
+  pageSize = 15, toolbar, onRowClick, rowClassName,
   serverPagination = false, totalRecords = 0, currentPage = 1, onPageChange, onSearchChange,
   exportable = true, exportFilename = 'export.csv'
 }: DataTableProps<T>) {
@@ -305,7 +306,7 @@ export function DataTable<T extends object>({
                   <tr
                     key={id}
                     onClick={() => onRowClick?.(row)}
-                    className={`transition-colors ${onRowClick ? 'cursor-pointer hover:bg-surface-hover' : ''} ${selected.has(id) ? 'bg-action-primary/5 dark:bg-white/5' : ''}`}
+                    className={`transition-colors ${onRowClick ? 'cursor-pointer hover:bg-surface-hover' : ''} ${selected.has(id) ? 'bg-action-primary/5 dark:bg-white/5' : ''} ${rowClassName?.(row) || ''}`}
                   >
                     {selectable && (
                     <td className="bg-white dark:bg-transparent" onClick={e => { e.stopPropagation(); toggleRow(id); }}>

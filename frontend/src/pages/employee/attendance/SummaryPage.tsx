@@ -26,6 +26,7 @@ function AdminSummary() {
   const [year, setYear] = useState(getServerYear());
   const [month, setMonth] = useState(getServerMonth());
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedEmpId, setSelectedEmpId] = useState<string | null>(null);
 
   const { data: logs, isLoading: logsLoading } = useQuery({
     queryKey: ['attendance-monthly-report', year, month],
@@ -58,21 +59,118 @@ function AdminSummary() {
     total: filtered.length,
   };
 
+  // ---- Per-person aggregation: one row per employee ----
+  interface PersonRow {
+    employeeId: string;
+    firstName?: string;
+    lastName?: string;
+    employeeCode?: string;
+    department?: string;
+    logs: any[];
+    daysWorked: number;
+    present: number;
+    late: number;
+    halfDay: number;
+    onLeave: number;
+    absent: number;
+    totalMins: number;
+    overtimeMins: number;
+  }
+
+  const personMap = new Map<string, PersonRow>();
+  for (const log of filtered) {
+    if (!log.employeeId) continue;
+    let row = personMap.get(log.employeeId);
+    if (!row) {
+      row = {
+        employeeId: log.employeeId,
+        firstName: log.employee?.firstName,
+        lastName: log.employee?.lastName,
+        employeeCode: log.employee?.employeeCode,
+        department: log.employee?.department?.name || '--',
+        logs: [],
+        daysWorked: 0, present: 0, late: 0, halfDay: 0, onLeave: 0, absent: 0,
+        totalMins: 0, overtimeMins: 0,
+      };
+      personMap.set(log.employeeId, row);
+    }
+    row.logs.push(log);
+    row.overtimeMins += log.overtimeMinutes || 0;
+    if (log.checkIn && log.checkOut) {
+      const a = new Date(log.checkIn).getTime();
+      const b = new Date(log.checkOut).getTime();
+      if (!isNaN(a) && !isNaN(b) && b > a) row.totalMins += Math.round((b - a) / 60000);
+    }
+  }
+  for (const dayLog of uniqueLogs) {
+    const row = personMap.get(dayLog.employeeId);
+    if (!row) continue;
+    row.daysWorked++;
+    if (dayLog.status === 'present') row.present++;
+    else if (dayLog.status === 'late') row.late++;
+    else if (dayLog.status === 'half_day') row.halfDay++;
+    else if (dayLog.status === 'on_leave') row.onLeave++;
+    else if (dayLog.status === 'absent') row.absent++;
+  }
+  const personRows = Array.from(personMap.values()).sort((a, b) =>
+    `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
+
+  const fmtHours = (mins: number) => {
+    if (!mins) return '--';
+    return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+  };
+
+  const selectedPerson = selectedEmpId ? personMap.get(selectedEmpId) : null;
+  const selectedPersonLogs = selectedPerson
+    ? [...selectedPerson.logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    : [];
+
+  // ---- Per-person summary columns ----
   const columns: Column<any>[] = [
-    { key: 'employee', header: 'Employee', render: (log: any) => (
+    { key: 'employee', header: 'Employee', render: (p: any) => (
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 font-bold text-xs flex items-center justify-center shrink-0">
-          {log.employee?.firstName?.[0] || 'E'}{log.employee?.lastName?.[0] || ''}
+          {p.firstName?.[0] || 'E'}{p.lastName?.[0] || ''}
         </div>
         <div className="min-w-0">
-          <div className="text-sm font-bold text-[var(--text-primary)] truncate">{log.employee?.firstName} {log.employee?.lastName}</div>
-          <div className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider font-mono">{log.employee?.employeeCode}</div>
+          <div className="text-sm font-bold text-[var(--text-primary)] truncate">{p.firstName} {p.lastName}</div>
+          <div className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider font-mono">{p.employeeCode}</div>
         </div>
       </div>
     )},
+    { key: 'department', header: 'Department', render: (p: any) => (
+      <span className="text-xs font-semibold text-[var(--text-muted)]">{p.department}</span>
+    )},
+    { key: 'daysWorked', header: 'Days Worked', render: (p: any) => (
+      <span className="font-mono text-sm font-black text-slate-900 dark:text-white">{p.daysWorked}</span>
+    )},
+    { key: 'present', header: 'Present', render: (p: any) => (
+      <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${p.present ? 'bg-emerald-500/10 text-emerald-500' : 'text-slate-400'}`}>{p.present}</span>
+    )},
+    { key: 'late', header: 'Late', render: (p: any) => (
+      <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${p.late ? 'bg-amber-500/10 text-amber-500' : 'text-slate-400'}`}>{p.late}</span>
+    )},
+    { key: 'halfDay', header: 'Half Day', render: (p: any) => (
+      <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${p.halfDay ? 'bg-blue-500/10 text-blue-500' : 'text-slate-400'}`}>{p.halfDay}</span>
+    )},
+    { key: 'onLeave', header: 'On Leave', render: (p: any) => (
+      <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${p.onLeave ? 'bg-indigo-500/10 text-indigo-500' : 'text-slate-400'}`}>{p.onLeave}</span>
+    )},
+    { key: 'totalHours', header: 'Total Hours', render: (p: any) => (
+      <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{fmtHours(p.totalMins)}</span>
+    )},
+    { key: 'overtime', header: 'Overtime', render: (p: any) => (
+      <span className={`font-mono text-xs font-bold ${p.overtimeMins ? 'text-purple-500' : 'text-slate-400'}`}>
+        {p.overtimeMins ? `${Math.round(p.overtimeMins / 60 * 10) / 10}h` : '--'}
+      </span>
+    )},
+  ];
+
+  // ---- Detail panel columns (per-day punches of the selected person) ----
+  const detailColumns: Column<any>[] = [
     { key: 'date', header: 'Date', render: (row: any) => (
       <span className="font-mono text-xs font-bold text-[var(--text-primary)]">
-        {row.date ? new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '--'}
+        {row.date ? new Date(row.date).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' }) : '--'}
       </span>
     )},
     { key: 'checkIn', header: 'Check In', render: (row: any) => (
@@ -194,15 +292,49 @@ function AdminSummary() {
 
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Employee Details</h3>
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="text" placeholder="Search employee..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64" />
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Per-Person Summary</h3>
+              <div className="flex items-center gap-3">
+                {selectedEmpId && (
+                  <span className="text-[10px] uppercase font-bold text-indigo-500 bg-indigo-500/10 px-2 py-1 rounded">Click a row to view daily details</span>
+                )}
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input type="text" placeholder="Search employee..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64" />
+                </div>
               </div>
             </div>
-            <DataTable columns={columns} data={filtered} loading={logsLoading} keyField="id" />
+            <DataTable columns={columns} data={personRows} loading={logsLoading} keyField="employeeId"
+              onRowClick={(p: any) => setSelectedEmpId(selectedEmpId === p.employeeId ? null : p.employeeId)}
+              rowClassName={(p: any) => selectedEmpId === p.employeeId ? 'cursor-pointer ring-1 ring-indigo-400' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50'} />
           </div>
+
+          {selectedPerson && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm animate-fade">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 font-bold text-sm flex items-center justify-center shrink-0">
+                    {selectedPerson.firstName?.[0] || 'E'}{selectedPerson.lastName?.[0] || ''}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                      {selectedPerson.firstName} {selectedPerson.lastName}
+                      <span className="ml-2 text-xs font-mono text-slate-400">{selectedPerson.employeeCode}</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Attendance details for {new Date(0, month - 1).toLocaleString('default', { month: 'long' })} {year}
+                      · {selectedPerson.daysWorked} day(s) worked · {fmtHours(selectedPerson.totalMins)} total hours
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedEmpId(null)}
+                  className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-rose-500 border border-slate-200 dark:border-slate-700 rounded-lg transition-colors">
+                  Close
+                </button>
+              </div>
+              <DataTable columns={detailColumns} data={selectedPersonLogs} loading={false} keyField="id" showToolbar={false} selectable={false} />
+            </div>
+          )}
         </>
       )}
     </div>
