@@ -112,7 +112,7 @@ export class EmployeesService {
           }
         }
       },
-      ...(!isHR ? { employeeCode: { not: 'HR-001' } } : {}),
+      employeeCode: { not: 'HR-001' },
       ...(opts.status ? { status: opts.status } : {}),
       ...(opts.departmentId ? { departmentId: opts.departmentId } : {}),
       ...(opts.search
