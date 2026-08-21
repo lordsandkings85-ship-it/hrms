@@ -101,7 +101,14 @@ model Branch {
   id        String     @id @default(uuid())
   companyId String
   name      String
+  code      String?
   address   String?
+  city      String?
+  state     String?
+  country   String?    @default("India")
+  phone     String?
+  pincode   String?
+  isActive  Boolean    @default(true)
   company   Company    @relation(fields: [companyId], references: [id])
   employees Employee[]
 }
@@ -161,6 +168,7 @@ model Company {
   role                    Role[]
   setting                 Setting[]
   shift                   Shift[]
+  shiftType               ShiftType[]
   reviewCycle             ReviewCycle[]
   subscription            Subscription[]
   users                   User[]
@@ -665,6 +673,22 @@ model Setting {
   @@unique([companyId, key])
 }
 
+model ShiftType {
+  id                       String  @id @default(uuid())
+  companyId                String
+  name                     String
+  defaultStartTime         String
+  defaultEndTime           String
+  isFlexible               Boolean @default(false)
+  graceMinutes             Int     @default(10)
+  coreHoursStart           String?
+  coreHoursEnd             String?
+  overtimeThresholdMinutes Int     @default(480)
+  isActive                 Boolean @default(true)
+  company                  Company @relation(fields: [companyId], references: [id])
+  shifts                   Shift[]
+}
+
 model Shift {
   id                      String               @id @default(uuid())
   companyId               String
@@ -673,21 +697,24 @@ model Shift {
   endTime                 String
   type                    String               @default("fixed")
   allowance               Decimal              @default(0) @db.Decimal(10, 2) // Extra pay per shift
+  shiftTypeId             String?
   company                 Company              @relation(fields: [companyId], references: [id])
+  shiftType               ShiftType?           @relation(fields: [shiftTypeId], references: [id])
   shiftAssignment         ShiftAssignment[]
   shiftChangeRequests     ShiftChangeRequest[]
   requestedChangeRequests ShiftChangeRequest[] @relation("RequestedShift")
 }
 
 model ShiftAssignment {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   shiftId       String
   employeeId    String
   effectiveFrom DateTime
+  effectiveTo   DateTime?
   rosterWeek    String?
   weekDay       Int?
-  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  shift         Shift    @relation(fields: [shiftId], references: [id])
+  employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  shift         Shift     @relation(fields: [shiftId], references: [id])
 }
 
 model Subscription {

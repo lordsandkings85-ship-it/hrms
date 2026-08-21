@@ -76,13 +76,13 @@ export class CompanyScopeGuard implements CanActivate {
     });
     if (directCompany) return;
 
-    // Single raw SQL to check all 27 company-scoped tables at once
+    // Single raw SQL to check all 28 company-scoped tables at once
     const companyScopedTables = [
       'HRMaster', 'ImportMapping', 'HRForm', 'AttendancePolicy',
       'TDSSlab', 'TDSSection', 'PFConfig', 'ESICConfig', 'LWFConfig',
       'ProfessionalTaxSlab', 'KPA', 'KRA', 'KPI', 'KPIAssignment',
       'KPITarget', 'EvaluationSetup', 'Project', 'Job', 'Holiday',
-      'Shift', 'CompOffRequest', 'FlexibleHolidayRequest', 'OvertimeRequest',
+      'Shift', 'ShiftType', 'CompOffRequest', 'FlexibleHolidayRequest', 'OvertimeRequest',
       'OptionalHolidayRequest', 'LoanRequest', 'TaxDeclaration', 'LeaveCancellationRequest',
     ];
 

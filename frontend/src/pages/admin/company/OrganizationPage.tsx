@@ -60,7 +60,16 @@ const TAB_TO_SUB: Record<TabKey, string> = {
 };
 
 const deptSchema = z.object({ name: z.string().min(2, 'Name is required') });
-const branchSchema = z.object({ name: z.string().min(2, 'Name is required'), address: z.string().optional() });
+const branchSchema = z.object({
+  name: z.string().min(2, 'Name is required'),
+  code: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  country: z.string().optional(),
+  phone: z.string().optional(),
+  pincode: z.string().optional(),
+});
 const desigSchema = z.object({ title: z.string().min(2, 'Title is required'), grade: z.string().optional() });
 
 export default function OrganizationPage() {
@@ -96,7 +105,7 @@ export default function OrganizationPage() {
 
   // Forms
   const deptForm = useForm({ resolver: zodResolver(deptSchema), defaultValues: { name: '' } });
-  const branchForm = useForm({ resolver: zodResolver(branchSchema), defaultValues: { name: '', address: '' } });
+  const branchForm = useForm({ resolver: zodResolver(branchSchema), defaultValues: { name: '', code: '', address: '', city: '', state: '', country: 'India', phone: '', pincode: '' } });
   const desigForm = useForm({ resolver: zodResolver(desigSchema), defaultValues: { title: '', grade: '' } });
 
   // Queries
@@ -165,7 +174,7 @@ export default function OrganizationPage() {
   });
 
   const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
-  const [editBranchForm, setEditBranchForm] = useState({ name: '', address: '' });
+  const [editBranchForm, setEditBranchForm] = useState({ name: '', code: '', address: '', city: '', state: '', country: 'India', phone: '', pincode: '' });
 
   const updateBranchMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: { name?: string; address?: string } }) => organizationApi.updateBranch(id, data),
@@ -312,11 +321,17 @@ export default function OrganizationPage() {
 
   const branchColumns: Column<any>[] = [
     { key: 'name', header: 'Branch Name', render: (row) => <span className="font-bold text-[var(--text-primary)]">{row.name}</span> },
-    { key: 'address', header: 'Address', render: (row) => <span className="text-[var(--text-muted)] text-xs">{row.address || '—'}</span> },
+    { key: 'code', header: 'Code', render: (row) => <span className="text-xs font-mono text-indigo-500">{row.code || '—'}</span> },
+    { key: 'city', header: 'City / State', render: (row) => <span className="text-xs text-[var(--text-muted)]">{[row.city, row.state].filter(Boolean).join(', ') || '—'}</span> },
+    { key: 'phone', header: 'Phone', render: (row) => <span className="text-xs font-mono">{row.phone || '—'}</span> },
+    { key: 'employees', header: 'Employees', render: (row) => <span className="text-xs font-bold">{row._count?.employees ?? 0}</span> },
+    { key: 'isActive', header: 'Status', render: (row) => row.isActive !== false
+      ? <span className="text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full text-[10px] font-bold border border-emerald-500/20">Active</span>
+      : <span className="text-[var(--text-muted)] bg-[var(--surface-alt)] px-2 py-0.5 rounded-full text-[10px] font-bold border border-[var(--border)]">Inactive</span> },
     {
       key: 'actions', header: '', render: (row) => (
         <div className="flex gap-1.5 justify-end">
-          <button onClick={() => { setEditingBranchId(row.id); setEditBranchForm({ name: row.name, address: row.address || '' }); }} className="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-500/10"><Pencil size={14} /></button>
+          <button onClick={() => { setEditingBranchId(row.id); setEditBranchForm({ name: row.name || '', code: row.code || '', address: row.address || '', city: row.city || '', state: row.state || '', country: row.country || 'India', phone: row.phone || '', pincode: row.pincode || '' }); }} className="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-500/10"><Pencil size={14} /></button>
           <button onClick={() => { if (confirm(`Delete branch "${row.name}"?`)) deleteBranchMutation.mutate(row.id); }} className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10"><Trash2 size={14} /></button>
         </div>
       ),
@@ -598,15 +613,45 @@ export default function OrganizationPage() {
 
             {tab === 'branches' && (
               editingBranchId ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <p className="text-xs font-bold text-[var(--text-primary)]">Edit Branch</p>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-[var(--text-primary)]">Branch Name</label>
-                    <input value={editBranchForm.name} onChange={(e) => setEditBranchForm({ ...editBranchForm, name: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Name *</label>
+                      <input value={editBranchForm.name} onChange={(e) => setEditBranchForm({ ...editBranchForm, name: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Code</label>
+                      <input value={editBranchForm.code} onChange={(e) => setEditBranchForm({ ...editBranchForm, code: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. CHN-001" />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-[var(--text-primary)]">Address</label>
-                    <input value={editBranchForm.address} onChange={(e) => setEditBranchForm({ ...editBranchForm, address: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Address</label>
+                    <input value={editBranchForm.address} onChange={(e) => setEditBranchForm({ ...editBranchForm, address: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. 123 Tech Park" />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">City</label>
+                      <input value={editBranchForm.city} onChange={(e) => setEditBranchForm({ ...editBranchForm, city: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">State</label>
+                      <input value={editBranchForm.state} onChange={(e) => setEditBranchForm({ ...editBranchForm, state: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Country</label>
+                      <input value={editBranchForm.country} onChange={(e) => setEditBranchForm({ ...editBranchForm, country: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Phone</label>
+                      <input value={editBranchForm.phone} onChange={(e) => setEditBranchForm({ ...editBranchForm, phone: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Pincode</label>
+                      <input value={editBranchForm.pincode} onChange={(e) => setEditBranchForm({ ...editBranchForm, pincode: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => setEditingBranchId(null)} className="flex-1 py-2 border border-[var(--border)] rounded-xl text-sm font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)]"><X size={14} className="inline mr-1" />Cancel</button>
@@ -616,15 +661,45 @@ export default function OrganizationPage() {
                   </div>
                 </div>
               ) : (
-              <form onSubmit={branchForm.handleSubmit((d) => createBranchMutation.mutate(d))} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-[var(--text-primary)]">Branch Name</label>
-                  <input {...branchForm.register('name')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Head Office" />
-                  {branchForm.formState.errors.name && <p className="text-xs text-rose-500">{branchForm.formState.errors.name.message}</p>}
+              <form onSubmit={branchForm.handleSubmit((d) => createBranchMutation.mutate(d))} className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Name *</label>
+                    <input {...branchForm.register('name')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Head Office" />
+                    {branchForm.formState.errors.name && <p className="text-xs text-rose-500">{branchForm.formState.errors.name.message}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Code</label>
+                    <input {...branchForm.register('code')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. CHN-001" />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-[var(--text-primary)]">Address</label>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Address</label>
                   <input {...branchForm.register('address')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. 123 Tech Park" />
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">City</label>
+                    <input {...branchForm.register('city')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">State</label>
+                    <input {...branchForm.register('state')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Country</label>
+                    <input {...branchForm.register('country')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Phone</label>
+                    <input {...branchForm.register('phone')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Pincode</label>
+                    <input {...branchForm.register('pincode')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                  </div>
                 </div>
                 <button type="submit" disabled={createBranchMutation.isPending} className="w-full py-2 bg-purple-500 text-white rounded-xl text-sm font-bold hover:bg-purple-600 transition-colors flex justify-center items-center gap-2">
                   {createBranchMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Create Branch

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CompanyScopeGuard } from '../../../common/guards/company-scope.guard';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
@@ -13,8 +13,8 @@ export class ShiftsController {
   @Get() list(@CurrentUser() user: AuthUser) { return this.service.list(user.companyId); }
   @Post()
   @Permissions({ module: 'shifts', action: 'edit' })
-  create(@CurrentUser() user: AuthUser, @Body() body: { name: string; startTime: string; endTime: string; type: string }) {
-    return this.service.create(user.companyId, body.name, body.startTime, body.endTime, body.type);
+  create(@CurrentUser() user: AuthUser, @Body() body: { name: string; startTime: string; endTime: string; type: string; shiftTypeId?: string }) {
+    return this.service.create(user.companyId, body.name, body.startTime, body.endTime, body.type, body.shiftTypeId);
   }
   @Delete(':id')
   @Permissions({ module: 'shifts', action: 'edit' })

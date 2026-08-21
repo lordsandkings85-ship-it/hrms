@@ -39,7 +39,15 @@ export interface Employee {
 export interface Branch {
   id: string;
   name: string;
+  code?: string;
   address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  phone?: string;
+  pincode?: string;
+  isActive?: boolean;
+  _count?: { employees: number };
 }
 
 export interface Department {

@@ -45,13 +45,19 @@ export class CompaniesController {
 
   @Post('organization/branches')
   @Permissions({ module: 'organization', action: 'create' })
-  createBranch(@CurrentUser() user: AuthUser, @Body() body: { name: string; address?: string }) {
-    return this.companiesService.createBranch(user.companyId, body.name, body.address);
+  createBranch(@CurrentUser() user: AuthUser, @Body() body: {
+    name: string; address?: string; code?: string; city?: string;
+    state?: string; country?: string; phone?: string; pincode?: string;
+  }) {
+    return this.companiesService.createBranch(user.companyId, body);
   }
 
   @Patch('organization/branches/:id')
   @Permissions({ module: 'organization', action: 'create' })
-  updateBranch(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { name?: string; address?: string }) {
+  updateBranch(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: {
+    name?: string; address?: string; code?: string; city?: string;
+    state?: string; country?: string; phone?: string; pincode?: string; isActive?: boolean;
+  }) {
     return this.companiesService.updateBranch(id, user.companyId, body);
   }
 

@@ -453,7 +453,7 @@ export const travelApi = {
 
 export const shiftsApi = {
   list: () => api<any[]>('/shifts'),
-  create: (data: { name: string; startTime: string; endTime: string; type: string }) =>
+  create: (data: { name: string; startTime: string; endTime: string; type: string; shiftTypeId?: string }) =>
     api<any>('/shifts', { method: 'POST', body: JSON.stringify(data) }),
   assign: (data: { shiftId: string; employeeId: string; effectiveFrom: string }) =>
     api<any>('/shifts/assign', { method: 'POST', body: JSON.stringify(data) }),
@@ -468,6 +468,16 @@ export const shiftsApi = {
     api<any>(`/shifts/${id}`, { method: 'DELETE' }),
   removeAssignment: (id: string) =>
     api<any>(`/shifts/assignments/${id}`, { method: 'DELETE' }),
+};
+
+export const shiftTypesApi = {
+  list: () => api<any[]>('/shift-types'),
+  create: (data: { name: string; defaultStartTime: string; defaultEndTime: string; isFlexible?: boolean; graceMinutes?: number; coreHoursStart?: string; coreHoursEnd?: string; overtimeThresholdMinutes?: number }) =>
+    api<any>('/shift-types', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: any) =>
+    api<any>(`/shift-types/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  remove: (id: string) =>
+    api<any>(`/shift-types/${id}`, { method: 'DELETE' }),
 };
 
 export const timesheetsApi = {

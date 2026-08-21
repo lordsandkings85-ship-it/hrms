@@ -34,14 +34,24 @@ export class CompaniesService {
   }
 
   listBranches(companyId: string) {
-    return this.prisma.branch.findMany({ where: { companyId } });
+    return this.prisma.branch.findMany({
+      where: { companyId },
+      include: { _count: { select: { employees: true } } },
+      orderBy: { name: 'asc' },
+    });
   }
 
-  createBranch(companyId: string, name: string, address?: string) {
-    return this.prisma.branch.create({ data: { companyId, name, address } });
+  createBranch(companyId: string, data: {
+    name: string; address?: string; code?: string; city?: string;
+    state?: string; country?: string; phone?: string; pincode?: string; isActive?: boolean;
+  }) {
+    return this.prisma.branch.create({ data: { companyId, ...data } });
   }
 
-  async updateBranch(id: string, companyId: string, data: { name?: string; address?: string }) {
+  async updateBranch(id: string, companyId: string, data: {
+    name?: string; address?: string; code?: string; city?: string;
+    state?: string; country?: string; phone?: string; pincode?: string; isActive?: boolean;
+  }) {
     const existing = await this.prisma.branch.findFirst({ where: { id, companyId } });
     if (!existing) throw new Error('Branch not found');
     return this.prisma.branch.update({ where: { id }, data });

@@ -5,10 +5,31 @@ import { PrismaService } from '../../../prisma/prisma.service';
 export class ShiftsService {
   constructor(private prisma: PrismaService) {}
   list(companyId: string) {
-    return this.prisma.shift.findMany({ where: { companyId } });
+    return this.prisma.shift.findMany({
+      where: { companyId },
+      include: { shiftType: { select: { id: true, name: true, isFlexible: true, graceMinutes: true } } },
+    });
   }
-  create(companyId: string, name: string, startTime: string, endTime: string, type: string) {
-    return this.prisma.shift.create({ data: { companyId, name, startTime, endTime, type } });
+  async create(companyId: string, name: string, startTime: string, endTime: string, type: string, shiftTypeId?: string) {
+    let finalStart = startTime;
+    let finalEnd = endTime;
+    let finalType = type;
+
+    if (shiftTypeId) {
+      const shiftType = await this.prisma.shiftType.findFirst({ where: { id: shiftTypeId, companyId } });
+      if (!shiftType) throw new NotFoundException('Shift type not found');
+      finalStart = finalStart || shiftType.defaultStartTime;
+      finalEnd = finalEnd || shiftType.defaultEndTime;
+      finalType = shiftType.isFlexible ? 'flexible' : 'fixed';
+    }
+
+    return this.prisma.shift.create({
+      data: {
+        companyId, name, startTime: finalStart, endTime: finalEnd, type: finalType,
+        ...(shiftTypeId && { shiftTypeId }),
+      },
+      include: { shiftType: { select: { id: true, name: true, isFlexible: true, graceMinutes: true } } },
+    });
   }
   async assign(companyId: string, shiftId: string, employeeId: string, effectiveFrom: string) {
     const shift = await this.prisma.shift.findFirst({ where: { id: shiftId, companyId } });

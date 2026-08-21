@@ -39,17 +39,48 @@ export class AttendanceService {
     // Determine if late — compare to shift start time
     const shiftAssignment = await this.prisma.shiftAssignment.findFirst({
       where: { employeeId },
-      include: { shift: true },
+      include: { shift: { include: { shiftType: true } } },
       orderBy: { effectiveFrom: 'desc' },
     });
 
     let status = 'present';
     if (shiftAssignment) {
+      // Read grace period: prefer shift type > company attendance policy > default 10
+      const shiftTypeGrace = shiftAssignment.shift.shiftType?.graceMinutes;
       const [shiftHour, shiftMin] = shiftAssignment.shift.startTime.split(':').map(Number);
       const shiftStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), shiftHour, shiftMin);
-      const graceMins = 10;
-      if (today.getTime() > shiftStart.getTime() + graceMins * 60000) {
-        status = 'late';
+
+      // Check flexi-time from company attendance policy
+      const policies = await this.prisma.attendancePolicy.findMany({ where: { companyId } });
+      const policyMap = new Map(policies.map(p => [p.key, p.value]));
+      const isFlexible = shiftAssignment.shift.shiftType?.isFlexible || policyMap.get('custom.flexiTime') === 'true';
+      const graceMins = shiftTypeGrace ?? Number(policyMap.get('custom.gracePeriodMins') ?? 10);
+
+      if (isFlexible) {
+        // Flexi-time: only mark late if outside core hours window
+        const coreStart = policyMap.get('custom.coreHoursStart') || shiftAssignment.shift.shiftType?.coreHoursStart;
+        const coreEnd = policyMap.get('custom.coreHoursEnd') || shiftAssignment.shift.shiftType?.coreHoursEnd;
+        if (coreStart && coreEnd) {
+          const [csH, csM] = coreStart.split(':').map(Number);
+          const [ceH, ceM] = coreEnd.split(':').map(Number);
+          const coreStartTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), csH, csM);
+          const coreEndTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), ceH, ceM);
+          const punchTime = today.getTime();
+          // Late if arriving after core hours start + grace
+          if (punchTime > coreStartTime.getTime() + graceMins * 60000) {
+            status = 'late';
+          }
+        } else {
+          // No core hours configured — use standard shift start + grace
+          if (today.getTime() > shiftStart.getTime() + graceMins * 60000) {
+            status = 'late';
+          }
+        }
+      } else {
+        // Fixed shift: standard late check
+        if (today.getTime() > shiftStart.getTime() + graceMins * 60000) {
+          status = 'late';
+        }
       }
     }
 
@@ -87,9 +118,20 @@ export class AttendanceService {
       throw new ForbiddenException('Cannot check out for another employee');
     }
 
+    // Read OT threshold: shift type > company policy > default 480 (8 hrs)
+    const shiftAssignment = await this.prisma.shiftAssignment.findFirst({
+      where: { employeeId: log.employeeId },
+      include: { shift: { include: { shiftType: true } } },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+    const policies = await this.prisma.attendancePolicy.findMany({ where: { companyId } });
+    const policyMap = new Map(policies.map(p => [p.key, p.value]));
+    const otThreshold = shiftAssignment?.shift.shiftType?.overtimeThresholdMinutes
+      ?? Number(policyMap.get('custom.overtimeThresholdMinutes') ?? 480);
+
     const checkIn = log.checkIn ? log.checkIn.getTime() : Date.now();
     const durationMins = (Date.now() - checkIn) / 60000;
-    const overtimeMinutes = Math.max(0, Math.round(durationMins - 480)); // > 8 hrs
+    const overtimeMinutes = Math.max(0, Math.round(durationMins - otThreshold));
 
     return this.prisma.attendanceLog.update({
       where: { id: logId },
