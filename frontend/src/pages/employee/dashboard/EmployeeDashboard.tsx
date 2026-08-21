@@ -157,7 +157,7 @@ export default function EmployeeDashboard() {
                </div>
             </div>
             <div className="relative z-10 flex gap-2.5 mt-4 md:mt-0">
-               <button onClick={() => checkInMutation.mutate()} disabled={checkInMutation.isPending} className="btn-primary text-sm hover:scale-105 transition-transform duration-300">
+               <button onClick={() => checkInMutation.mutate()} disabled={checkInMutation.isPending || checkedIn} className="btn-primary text-sm hover:scale-105 transition-transform duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
                   <Fingerprint size={15} /> Check In
                </button>
                <button
@@ -168,8 +168,8 @@ export default function EmployeeDashboard() {
                          toastError('No active check-in session found to check out.');
                       }
                   }}
-                  disabled={checkOutMutation.isPending}
-                  className="btn-secondary text-sm hover:scale-105 transition-transform duration-300 border-red-200 text-red-650 hover:bg-red-50 hover:border-red-300 dark:border-red-900/30 dark:text-red-400 dark:hover:bg-red-900/20"
+                  disabled={checkOutMutation.isPending || !checkedIn}
+                  className="btn-secondary text-sm hover:scale-105 transition-transform duration-300 border-red-200 text-red-650 hover:bg-red-50 hover:border-red-300 dark:border-red-900/30 dark:text-red-400 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
                >
                   <Clock size={15} /> Check Out
                </button>

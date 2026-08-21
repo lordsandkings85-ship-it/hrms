@@ -28,9 +28,8 @@ function AdminSummary() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const { data: logs, isLoading: logsLoading } = useQuery({
-    queryKey: ['attendance-team-report'],
-    queryFn: async () => { const r = await attendanceApi.listToday(); return Array.isArray(r) ? r : []; },
-    refetchInterval: 30000,
+    queryKey: ['attendance-monthly-report', year, month],
+    queryFn: async () => { const r = await attendanceApi.listMonthly(year, month); return Array.isArray(r) ? r : []; },
   });
 
   const filtered = (logs || []).filter((log: any) => {
@@ -38,11 +37,24 @@ function AdminSummary() {
     return name.includes(searchTerm.toLowerCase());
   });
 
+  // Dedupe by employee+day so multiple punches on the same day count once.
+  // Late/half_day take priority over present for the same day.
+  const uniqueByDay = new Map<string, any>();
+  for (const log of filtered) {
+    const key = `${log.employeeId}-${new Date(log.date).toDateString()}`;
+    const existing = uniqueByDay.get(key);
+    if (!existing) uniqueByDay.set(key, log);
+    else if ((log.status === 'late' || log.status === 'half_day') && existing.status === 'present') uniqueByDay.set(key, log);
+  }
+  const uniqueLogs = Array.from(uniqueByDay.values());
+
   const summaryStats = {
-    present: filtered.filter((l: any) => l.status === 'present' || l.status === 'late').length,
-    absent: filtered.filter((l: any) => l.status === 'absent').length,
-    late: filtered.filter((l: any) => l.status === 'late').length,
-    onLeave: filtered.filter((l: any) => l.status === 'on_leave').length,
+    present: uniqueLogs.filter((l: any) => l.status === 'present').length,
+    absent: uniqueLogs.filter((l: any) => l.status === 'absent').length,
+    late: uniqueLogs.filter((l: any) => l.status === 'late').length,
+    halfDay: uniqueLogs.filter((l: any) => l.status === 'half_day').length,
+    onLeave: uniqueLogs.filter((l: any) => l.status === 'on_leave').length,
+    totalOvertimeMins: filtered.reduce((s: number, l: any) => s + (l.overtimeMinutes || 0), 0),
     total: filtered.length,
   };
 
@@ -57,6 +69,11 @@ function AdminSummary() {
           <div className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider font-mono">{log.employee?.employeeCode}</div>
         </div>
       </div>
+    )},
+    { key: 'date', header: 'Date', render: (row: any) => (
+      <span className="font-mono text-xs font-bold text-[var(--text-primary)]">
+        {row.date ? new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '--'}
+      </span>
     )},
     { key: 'checkIn', header: 'Check In', render: (row: any) => (
       <span className="font-mono text-xs text-emerald-500">
@@ -118,7 +135,7 @@ function AdminSummary() {
         <div className="flex justify-center p-12"><Spinner size="lg" /></div>
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
             <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
               <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
                 <CheckCircle size={24} />
@@ -126,15 +143,6 @@ function AdminSummary() {
               <div>
                 <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Present</p>
                 <h2 className="text-2xl font-black text-slate-900 dark:text-white">{summaryStats.present}</h2>
-              </div>
-            </div>
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center text-rose-500 shrink-0">
-                <XCircle size={24} />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Absent</p>
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white">{summaryStats.absent}</h2>
               </div>
             </div>
             <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
@@ -147,12 +155,39 @@ function AdminSummary() {
               </div>
             </div>
             <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0">
+              <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0">
                 <AlertCircle size={24} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Half Day</p>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white">{summaryStats.halfDay}</h2>
+              </div>
+            </div>
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0">
+                <CalendarIcon size={24} />
               </div>
               <div>
                 <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">On Leave</p>
                 <h2 className="text-2xl font-black text-slate-900 dark:text-white">{summaryStats.onLeave}</h2>
+              </div>
+            </div>
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center text-rose-500 shrink-0">
+                <XCircle size={24} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Absent</p>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white">{summaryStats.absent}</h2>
+              </div>
+            </div>
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center text-purple-500 shrink-0">
+                <ClockIcon size={24} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Overtime (hrs)</p>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white">{Math.round(summaryStats.totalOvertimeMins / 60 * 10) / 10}</h2>
               </div>
             </div>
           </div>

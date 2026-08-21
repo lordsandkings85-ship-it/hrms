@@ -271,6 +271,12 @@ export const attendanceApi = {
     if (date) qs.set('date', date);
     return api<any[]>(`/attendance/today?${qs.toString()}`);
   },
+  listMonthly: (year?: number, month?: number) => {
+    const qs = new URLSearchParams();
+    if (year) qs.set('year', String(year));
+    if (month) qs.set('month', String(month));
+    return api<any[]>(`/attendance/monthly?${qs.toString()}`);
+  },
   listPendingRegularizations: () =>
     api<any[]>('/attendance/regularize/pending'),
   regularize: (logId: string, data: { employeeId: string; requestedCheckIn: string; requestedCheckOut: string; reason: string }) =>

@@ -13,7 +13,7 @@ function useIsAdmin() {
   return !!user?.isSuperAdmin || !!user?.role?.isSystem || ['admin','hr','human resource','manager'].some(r => role.includes(r));
 }
 
-const STATUS_OPTIONS = ['all', 'present', 'late', 'absent', 'half_day', 'on_leave'];
+const STATUS_OPTIONS = ['all', 'present', 'late'];
 
 function fmtTime(iso?: string | null) {
   if (!iso) return '--';
@@ -37,7 +37,7 @@ function AdminDailyReport() {
   const [filterOpen, setFilterOpen] = useState(false);
 
   const { data: logs, isLoading } = useQuery({
-    queryKey: ['attendance-team-report'],
+    queryKey: ['attendance-daily-report-admin'],
     queryFn: async () => { const r = await attendanceApi.listToday(); return Array.isArray(r) ? r : []; },
     refetchInterval: 30000,
   });
@@ -144,7 +144,8 @@ function EmployeeDailyReport() {
   const setThisMonth = () => {
     const now = getServerNow();
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
-    setFrom(first.toISOString().slice(0, 10));
+    const fmtLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    setFrom(fmtLocal(first));
     setTo(getServerDate());
   };
 
@@ -152,11 +153,15 @@ function EmployeeDailyReport() {
     .filter((l: any) => statusFilter === 'all' || l.status === statusFilter)
     .map((l: any) => ({
     id: l.id,
-    date: new Date(l.date).toISOString().slice(0, 10),
+    date: new Date(l.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
     in: fmtTime(l.checkIn),
     out: fmtTime(l.checkOut),
     total: fmtDuration(l.checkIn, l.checkOut),
-    status: l.status === 'absent' ? 'Absent' : l.status === 'half_day' ? 'Half Day' : 'Present',
+    status: l.status === 'absent' ? 'Absent'
+      : l.status === 'half_day' ? 'Half Day'
+      : l.status === 'late' ? 'Late'
+      : l.status === 'on_leave' ? 'On Leave'
+      : 'Present',
     actualStatus: l.status,
   }));
 
@@ -166,7 +171,12 @@ function EmployeeDailyReport() {
     { key: 'out', header: 'Last Out', render: (row: any) => <span className="font-mono text-xs text-rose-500">{row.out}</span> },
     { key: 'total', header: 'Total Hours', render: (row: any) => <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{row.total}</span> },
     { key: 'status', header: 'Status', render: (row: any) => (
-      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${row.actualStatus === 'absent' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+        row.actualStatus === 'absent' ? 'bg-rose-500/10 text-rose-500' :
+        row.actualStatus === 'late' ? 'bg-amber-500/10 text-amber-500' :
+        row.actualStatus === 'on_leave' ? 'bg-indigo-500/10 text-indigo-500' :
+        row.actualStatus === 'half_day' ? 'bg-blue-500/10 text-blue-500' :
+        'bg-emerald-500/10 text-emerald-500'}`}>
         {row.status}
       </span>
     )},

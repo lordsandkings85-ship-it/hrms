@@ -4,7 +4,7 @@ import { BarChart2, Search, Filter, Check, X } from 'lucide-react';
 import { attendanceApi } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 
-const STATUS_OPTIONS = ['all', 'present', 'late', 'absent', 'half_day', 'on_leave'];
+const STATUS_OPTIONS = ['all', 'present', 'late'];
 
 export default function TeamDailyAttendanceReportPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -12,7 +12,7 @@ export default function TeamDailyAttendanceReportPage() {
   const [filterOpen, setFilterOpen] = useState(false);
 
   const { data: logs, isLoading } = useQuery({
-    queryKey: ['attendance-team-report'],
+    queryKey: ['attendance-team-daily'],
     queryFn: async () => {
       const res = await attendanceApi.listToday();
       return Array.isArray(res) ? res : [];
@@ -21,7 +21,7 @@ export default function TeamDailyAttendanceReportPage() {
   });
 
   const filteredLogs = (logs || []).filter((log: any) => {
-    const name = (log.employee?.firstName + ' ' + log.employee?.lastName).toLowerCase();
+    const name = ((log.employee?.firstName || '') + ' ' + (log.employee?.lastName || '')).toLowerCase();
     const matchName = name.includes(searchTerm.toLowerCase());
     const matchStatus = statusFilter === 'all' || log.status === statusFilter;
     return matchName && matchStatus;

@@ -229,6 +229,27 @@ export class AttendanceService {
     });
   }
 
+  async listForCompanyMonth(companyId: string, year?: number, month?: number) {
+    const now = new Date();
+    const y = year ?? now.getFullYear();
+    const m = month ?? now.getMonth() + 1;
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m, 1);
+
+    return this.prisma.attendanceLog.findMany({
+      where: { employee: { companyId }, date: { gte: start, lt: end } },
+      include: {
+        employee: {
+          select: {
+            firstName: true, lastName: true, employeeCode: true,
+            department: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: [{ date: 'desc' }, { checkIn: 'asc' }],
+    });
+  }
+
   async getMonthlySummary(companyId: string, employeeId: string, year: number, month: number) {
     const employee = await this.prisma.employee.findFirst({
       where: { id: employeeId, companyId },

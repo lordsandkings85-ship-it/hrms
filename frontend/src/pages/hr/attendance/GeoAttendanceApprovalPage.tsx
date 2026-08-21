@@ -21,7 +21,7 @@ export default function GeoAttendanceApprovalPage() {
   });
 
   const filteredLogs = (logs || []).filter((log: any) => {
-    const name = (log.employee?.firstName + ' ' + log.employee?.lastName).toLowerCase();
+    const name = ((log.employee?.firstName || '') + ' ' + (log.employee?.lastName || '')).toLowerCase();
     const matchName = name.includes(searchTerm.toLowerCase());
     const hasLocation = log.latitude != null;
     let matchZone = true;
@@ -173,7 +173,7 @@ export default function GeoAttendanceApprovalPage() {
              .premium-datatable tr td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
              .premium-datatable tbody tr:hover td { background: var(--surface-hover); }
           `}</style>
-          <DataTable columns={columns} data={filteredLogs} loading={isLoading} keyField="id" />
+          <DataTable columns={columns} data={filteredLogs} loading={isLoading} keyField="id" showToolbar={false} selectable={false} />
         </div>
       </div>
     </div>

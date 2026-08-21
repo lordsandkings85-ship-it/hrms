@@ -50,6 +50,20 @@ export class AttendanceController {
     return this.attendanceService.listForCompany(user.companyId, date);
   }
 
+  @Get('monthly')
+  @Permissions({ module: 'attendance', action: 'view' })
+  listMonthly(
+    @CurrentUser() user: AuthUser,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    return this.attendanceService.listForCompanyMonth(
+      user.companyId,
+      year ? Number(year) : undefined,
+      month ? Number(month) : undefined,
+    );
+  }
+
   @Get('summary/:employeeId')
   @Permissions({ module: 'attendance', action: 'view' })
   monthlySummary(

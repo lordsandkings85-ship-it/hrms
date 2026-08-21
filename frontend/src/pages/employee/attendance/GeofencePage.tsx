@@ -30,7 +30,7 @@ function AdminGeofence() {
   });
 
   const filteredLogs = (logs || []).filter((log: any) => {
-    const name = (log.employee?.firstName + ' ' + log.employee?.lastName).toLowerCase();
+    const name = ((log.employee?.firstName || '') + ' ' + (log.employee?.lastName || '')).toLowerCase();
     const matchName = name.includes(searchTerm.toLowerCase());
     let matchZone = true;
     if (zoneFilter === 'in-zone') matchZone = log.isWithinGeofence === true;
@@ -130,7 +130,7 @@ function AdminGeofence() {
             </div>
           </div>
         </div>
-        <DataTable columns={columns} data={filteredLogs} loading={isLoading} keyField="id" />
+        <DataTable columns={columns} data={filteredLogs} loading={isLoading} keyField="id" showToolbar={false} selectable={false} />
       </div>
     </div>
   );
