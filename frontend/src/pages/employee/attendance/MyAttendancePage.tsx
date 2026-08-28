@@ -9,6 +9,7 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { getServerDate, getServerYear, getServerMonth, getServerISO } from '../../../utils/serverTime';
+import { useShiftRemaining, fmtShiftHM } from '../../../hooks/useShiftRemaining';
 import { fmtDateShort } from '../../../utils/formatDate';
 
 type TabKey = 'checkin' | 'regularize';
@@ -118,6 +119,8 @@ export default function MyAttendancePage() {
     enabled: !!myEmpId,
     refetchInterval: 60_000
   });
+
+  const liveRemaining = useShiftRemaining(todayStatus) ?? todayStatus?.remainingMinutes ?? null;
 
 
 
@@ -279,17 +282,17 @@ export default function MyAttendancePage() {
                   {todayStatus.todayIsSecondSaturday && (
                     <p className="text-[11px] font-semibold text-emerald-500">Weekly Off · 2nd Saturday — working optional (earns Comp Off)</p>
                   )}
-                  {isCheckedIn && todayStatus.remainingMinutes != null && (
+                  {isCheckedIn && liveRemaining != null && (
                     <p className="text-[11px] font-semibold text-[var(--text-secondary)]">
-                      {todayStatus.remainingMinutes > 0
-                        ? `Remaining: ${Math.floor(todayStatus.remainingMinutes / 60)}h ${Math.round(todayStatus.remainingMinutes % 60)}m of ${todayStatus.requiredMinutes != null ? `${Math.floor(todayStatus.requiredMinutes / 60)}h ${Math.round(todayStatus.requiredMinutes % 60)}m` : 'shift'}`
+                      {liveRemaining > 0
+                        ? `Remaining: ${fmtShiftHM(liveRemaining)} of ${todayStatus.requiredMinutes != null ? fmtShiftHM(todayStatus.requiredMinutes) : 'shift'}`
                         : 'Shift duration complete'}
                     </p>
                   )}
                   <div className="flex flex-wrap gap-1.5">
                     {todayStatus.lateStatus === 'LATE' && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">
-                        Late by {Math.round(todayStatus.lateMinutes ?? 0)}m
+                        Late by {fmtShiftHM(todayStatus.lateMinutes ?? 0)}
                       </span>
                     )}
                     {todayStatus.attendanceStatus && (

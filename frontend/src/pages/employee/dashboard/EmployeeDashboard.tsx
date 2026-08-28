@@ -9,6 +9,7 @@ import { StatusBadge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/ToastProvider';
 import React, { useState, useEffect } from 'react';
 import { useServerTime } from '../../../hooks/useServerTime';
+import { useShiftRemaining, fmtShiftHM } from '../../../hooks/useShiftRemaining';
 import { getServerDate, getServerYear, getServerMonth } from '../../../utils/serverTime';
 import { fmtDate } from '../../../utils/formatDate';
 
@@ -142,14 +143,11 @@ export default function EmployeeDashboard() {
    const checkedIn = !!todayLog;
 
    const fmtMin = (m?: number | null) => {
-      if (m == null) return '–';
-      const h = Math.floor(m / 60);
-      const mm = Math.round(m % 60);
-      return h > 0 ? `${h}h ${mm}m` : `${mm}m`;
+      return m == null ? '–' : fmtShiftHM(m);
    };
    const worked = todayStatus?.workedMinutes ?? null;
    const required = todayStatus?.requiredMinutes ?? null;
-   const remaining = todayStatus?.remainingMinutes ?? null;
+   const liveRemaining = useShiftRemaining(todayStatus) ?? todayStatus?.remainingMinutes ?? null;
    const pct = required && worked != null ? Math.min((worked / required) * 100, 100) : 0;
 
    return (
@@ -240,15 +238,15 @@ export default function EmployeeDashboard() {
                   <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--surface-active)' }}>
                      <div
                         className="h-full rounded-full transition-all"
-                        style={{ width: `${pct}%`, background: remaining === 0 ? 'var(--success)' : 'var(--info)' }}
+                        style={{ width: `${pct}%`, background: liveRemaining === 0 ? 'var(--success)' : 'var(--info)' }}
                      />
                   </div>
                </div>
 
                <div className="flex flex-wrap gap-2">
-                  {checkedIn && remaining != null && (
+                  {checkedIn && liveRemaining != null && (
                      <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ background: 'var(--info-bg)', color: 'var(--info-text)' }}>
-                        {remaining > 0 ? `${fmtMin(remaining)} remaining` : 'Shift complete'}
+                        {liveRemaining > 0 ? `${fmtMin(liveRemaining)} remaining` : 'Shift complete'}
                      </span>
                   )}
                   {todayStatus.lateStatus === 'LATE' && (
@@ -261,7 +259,7 @@ export default function EmployeeDashboard() {
                         {String(todayStatus.attendanceStatus).replace(/_/g, ' ')}
                      </span>
                   )}
-                  {todayStatus.isWeeklyOff && todayStatus.status === 'present' && (
+                  {todayStatus.isWeeklyOff && todayStatus.compOffCredited && (
                      <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ background: 'var(--success-bg)', color: 'var(--success-text)' }}>
                         Weekly-off work credited
                      </span>

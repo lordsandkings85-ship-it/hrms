@@ -256,12 +256,17 @@ export class AttendanceService {
 
     const shiftStart = ctx?.shiftStart ?? null;
     const shiftEnd = ctx?.shiftEnd ?? null;
+    const required = ctx?.requiredMinutes ?? null;
     let remainingMinutes: number | null = null;
     if (ctx && shiftStart && shiftEnd) {
+      // Remaining is time until shift end, never exceeding the shift duration —
+      // before the shift begins it reads the full required time (not hours until 19:00).
+      const untilEnd = Math.max(0, Math.round((shiftEnd.getTime() - now.getTime()) / 60000));
+      const capped = required != null ? Math.min(untilEnd, required) : untilEnd;
       if (!log?.checkIn) {
-        remainingMinutes = Math.max(0, Math.round((shiftEnd.getTime() - now.getTime()) / 60000));
+        remainingMinutes = capped;
       } else if (!log.checkOut && now.getTime() < shiftEnd.getTime()) {
-        remainingMinutes = Math.max(0, Math.round((shiftEnd.getTime() - now.getTime()) / 60000));
+        remainingMinutes = capped;
       } else {
         remainingMinutes = 0;
       }
@@ -296,6 +301,7 @@ export class AttendanceService {
       status: log?.status ?? null,
       overtimeMinutes: log?.overtimeMinutes ?? 0,
       regularizationStatus: log?.regularizationStatus ?? null,
+      compOffCredited: Boolean(log?.compOffCredited),
     };
   }
 
@@ -522,19 +528,21 @@ async listPendingRegularizations(companyId: string) {
     if (req.type === 'full_day') {
       // Rule 2 — preserve original punches, record correction in audit trail, set final status
       const fromStatus = req.attendanceLog?.attendanceStatus ?? req.attendanceLog?.status ?? null;
-      return this.prisma.$transaction([
+      const log = req.attendanceLog;
+      const logUpdateData: any = {
+        attendanceStatus: 'FULL_DAY_PRESENT',
+        regularizationStatus: 'approved',
+        regularizationNote: req.reason,
+        correctionOf: requestId,
+      };
+      const tx: any[] = [
         this.prisma.regularizationRequest.update({
           where: { id: requestId },
           data: { status: 'approved', approverId, resolutionNote: resolutionNote ?? null },
         }),
         this.prisma.attendanceLog.update({
           where: { id: req.attendanceLogId },
-          data: {
-            attendanceStatus: 'FULL_DAY_PRESENT',
-            regularizationStatus: 'approved',
-            regularizationNote: req.reason,
-            correctionOf: requestId,
-          },
+          data: logUpdateData,
         }),
         this.prisma.attendanceAudit.create({
           data: {
@@ -546,10 +554,43 @@ async listPendingRegularizations(companyId: string) {
             toValue: 'FULL_DAY_PRESENT',
             actorId: approverId,
             actorRole: 'hr',
-            notes: `Full-day correction approved. Original punches preserved (in ${req.attendanceLog?.checkIn?.toISOString() ?? '—'}, out ${req.attendanceLog?.checkOut?.toISOString() ?? '—'}).`,
+            notes: `Full-day correction approved. Original punches preserved (in ${log?.checkIn?.toISOString() ?? '—'}, out ${log?.checkOut?.toISOString() ?? '—'}).`,
           },
         }),
-      ]);
+      ];
+
+      // Rule 3 — a corrected second-Saturday log (worked, punches incomplete) also earns the Comp Off credit
+      const creditAmount = Number((await this.getPolicyMap(companyId)).get('custom.secondSaturdayCompOffCredit') ?? 1);
+      if (log?.isWeeklyOff && !log.compOffCredited && creditAmount > 0) {
+        logUpdateData.compOffCredited = true;
+        tx.push(
+          this.prisma.compOffBalance.create({
+            data: {
+              companyId,
+              employeeId: req.employeeId,
+              attendanceLogId: req.attendanceLogId,
+              sourceType: 'SECOND_SATURDAY',
+              creditAmount,
+              consumedAmount: 0,
+              status: 'AVAILABLE',
+            },
+          }),
+          this.prisma.attendanceAudit.create({
+            data: {
+              companyId,
+              employeeId: req.employeeId,
+              attendanceLogId: req.attendanceLogId,
+              action: 'COMP_OFF_CREDIT',
+              toValue: `${creditAmount}`,
+              actorId: approverId,
+              actorRole: 'hr',
+              notes: `Second Saturday full-day correction approved — ${creditAmount} Comp Off day(s) credited`,
+            },
+          }),
+        );
+      }
+
+      return this.prisma.$transaction(tx);
     }
 
     return this.prisma.$transaction([
@@ -621,12 +662,18 @@ async listPendingRegularizations(companyId: string) {
     });
   }
 
-  async getGeofence(companyId: string) {
+async getGeofence(companyId: string) {
     const c = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: { geofenceLat: true, geofenceLng: true, geofenceRadius: true },
     });
     return c;
+  }
+
+  /** Company-level attendance policy map (literal keys) — single source of truth for rule flags. */
+  private async getPolicyMap(companyId: string) {
+    const policies = await this.prisma.attendancePolicy.findMany({ where: { companyId } });
+    return new Map(policies.map(p => [p.key, p.value]));
   }
 }
 
