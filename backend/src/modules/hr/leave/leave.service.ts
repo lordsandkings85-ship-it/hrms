@@ -472,9 +472,7 @@ async listForEmployee(employeeId: string, companyId: string) {
   }
 
 async balances(employeeId: string, year: number, companyId: string) {
-    console.error('[DBG-LB] balances args', JSON.stringify({ employeeId, companyId, year }));
     const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
-    console.error('[DBG-LB] balances employee found?', !!employee);
     if (!employee) throw new NotFoundException('Employee not found in this company');
     return this.prisma.leaveBalance.findMany({
       where: { employeeId, year },
@@ -807,9 +805,7 @@ async balances(employeeId: string, year: number, companyId: string) {
 
   /** Rule 4 — monthly balance ledger for an employee (optionally filtered by year) */
   async monthlyBalances(employeeId: string, companyId: string, year?: number) {
-    console.error('[DBG-LB] monthlyBalances args', JSON.stringify({ employeeId, companyId, year }));
     const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
-    console.error('[DBG-LB] monthlyBalances employee found?', !!employee, 'companyId==e87debe?', companyId === 'e87debef-a662-4fd7-b255-2e50c9f86d5b');
     if (!employee) throw new NotFoundException('Employee not found in this company');
     return this.prisma.leaveMonthlyBalance.findMany({
       where: { employeeId, ...(year ? { year } : {}) },
