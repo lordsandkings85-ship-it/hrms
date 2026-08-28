@@ -65,10 +65,24 @@ model AttendanceLog {
   isWithinGeofence     Boolean?
   regularizationNote   String?
   regularizationStatus String?
+  shiftId              String?
+  shiftStart           String?
+  shiftEnd             String?
+  requiredMinutes      Int?
+  workedMinutes        Int?                    @default(0)
+  lateMinutes          Int?                    @default(0)
+  lateStatus           String?                 @default("on_time")
+  attendanceStatus     String?
+  isWeeklyOff          Boolean                 @default(false)
+  compOffCredited      Boolean                 @default(false)
   employee             Employee                @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  shift                Shift?                  @relation(fields: [shiftId], references: [id])
   regularizations      RegularizationRequest[]
+  attendanceAudits     AttendanceAudit[]
+  compOffBalances      CompOffBalance[]
 
   @@index([employeeId, date])
+  @@index([shiftId])
 }
 
 model RegularizationRequest {
@@ -79,10 +93,80 @@ model RegularizationRequest {
   requestedCheckOut DateTime?
   reason            String
   status            String        @default("pending") // pending, approved, rejected
+  type              String        @default("regularization") // regularization | full_day
+  resolutionNote    String?
   approverId        String?
   createdAt         DateTime      @default(now())
   attendanceLog     AttendanceLog @relation(fields: [attendanceLogId], references: [id], onDelete: Cascade)
   employee          Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model AttendanceAudit {
+  id              String         @id @default(uuid())
+  companyId       String
+  employeeId      String
+  attendanceLogId String?
+  action          String
+  fromValue       String?
+  toValue         String?
+  actorId         String?
+  actorRole       String?
+  notes           String?
+  createdAt       DateTime       @default(now())
+  company         Company        @relation(fields: [companyId], references: [id])
+  employee        Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  attendanceLog   AttendanceLog? @relation(fields: [attendanceLogId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([employeeId, createdAt])
+}
+
+model CompOffBalance {
+  id               String         @id @default(uuid())
+  companyId        String
+  employeeId       String
+  attendanceLogId  String?
+  sourceType       String         @default("SECOND_SATURDAY")
+  creditAmount     Float          @default(1)
+  consumedAmount   Float          @default(0)
+  status           String         @default("AVAILABLE") // AVAILABLE | CONSUMED | EXPIRED | VOID
+  expiryDate       DateTime?
+  consumedOn       DateTime?
+  consumedBy       String?
+  compOffRequestId String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  company          Company        @relation(fields: [companyId], references: [id])
+  employee         Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  attendanceLog    AttendanceLog? @relation(fields: [attendanceLogId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId, status])
+  @@index([companyId, status])
+}
+
+model LeaveMonthlyBalance {
+  id             String    @id @default(uuid())
+  companyId      String
+  employeeId     String
+  leaveTypeId    String
+  year           Int
+  month          Int
+  openingBalance Float     @default(0)
+  allocated      Float     @default(0)
+  carryForward   Float     @default(0)
+  taken          Float     @default(0)
+  pending        Float     @default(0)
+  cancelled      Float     @default(0)
+  adjusted       Float     @default(0)
+  remaining      Float     @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  company        Company   @relation(fields: [companyId], references: [id])
+  employee       Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType      LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  @@unique([employeeId, leaveTypeId, year, month])
+  @@index([companyId])
 }
 
 model AuditLog {
@@ -203,6 +287,9 @@ model Company {
   hrForms                 HRForm[]
   trainingCourses         TrainingCourse[]
   courseEnrollments       CourseEnrollment[]
+  attendanceAudits        AttendanceAudit[]
+  compOffBalances         CompOffBalance[]
+  leaveMonthlyBalances    LeaveMonthlyBalance[]
 }
 
 model CourseEnrollment {
@@ -336,6 +423,9 @@ model Employee {
   kpiTargets              KPITarget[]
   evaluationSetups        EvaluationSetup[]
   evaluation360s          Evaluation360[]
+  attendanceAudits        AttendanceAudit[]
+  compOffBalances         CompOffBalance[]
+  leaveMonthlyBalances    LeaveMonthlyBalance[]
 
   @@unique([companyId, employeeCode])
   @@index([companyId, status])
@@ -528,6 +618,7 @@ model LeaveType {
   leaveBalances          LeaveBalance[]
   leaveRequest           LeaveRequest[]
   leaveTransactions      LeaveTransaction[]
+  monthlyBalances        LeaveMonthlyBalance[]
   company                Company        @relation(fields: [companyId], references: [id])
 
   @@unique([companyId, code])
@@ -703,6 +794,7 @@ model Shift {
   shiftAssignment         ShiftAssignment[]
   shiftChangeRequests     ShiftChangeRequest[]
   requestedChangeRequests ShiftChangeRequest[] @relation("RequestedShift")
+  attendanceLogs          AttendanceLog[]
 }
 
 model ShiftAssignment {
@@ -1371,6 +1463,7 @@ model LeaveTransaction {
   year           Int
   type           String
   amount         Float
+  uniqueKey      String?   @unique
   reason         String?
   approvedBy     String?
   createdAt      DateTime      @default(now())

@@ -32,6 +32,14 @@ export class EmployeeServicesController {
   listCompOffMine(@CurrentUser() user: AuthUser, @Query('employeeId') employeeId: string) {
     return this.service.listCompOffMine(user.companyId, employeeId);
   }
+  @Get('comp-off/balance')
+  @Permissions({ module: 'employee-services', action: 'view' })
+  listCompOffBalance(@CurrentUser() user: AuthUser, @Query('employeeId') employeeId?: string) {
+    if (employeeId) {
+      return this.service.compOffRemaining(user.companyId, employeeId);
+    }
+    return this.service.listCompOffBalances(user.companyId);
+  }
   @Get('comp-off')
   @Permissions({ module: 'employee-services', action: 'view' })
   listCompOff(@CurrentUser() user: AuthUser) {

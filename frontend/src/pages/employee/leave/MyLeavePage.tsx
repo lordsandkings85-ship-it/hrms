@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   CalendarDays, Calendar, FileText, CalendarPlus, CheckCircle2, Clock, XCircle, Send, Award
 } from 'lucide-react';
-import { leaveApi } from '../../../api/client';
+import { leaveApi, employeeServicesApi } from '../../../api/client';
 import { fmtDate, fmtDateFull } from '../../../utils/formatDate';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { PageHeader } from '../../../components/ui/PageHeader';
@@ -84,6 +84,16 @@ export default function MyLeavePage() {
     enabled: !!myEmpId 
   });
   const { data: holidays } = useQuery({ queryKey: ['holidays-list'], queryFn: () => leaveApi.listHolidays() });
+  const { data: monthlyCL, isLoading: isLoadingMonthlyCL } = useQuery({
+    queryKey: ['leave-monthly-mine', myEmpId],
+    queryFn: () => leaveApi.monthlyBalances(myEmpId),
+    enabled: !!myEmpId,
+  });
+  const { data: compOffBalance, isLoading: isLoadingCompOff } = useQuery({
+    queryKey: ['comp-off-balance-mine', myEmpId],
+    queryFn: () => employeeServicesApi.listCompOffBalances(myEmpId),
+    enabled: !!myEmpId,
+  });
 
   // Mutations
   const applyLeaveMutation = useMutation({
@@ -288,6 +298,67 @@ export default function MyLeavePage() {
             <h3 className="text-sm font-bold text-[var(--text-primary)] border-b border-[var(--border)] pb-3 flex items-center gap-2">
               <CalendarDays size={16} className="text-indigo-500" /> Leave Balance
             </h3>
+
+            {(monthlyCL && monthlyCL.length > 0 || compOffBalance != null) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {monthlyCL && monthlyCL.length > 0 && (
+                  <div className="p-4 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm font-bold text-[var(--text-primary)]">Monthly Casual Leave</p>
+                      <span className="text-[10px] font-bold uppercase text-[var(--text-muted)]">Ledger</span>
+                    </div>
+                    {isLoadingMonthlyCL ? (
+                      <div className="flex justify-center py-4"><Spinner /></div>
+                    ) : (
+                      <div className="space-y-2">
+                        {[...monthlyCL].reverse().slice(0, 4).map((row: any) => (
+                          <div key={`${row.leaveTypeId}-${row.year}-${row.month}`} className="flex items-center justify-between text-xs rounded-lg px-3 py-2 border border-[var(--border)] bg-[var(--surface-alt)]">
+                            <span className="font-semibold text-[var(--text-primary)]">
+                              {new Date(row.year, row.month - 1, 1).toLocaleString('en-IN', { month: 'short' })} {row.year}
+                            </span>
+                            <span className="text-[var(--text-muted)]">
+                              {row.allocated > 0 ? `+${row.allocated} credited` : 'no credit'}
+                              {row.taken > 0 ? ` · ${row.taken} taken` : ''}
+                              {row.pending > 0 ? ` · ${row.pending} pending` : ''}
+                            </span>
+                            <span className="font-mono font-bold text-indigo-400">{row.remaining} left</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {compOffBalance != null && (
+                  <div className="p-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                        <Award size={15} className="text-emerald-500" /> Comp Off Balance
+                      </p>
+                      <span className="font-mono text-2xl font-black text-emerald-400">{compOffBalance.available ?? 0}</span>
+                    </div>
+                    <p className="text-[11px] text-[var(--text-muted)]">
+                      Earned from second-Saturday / weekend work. Available to apply as a compensated day off.
+                    </p>
+                    {!isLoadingCompOff && Array.isArray(compOffBalance.credits) && compOffBalance.credits.length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        {compOffBalance.credits.slice(0, 3).map((c: any) => (
+                          <div key={c.id} className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-alt)]">
+                            <span className="text-[var(--text-secondary)]">
+                              {c.attendanceLog?.date ? fmtDate(c.attendanceLog.date) : 'Weekend work'}
+                            </span>
+                            <span className="font-mono font-bold text-emerald-400">
+                              {c.creditAmount - c.consumedAmount} day(s)
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {isLoadingBalances ? (
               <div className="flex justify-center py-6"><Spinner /></div>
             ) : !balances || balances.length === 0 ? (

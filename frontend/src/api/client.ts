@@ -266,11 +266,13 @@ export const attendanceApi = {
     if (to) qs.set('to', to);
     return api<any[]>(`/attendance/employee/${employeeId}?${qs.toString()}`);
   },
-  listToday: (date?: string) => {
+listToday: (date?: string) => {
     const qs = new URLSearchParams();
     if (date) qs.set('date', date);
     return api<any[]>(`/attendance/today?${qs.toString()}`);
   },
+  todayStatus: (employeeId: string) =>
+    api<any>(`/attendance/today/status/${employeeId}`),
   listMonthly: (year?: number, month?: number) => {
     const qs = new URLSearchParams();
     if (year) qs.set('year', String(year));
@@ -279,7 +281,7 @@ export const attendanceApi = {
   },
   listPendingRegularizations: () =>
     api<any[]>('/attendance/regularize/pending'),
-  regularize: (logId: string, data: { employeeId: string; requestedCheckIn: string; requestedCheckOut: string; reason: string }) =>
+  regularize: (logId: string, data: { employeeId: string; requestedCheckIn?: string; requestedCheckOut?: string; reason: string; type?: string }) =>
     api<any>(`/attendance/regularize/${logId}`, { method: 'POST', body: JSON.stringify(data) }),
   approveRegularization: (requestId: string) =>
     api<any>(`/attendance/regularize/${requestId}/approve`, { method: 'POST' }),
@@ -304,10 +306,22 @@ export const leaveApi = {
   approveCancellation: (id: string) => api<any>(`/leave/cancellations/${id}/approve`, { method: 'POST' }),
   rejectCancellation: (id: string) => api<any>(`/leave/cancellations/${id}/reject`, { method: 'POST' }),
   listForEmployee: (employeeId: string) => api<any[]>(`/leave/employee/${employeeId}`),
-   balances: (employeeId: string, year?: number) => {
+balances: (employeeId: string, year?: number) => {
     const qs = new URLSearchParams();
     if (year) qs.set('year', String(year));
     return api<any[]>(`/leave/balances/${employeeId}?${qs.toString()}`);
+  },
+  monthlyBalances: (employeeId: string, year?: number) => {
+    const qs = new URLSearchParams();
+    if (year) qs.set('year', String(year));
+    return api<any[]>(`/leave/monthly-balances/${employeeId}?${qs.toString()}`);
+  },
+  runMonthlyAllocation: (year: number | string, month: number | string, companyId?: string) => {
+    const qs = new URLSearchParams();
+    qs.set('year', String(year));
+    qs.set('month', String(month));
+    if (companyId) qs.set('companyId', companyId);
+    return api<any>(`/leave/monthly-allocation?${qs.toString()}`);
   },
   listHolidays: () => api<any[]>('/leave/holidays'),
   createHoliday: (data: { name: string; date: string }) =>
@@ -689,6 +703,8 @@ export const employeeServicesApi = {
   // Comp Off
   listCompOff: (employeeId: string) => api<any[]>(`/employee-services/comp-off/mine?employeeId=${employeeId}`),
   listCompOffAll: () => api<any[]>('/employee-services/comp-off'),
+  listCompOffBalances: (employeeId: string) =>
+    api<any>(`/employee-services/comp-off/balance?employeeId=${employeeId}`),
   createCompOff: (data: { employeeId: string; date: string; reason?: string }) =>
     api<any>('/employee-services/comp-off', { method: 'POST', body: JSON.stringify(data) }),
   approveCompOff: (id: string) => api<any>(`/employee-services/comp-off/${id}/approve`, { method: 'POST' }),

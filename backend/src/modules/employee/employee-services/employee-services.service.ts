@@ -24,6 +24,22 @@ export class EmployeeServicesService {
       orderBy: { createdAt: 'desc' },
     });
   }
+  /** Comp Off balance ledger — Rule 3 credit/consume ledger */
+  listCompOffBalances(companyId: string, employeeId?: string) {
+    return this.prisma.compOffBalance.findMany({
+      where: { companyId, ...(employeeId ? { employeeId } : {}) },
+      include: { attendanceLog: { select: { date: true, shiftStart: true, shiftEnd: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+  async compOffRemaining(companyId: string, employeeId: string) {
+    const rows = await this.prisma.compOffBalance.findMany({
+      where: { companyId, employeeId, status: 'AVAILABLE' },
+    });
+    const available = rows.reduce((sum, r) => sum + (r.creditAmount - r.consumedAmount), 0);
+    return { available, credits: rows };
+  }
+
   async setCompOffStatus(id: string, companyId: string, status: string, approverId: string) {
     const res = await this.prisma.compOffRequest.updateMany({
       where: { id, companyId },
@@ -32,34 +48,61 @@ export class EmployeeServicesService {
     if (!res.count) throw new NotFoundException('Comp-off request not found');
     const compOff = await this.prisma.compOffRequest.findFirst({ where: { id, companyId } });
 
-    // On approval, credit 1 day to a "Compensatory Off" leave balance
     if (compOff && status === 'approved') {
       const year = compOff.date.getFullYear();
-      let leaveType = await this.prisma.leaveType.findFirst({
-        where: { companyId, name: { contains: 'ompensatory' } },
-      });
-      if (!leaveType) {
-        leaveType = await this.prisma.leaveType.create({
-          data: { companyId, name: 'Compensatory Off', paid: true },
-        });
-      }
-      await this.prisma.leaveBalance.upsert({
+      // Rule 3 — prefer consuming an automatic Comp Off credit (e.g. second Saturday work).
+      // This avoids double-counting: the credit was already entered in the ledger at check-out.
+      const availableCredit = await this.prisma.compOffBalance.findFirst({
         where: {
-          employeeId_leaveTypeId_year: {
+          companyId,
+          employeeId: compOff.employeeId,
+          status: 'AVAILABLE',
+          consumedAmount: 0,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      if (availableCredit) {
+        const remaining = Math.max(0, availableCredit.creditAmount - availableCredit.consumedAmount - 1);
+        await this.prisma.compOffBalance.update({
+          where: { id: availableCredit.id },
+          data: {
+            consumedAmount: { increment: 1 },
+            status: remaining <= 0 ? 'CONSUMED' : 'AVAILABLE',
+            consumedOn: new Date(),
+            consumedBy: approverId,
+            compOffRequestId: id,
+          },
+        });
+      } else {
+        // Legacy fallback — no automatic credit available (e.g. manual claim for company holiday):
+        // grant a day to the "Compensatory Off" leave balance as before.
+        let leaveType = await this.prisma.leaveType.findFirst({
+          where: { companyId, name: { contains: 'ompensatory' } },
+        });
+        if (!leaveType) {
+          leaveType = await this.prisma.leaveType.create({
+            data: { companyId, name: 'Compensatory Off', paid: true },
+          });
+        }
+        await this.prisma.leaveBalance.upsert({
+          where: {
+            employeeId_leaveTypeId_year: {
+              employeeId: compOff.employeeId,
+              leaveTypeId: leaveType.id,
+              year,
+            },
+          },
+          update: { allotted: { increment: 1 } },
+          create: {
             employeeId: compOff.employeeId,
             leaveTypeId: leaveType.id,
             year,
+            allotted: 1,
+            used: 0,
           },
-        },
-        update: { allotted: { increment: 1 } },
-        create: {
-          employeeId: compOff.employeeId,
-          leaveTypeId: leaveType.id,
-          year,
-          allotted: 1,
-          used: 0,
-        },
-      });
+        });
+      }
     }
 
     return compOff;

@@ -2,7 +2,7 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { payrollApi, payrollApiExt, attendanceApiExt, leaveApi, dashboardApi, attendanceApi, announcementsApi } from '../../../api/client';
-import { Fingerprint, Calendar, Download, Shield, ArrowRight, TrendingUp, Megaphone, Bell, Clock, User, Banknote, CalendarDays, Receipt, Headphones, Target, ChevronRight, UserMinus } from 'lucide-react';
+import { Fingerprint, Calendar, Download, Shield, ArrowRight, TrendingUp, Megaphone, Bell, Clock, User, Banknote, CalendarDays, Receipt, Headphones, Target, ChevronRight, UserMinus, AlertTriangle } from 'lucide-react';
 import { Spinner } from '../../../components/ui/Spinner';
 import { generatePayslipPDF } from '../../../utils/payslipPDF';
 import { StatusBadge } from '../../../components/ui/Badge';
@@ -88,6 +88,13 @@ export default function EmployeeDashboard() {
       enabled: !!emp,
    });
 
+   const { data: todayStatus } = useQuery({
+      queryKey: ['attendance-today-status', emp?.id],
+      queryFn: () => attendanceApi.todayStatus(emp!.id),
+      enabled: !!emp,
+      refetchInterval: 60_000,
+   });
+
    const { data: announcements = [] } = useQuery({
       queryKey: ['announcements'],
       queryFn: () => announcementsApi.list(),
@@ -97,6 +104,7 @@ export default function EmployeeDashboard() {
       mutationFn: () => attendanceApi.checkIn({ employeeId: emp!.id, method: 'WEB' }),
       onSuccess: () => {
          queryClient.invalidateQueries({ queryKey: ['attendance-today', emp?.id] });
+         queryClient.invalidateQueries({ queryKey: ['attendance-today-status', emp?.id] });
          queryClient.invalidateQueries({ queryKey: ['attendance-summary-dash'] });
       },
       onError: (err: any) => toastError(err.response?.data?.message || err.message),
@@ -106,6 +114,7 @@ export default function EmployeeDashboard() {
       mutationFn: (logId: string) => attendanceApi.checkOut(logId),
       onSuccess: () => {
          queryClient.invalidateQueries({ queryKey: ['attendance-today', emp?.id] });
+         queryClient.invalidateQueries({ queryKey: ['attendance-today-status', emp?.id] });
          queryClient.invalidateQueries({ queryKey: ['attendance-summary-dash'] });
       },
       onError: (err: any) => toastError(err.response?.data?.message || err.message),
@@ -131,6 +140,17 @@ export default function EmployeeDashboard() {
    // Check if currently checked in
    const todayLog = todayLogs?.find((l: any) => !l.checkOut);
    const checkedIn = !!todayLog;
+
+   const fmtMin = (m?: number | null) => {
+      if (m == null) return '–';
+      const h = Math.floor(m / 60);
+      const mm = Math.round(m % 60);
+      return h > 0 ? `${h}h ${mm}m` : `${mm}m`;
+   };
+   const worked = todayStatus?.workedMinutes ?? null;
+   const required = todayStatus?.requiredMinutes ?? null;
+   const remaining = todayStatus?.remainingMinutes ?? null;
+   const pct = required && worked != null ? Math.min((worked / required) * 100, 100) : 0;
 
    return (
       <div className="page-container space-y-6">
@@ -176,12 +196,93 @@ export default function EmployeeDashboard() {
                <Link to="/leave" className="btn-secondary text-sm hover:scale-105 transition-transform duration-300">
                   <Calendar size={15} /> Apply Leave
                </Link>
-            </div>
+</div>
+      </div>
+
+
+      {/* -- Today's Shift & Remaining Hours -------- */}
+      <div className="section-card p-5 animate-slideUp hover:shadow-xl transition-shadow duration-300" style={{ animationDelay: '0.05s', animationFillMode: 'both' }}>
+         <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xs font-bold uppercase tracking-wider flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
+               <Clock size={16} /> Today's Shift
+            </h2>
+            {todayStatus?.todayIsSecondSaturday && (
+               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--success-bg)', color: 'var(--success-text)' }}>
+                  Weekly Off · 2nd Saturday
+               </span>
+            )}
          </div>
+         {todayStatus ? (
+            <div className="space-y-3">
+               <div className="flex items-center justify-between">
+                  <div>
+                     <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{todayStatus.shiftName ?? 'No shift assigned'}</p>
+                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                        {todayStatus.shiftStartTime && todayStatus.shiftEndTime
+                           ? `${todayStatus.shiftStartTime} – ${todayStatus.shiftEndTime}`
+                           : '—'}
+                        {todayStatus.isFlexible ? ' · Flexible' : ''}
+                     </p>
+                  </div>
+                  <div className="text-right">
+                     <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Required</p>
+                     <p className="font-mono text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{fmtMin(required)}</p>
+                  </div>
+               </div>
+
+               <div>
+                  <div className="flex justify-between text-[11px] mb-1">
+                     <span style={{ color: 'var(--text-muted)' }}>Worked</span>
+                     <span className="font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>
+                        {fmtMin(worked)}{required ? ` / ${fmtMin(required)}` : ''}
+                     </span>
+                  </div>
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--surface-active)' }}>
+                     <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${pct}%`, background: remaining === 0 ? 'var(--success)' : 'var(--info)' }}
+                     />
+                  </div>
+               </div>
+
+               <div className="flex flex-wrap gap-2">
+                  {checkedIn && remaining != null && (
+                     <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ background: 'var(--info-bg)', color: 'var(--info-text)' }}>
+                        {remaining > 0 ? `${fmtMin(remaining)} remaining` : 'Shift complete'}
+                     </span>
+                  )}
+                  {todayStatus.lateStatus === 'LATE' && (
+                     <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ background: 'var(--danger-bg)', color: 'var(--danger-text)' }}>
+                        Late by {fmtMin(todayStatus.lateMinutes ?? 0)}
+                     </span>
+                  )}
+                  {todayStatus.attendanceStatus && (
+                     <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ background: 'var(--surface-active)', color: 'var(--text-secondary)' }}>
+                        {String(todayStatus.attendanceStatus).replace(/_/g, ' ')}
+                     </span>
+                  )}
+                  {todayStatus.isWeeklyOff && todayStatus.status === 'present' && (
+                     <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ background: 'var(--success-bg)', color: 'var(--success-text)' }}>
+                        Weekly-off work credited
+                     </span>
+                  )}
+               </div>
+
+               {todayStatus.attendanceStatus === 'OFF_DAY_OR_INCOMPLETE' &&
+                  todayStatus.checkOut &&
+                  todayStatus.regularizationStatus !== 'pending' && (
+                     <Link to="/attendance" className="flex items-center gap-1 text-xs font-semibold w-fit" style={{ color: 'var(--warning-text)' }}>
+                        <AlertTriangle size={12} /> Shift marked incomplete — raise correction
+                     </Link>
+                  )}
+            </div>
+         ) : (
+            <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>No shift data for today.</p>
+         )}
+      </div>
 
 
-
-         {/* -- Main Grid -------------------------------- */}
+      {/* -- Main Grid -------------------------------- */}
          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
 
             {/* Attendance Ring */}

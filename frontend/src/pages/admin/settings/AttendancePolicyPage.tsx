@@ -14,6 +14,18 @@ const DEFAULTS = [
   { key: 'geo', name: 'Geo-fencing Required', value: 'No' },
   { key: 'overtime', name: 'Overtime Enabled', value: 'Yes' },
   { key: 'weekend', name: 'Weekend Attendance Counting', value: 'Yes' },
+  { key: 'custom.gracePeriodMins', name: 'Grace Period — Shift Start (min)', value: '10' },
+  { key: 'custom.flexiTime', name: 'Flexi-Time Allowed', value: 'false' },
+  { key: 'custom.coreHoursStart', name: 'Core Hours Start (HH:MM)', value: '' },
+  { key: 'custom.coreHoursEnd', name: 'Core Hours End (HH:MM)', value: '' },
+  { key: 'custom.overtimeThresholdMinutes', name: 'Overtime Threshold (min)', value: '480' },
+  { key: 'custom.incompleteShiftEnabled', name: 'Incomplete Shift Checking', value: 'true' },
+  { key: 'custom.incompleteShiftThresholdPct', name: 'Incomplete Shift Threshold (%)', value: '100' },
+  { key: 'custom.incompleteShiftStatus', name: 'Incomplete Shift Status', value: 'OFF_DAY_OR_INCOMPLETE' },
+  { key: 'custom.secondSaturdayOff', name: '2nd Saturday Weekly-Off', value: 'false' },
+  { key: 'custom.secondSaturdayCompOffCredit', name: '2nd Saturday Comp Off Credit (days)', value: '1' },
+  { key: 'custom.monthlyCasualLeave', name: 'Monthly Casual Leave', value: 'true' },
+  { key: 'custom.monthlyCasualLeaveAmount', name: 'Monthly Casual Leave (days/mo)', value: '1' },
 ];
 
 export default function AttendancePolicyPage() {

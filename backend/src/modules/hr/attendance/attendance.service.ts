@@ -16,6 +16,49 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 export class AttendanceService {
   constructor(private prisma: PrismaService) {}
 
+  /** Resolve the current shift assignment (respecting effectiveFrom/effectiveTo) for an employee on a given date */
+  private async resolveShiftContext(companyId: string, employeeId: string, date: Date) {
+    const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+    const assignment = await this.prisma.shiftAssignment.findFirst({
+      where: {
+        employeeId,
+        effectiveFrom: { lte: startOfDay },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: startOfDay } }],
+      },
+      include: { shift: { include: { shiftType: true } } },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+    if (!assignment) return null;
+
+    const shift = assignment.shift;
+    const shiftType = shift.shiftType ?? null;
+    const policies = await this.prisma.attendancePolicy.findMany({ where: { companyId } });
+    const policyMap = new Map(policies.map(p => [p.key, p.value]));
+    const [sh, sm] = (shift.startTime || '').split(':').map(Number);
+    const [eh, em] = (shift.endTime || '').split(':').map(Number);
+    const shiftStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), sh || 9, sm || 0);
+    const shiftEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), eh || 18, em || 0);
+    const graceMins = shiftType?.graceMinutes ?? Number(policyMap.get('custom.gracePeriodMins') ?? 10);
+    const requiredMinutes = Math.round((shiftEnd.getTime() - shiftStart.getTime()) / 60000);
+
+    return {
+      assignment,
+      shift,
+      shiftType,
+      policyMap,
+      shiftStart,
+      shiftEnd,
+      graceMins,
+      requiredMinutes,
+    };
+  }
+
+  /** Second Saturday of the month = a Saturday falling between day-of-month 8 and 14 */
+  private isSecondSaturday(date: Date): boolean {
+    return date.getDay() === 6 && date.getDate() >= 8 && date.getDate() <= 14;
+  }
+
   async checkIn(companyId: string, employeeId: string, method: string, lat?: number, lng?: number) {
     const employee = await this.prisma.employee.findUnique({
       where: { id: employeeId },
@@ -36,56 +79,55 @@ export class AttendanceService {
       isWithinGeofence = distance <= (geofenceRadius ?? 500);
     }
 
-    // Determine if late — compare to shift start time
-    const shiftAssignment = await this.prisma.shiftAssignment.findFirst({
-      where: { employeeId },
-      include: { shift: { include: { shiftType: true } } },
-      orderBy: { effectiveFrom: 'desc' },
-    });
+    // Determine if late — compare to assigned shift start time + grace
+    const ctx = await this.resolveShiftContext(companyId, employeeId, today);
 
     let status = 'present';
-    if (shiftAssignment) {
-      // Read grace period: prefer shift type > company attendance policy > default 10
-      const shiftTypeGrace = shiftAssignment.shift.shiftType?.graceMinutes;
-      const [shiftHour, shiftMin] = shiftAssignment.shift.startTime.split(':').map(Number);
-      const shiftStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), shiftHour, shiftMin);
+    let lateMinutes = 0;
+    let lateStatus: string | null = null;
+    if (ctx) {
+      const { shiftStart, graceMins, shiftType, policyMap } = ctx;
+      const isFlexible = shiftType?.isFlexible || policyMap.get('custom.flexiTime') === 'true';
+      const punchTime = today.getTime();
 
-      // Check flexi-time from company attendance policy
-      const policies = await this.prisma.attendancePolicy.findMany({ where: { companyId } });
-      const policyMap = new Map(policies.map(p => [p.key, p.value]));
-      const isFlexible = shiftAssignment.shift.shiftType?.isFlexible || policyMap.get('custom.flexiTime') === 'true';
-      const graceMins = shiftTypeGrace ?? Number(policyMap.get('custom.gracePeriodMins') ?? 10);
-
+      let lateAfter: number | null = null;
       if (isFlexible) {
         // Flexi-time: only mark late if outside core hours window
-        const coreStart = policyMap.get('custom.coreHoursStart') || shiftAssignment.shift.shiftType?.coreHoursStart;
-        const coreEnd = policyMap.get('custom.coreHoursEnd') || shiftAssignment.shift.shiftType?.coreHoursEnd;
+        const coreStart = policyMap.get('custom.coreHoursStart') || shiftType?.coreHoursStart;
+        const coreEnd = policyMap.get('custom.coreHoursEnd') || shiftType?.coreHoursEnd;
         if (coreStart && coreEnd) {
           const [csH, csM] = coreStart.split(':').map(Number);
-          const [ceH, ceM] = coreEnd.split(':').map(Number);
           const coreStartTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), csH, csM);
-          const coreEndTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), ceH, ceM);
-          const punchTime = today.getTime();
-          // Late if arriving after core hours start + grace
-          if (punchTime > coreStartTime.getTime() + graceMins * 60000) {
-            status = 'late';
-          }
+          lateAfter = coreStartTime.getTime() + graceMins * 60000;
         } else {
-          // No core hours configured — use standard shift start + grace
-          if (today.getTime() > shiftStart.getTime() + graceMins * 60000) {
-            status = 'late';
-          }
+          lateAfter = shiftStart.getTime() + graceMins * 60000;
         }
       } else {
-        // Fixed shift: standard late check
-        if (today.getTime() > shiftStart.getTime() + graceMins * 60000) {
-          status = 'late';
-        }
+        lateAfter = shiftStart.getTime() + graceMins * 60000;
+      }
+
+      if (lateAfter != null && punchTime > lateAfter) {
+        status = 'late';
+        lateStatus = 'late';
+        lateMinutes = Math.max(0, Math.round((punchTime - lateAfter) / 60000));
+      } else {
+        lateStatus = 'on_time';
+        lateMinutes = 0;
+      }
+    }
+
+    // Rule 3 — Second Saturday weekly off marking for 6-day workweek employees
+    let weeklyOff = false;
+    if (ctx) {
+      const policies = ctx.policyMap;
+      const secondSatEnabled = policies.get('custom.secondSaturdayOff') === 'true';
+      const workDays = employee.workingDaysPerWeek ?? 5;
+      if (secondSatEnabled && workDays === 6 && this.isSecondSaturday(today)) {
+        weeklyOff = true;
       }
     }
 
     // Prevent duplicate check-in: if a log already exists for today, return it
-    // (or update checkout if one already exists).
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
     const existingLog = await this.prisma.attendanceLog.findFirst({
       where: { employeeId, date: { gte: startOfDay, lt: endOfDay } },
@@ -104,6 +146,14 @@ export class AttendanceService {
         longitude: lng,
         status,
         isWithinGeofence,
+        shiftId: ctx?.shift?.id ?? null,
+        shiftStart: ctx?.shift?.startTime ?? null,
+        shiftEnd: ctx?.shift?.endTime ?? null,
+        requiredMinutes: ctx?.requiredMinutes ?? null,
+        lateMinutes,
+        lateStatus,
+        attendanceStatus: weeklyOff ? 'WEEKLY_OFF' : null,
+        isWeeklyOff: weeklyOff,
       },
     });
   }
@@ -118,25 +168,135 @@ export class AttendanceService {
       throw new ForbiddenException('Cannot check out for another employee');
     }
 
-    // Read OT threshold: shift type > company policy > default 480 (8 hrs)
-    const shiftAssignment = await this.prisma.shiftAssignment.findFirst({
-      where: { employeeId: log.employeeId },
-      include: { shift: { include: { shiftType: true } } },
-      orderBy: { effectiveFrom: 'desc' },
-    });
-    const policies = await this.prisma.attendancePolicy.findMany({ where: { companyId } });
-    const policyMap = new Map(policies.map(p => [p.key, p.value]));
-    const otThreshold = shiftAssignment?.shift.shiftType?.overtimeThresholdMinutes
+    // Read policy map + OT threshold
+    const ctx = await this.resolveShiftContext(companyId, log.employeeId, new Date());
+    const policyMap = ctx ? ctx.policyMap : new Map<string, string>();
+    const otThreshold = ctx?.shift.shiftType?.overtimeThresholdMinutes
       ?? Number(policyMap.get('custom.overtimeThresholdMinutes') ?? 480);
 
     const checkIn = log.checkIn ? log.checkIn.getTime() : Date.now();
-    const durationMins = (Date.now() - checkIn) / 60000;
+    const now = Date.now();
+    const durationMins = (now - checkIn) / 60000;
     const overtimeMinutes = Math.max(0, Math.round(durationMins - otThreshold));
+    const workedMinutes = Math.round(durationMins);
 
-    return this.prisma.attendanceLog.update({
-      where: { id: logId },
-      data: { checkOut: new Date(), overtimeMinutes },
+    // Rule 2 — compare worked duration with required shift duration (via snapshot)
+    let attendanceStatus: string | null = log.attendanceStatus ?? null;
+    const required = log.requiredMinutes;
+    const incompleteEnabled = policyMap.get('custom.incompleteShiftEnabled') !== 'false';
+    if (required && required > 0) {
+      const thresholdPct = Number(policyMap.get('custom.incompleteShiftThresholdPct') ?? 100);
+      const complete = workedMinutes * 100 >= required * thresholdPct;
+      if (complete) {
+        attendanceStatus = 'FULL_DAY_PRESENT';
+      } else if (incompleteEnabled) {
+        attendanceStatus = policyMap.get('custom.incompleteShiftStatus') ?? 'OFF_DAY_OR_INCOMPLETE';
+      }
+    }
+
+    const tx: any[] = [
+      this.prisma.attendanceLog.update({
+        where: { id: logId },
+        data: { checkOut: new Date(), overtimeMinutes, workedMinutes, attendanceStatus },
+      }),
+    ];
+
+    // Rule 3 — valid (completed) second-Saturday work earns a Comp Off credit
+    const creditAmount = Number(policyMap.get('custom.secondSaturdayCompOffCredit') ?? 1);
+    if (log.isWeeklyOff && attendanceStatus === 'FULL_DAY_PRESENT' && !log.compOffCredited && creditAmount > 0) {
+      tx.push(
+        this.prisma.compOffBalance.create({
+          data: {
+            companyId,
+            employeeId: log.employeeId,
+            attendanceLogId: logId,
+            sourceType: 'SECOND_SATURDAY',
+            creditAmount,
+            consumedAmount: 0,
+            status: 'AVAILABLE',
+          },
+        }),
+        this.prisma.attendanceAudit.create({
+          data: {
+            companyId,
+            employeeId: log.employeeId,
+            attendanceLogId: logId,
+            action: 'COMP_OFF_CREDIT',
+            toValue: `${creditAmount}`,
+            notes: `Second Saturday work — ${creditAmount} Comp Off day(s) credited`,
+          },
+        }),
+      );
+      tx.push(
+        this.prisma.attendanceLog.update({
+          where: { id: logId },
+          data: { compOffCredited: true },
+        }),
+      );
+    }
+
+    return this.prisma.$transaction(tx);
+  }
+
+  /** Rule 1 — live shift status + remaining hours computed from authoritative server time */
+  async getTodayStatus(companyId: string, employeeId: string) {
+    const employee = await this.prisma.employee.findFirst({
+      where: { id: employeeId, companyId },
+      select: { id: true, workingDaysPerWeek: true },
     });
+    if (!employee) throw new NotFoundException('Employee not found');
+
+    const now = new Date();
+    const ctx = await this.resolveShiftContext(companyId, employeeId, now);
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+    const log = await this.prisma.attendanceLog.findFirst({
+      where: { employeeId, date: { gte: startOfDay, lt: endOfDay } },
+    });
+
+    const shiftStart = ctx?.shiftStart ?? null;
+    const shiftEnd = ctx?.shiftEnd ?? null;
+    let remainingMinutes: number | null = null;
+    if (ctx && shiftStart && shiftEnd) {
+      if (!log?.checkIn) {
+        remainingMinutes = Math.max(0, Math.round((shiftEnd.getTime() - now.getTime()) / 60000));
+      } else if (!log.checkOut && now.getTime() < shiftEnd.getTime()) {
+        remainingMinutes = Math.max(0, Math.round((shiftEnd.getTime() - now.getTime()) / 60000));
+      } else {
+        remainingMinutes = 0;
+      }
+    }
+
+    const workedMinutes = log?.checkIn
+      ? Math.round(((log.checkOut?.getTime() ?? now.getTime()) - log.checkIn.getTime()) / 60000)
+      : null;
+
+    return {
+      date: startOfDay,
+      serverNow: now,
+      log,
+      shiftId: ctx?.shift?.id ?? null,
+      shiftName: ctx?.shift?.name ?? null,
+      shiftStartTime: ctx?.shift?.startTime ?? null,
+      shiftEndTime: ctx?.shift?.endTime ?? null,
+      shiftStart: shiftStart ?? null,
+      shiftEnd: shiftEnd ?? null,
+      requiredMinutes: ctx?.requiredMinutes ?? null,
+      graceMinutes: ctx?.graceMins ?? null,
+      isFlexible: ctx ? (ctx.shiftType?.isFlexible || ctx.policyMap.get('custom.flexiTime') === 'true') : false,
+      isWeeklyOff: Boolean(log?.isWeeklyOff),
+      todayIsSecondSaturday: ctx ? this.isSecondSaturday(now) : false,
+      workedMinutes,
+      remainingMinutes,
+      lateStatus: log?.lateStatus ?? null,
+      lateMinutes: log?.lateMinutes ?? null,
+      attendanceStatus: log?.attendanceStatus ?? null,
+      checkIn: log?.checkIn ?? null,
+      checkOut: log?.checkOut ?? null,
+      status: log?.status ?? null,
+      overtimeMinutes: log?.overtimeMinutes ?? 0,
+      regularizationStatus: log?.regularizationStatus ?? null,
+    };
   }
 
   /** Manual punch (HR or self-service) — creates/updates a log for a specific date */
@@ -297,7 +457,7 @@ export class AttendanceService {
     return { present, late, halfDay, onLeave, absent, totalOvertimeMins, totalDays: workingDaysInMonth, logs };
   }
 
-  async listPendingRegularizations(companyId: string) {
+async listPendingRegularizations(companyId: string) {
     return this.prisma.regularizationRequest.findMany({
       where: { status: 'pending', employee: { companyId } },
       include: {
@@ -306,19 +466,24 @@ export class AttendanceService {
             department: { select: { name: true } } }
         },
         attendanceLog: {
-          select: { id: true, date: true, checkIn: true, checkOut: true, status: true, isWithinGeofence: true }
+          select: { id: true, date: true, checkIn: true, checkOut: true, status: true, attendanceStatus: true, isWithinGeofence: true }
         }
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async requestRegularization(companyId: string, logId: string, employeeId: string, requestedCheckIn?: Date, requestedCheckOut?: Date, reason: string = '') {
+  async requestRegularization(companyId: string, logId: string, employeeId: string, requestedCheckIn?: Date, requestedCheckOut?: Date, reason: string = '', type: string = 'regularization') {
     const log = await this.prisma.attendanceLog.findUnique({ where: { id: logId } });
     if (!log) throw new NotFoundException('Attendance log not found');
     if (log.employeeId !== employeeId) throw new ForbiddenException('Attendance log does not belong to this employee');
     const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
     if (!employee) throw new ForbiddenException('Employee does not belong to this company');
+
+    // Rule 2 — full-day corrections are only allowed when the day was marked incomplete
+    if (type === 'full_day' && log.attendanceStatus === 'FULL_DAY_PRESENT') {
+      throw new BadRequestException('This day is already a full-day presence — no correction needed');
+    }
 
     // Note-only corrections (no explicit times) keep the log's original times
     const inTime = requestedCheckIn || log.checkIn;
@@ -333,6 +498,7 @@ export class AttendanceService {
         requestedCheckOut: outTime,
         reason,
         status: 'pending',
+        type,
       },
     });
 
@@ -345,18 +511,51 @@ export class AttendanceService {
     return req;
   }
 
-  async approveRegularization(requestId: string, companyId: string, approverId: string) {
+  async approveRegularization(requestId: string, companyId: string, approverId: string, resolutionNote?: string) {
     const req = await this.prisma.regularizationRequest.findUnique({
       where: { id: requestId },
-      include: { employee: true },
+      include: { employee: true, attendanceLog: true },
     });
     if (!req) throw new NotFoundException('Regularization request not found');
     if (req.employee.companyId !== companyId) throw new ForbiddenException('Request does not belong to this company');
 
+    if (req.type === 'full_day') {
+      // Rule 2 — preserve original punches, record correction in audit trail, set final status
+      const fromStatus = req.attendanceLog?.attendanceStatus ?? req.attendanceLog?.status ?? null;
+      return this.prisma.$transaction([
+        this.prisma.regularizationRequest.update({
+          where: { id: requestId },
+          data: { status: 'approved', approverId, resolutionNote: resolutionNote ?? null },
+        }),
+        this.prisma.attendanceLog.update({
+          where: { id: req.attendanceLogId },
+          data: {
+            attendanceStatus: 'FULL_DAY_PRESENT',
+            regularizationStatus: 'approved',
+            regularizationNote: req.reason,
+            correctionOf: requestId,
+          },
+        }),
+        this.prisma.attendanceAudit.create({
+          data: {
+            companyId,
+            employeeId: req.employeeId,
+            attendanceLogId: req.attendanceLogId,
+            action: 'REGULARIZATION_APPROVED',
+            fromValue: fromStatus ?? null,
+            toValue: 'FULL_DAY_PRESENT',
+            actorId: approverId,
+            actorRole: 'hr',
+            notes: `Full-day correction approved. Original punches preserved (in ${req.attendanceLog?.checkIn?.toISOString() ?? '—'}, out ${req.attendanceLog?.checkOut?.toISOString() ?? '—'}).`,
+          },
+        }),
+      ]);
+    }
+
     return this.prisma.$transaction([
       this.prisma.regularizationRequest.update({
         where: { id: requestId },
-        data: { status: 'approved', approverId },
+        data: { status: 'approved', approverId, resolutionNote: resolutionNote ?? null },
       }),
       this.prisma.attendanceLog.update({
         where: { id: req.attendanceLogId },
@@ -365,6 +564,19 @@ export class AttendanceService {
           checkOut: req.requestedCheckOut ?? undefined,
           regularizationStatus: 'approved',
           status: 'present',
+        },
+      }),
+      this.prisma.attendanceAudit.create({
+        data: {
+          companyId,
+          employeeId: req.employeeId,
+          attendanceLogId: req.attendanceLogId,
+          action: 'REGULARIZATION_APPROVED',
+          fromValue: req.requestedCheckIn ? undefined : null,
+          toValue: req.requestedCheckOut ? undefined : null,
+          actorId: approverId,
+          actorRole: 'hr',
+          notes: `Time regularization approved (in ${req.requestedCheckIn?.toISOString() ?? '—'}, out ${req.requestedCheckOut?.toISOString() ?? '—'}).`,
         },
       }),
     ]);
@@ -386,6 +598,17 @@ export class AttendanceService {
       this.prisma.attendanceLog.update({
         where: { id: req.attendanceLogId },
         data: { regularizationStatus: 'rejected' },
+      }),
+      this.prisma.attendanceAudit.create({
+        data: {
+          companyId,
+          employeeId: req.employeeId,
+          attendanceLogId: req.attendanceLogId,
+          action: 'REGULARIZATION_REJECTED',
+          actorId: approverId,
+          actorRole: 'hr',
+          notes: `Correction request rejected (${req.type}).`,
+        },
       }),
     ]);
   }

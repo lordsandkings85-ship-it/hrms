@@ -4,7 +4,7 @@ import { ShieldAlert, Search, Filter, Check, X, Clock, MapPin, RefreshCw } from 
 import { attendanceApi } from '../../../api/client';
 import { useToast } from '../../../components/ui/ToastProvider';
 
-const LOG_STATUS_OPTIONS = ['all', 'present', 'late', 'absent', 'half_day', 'on_leave'];
+const LOG_STATUS_OPTIONS = ['all', 'full_day', 'regularization'];
 
 export default function RegularizationApprovalPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,7 +48,7 @@ export default function RegularizationApprovalPage() {
   const filtered = (requests || []).filter((r: any) => {
     const name = `${r.employee?.firstName || ''} ${r.employee?.lastName || ''}`.toLowerCase();
     const matchName = name.includes(searchTerm.toLowerCase());
-    const matchStatus = statusFilter === 'all' || r.attendanceLog?.status === statusFilter;
+    const matchStatus = statusFilter === 'all' || (r.type || 'regularization') === statusFilter;
     return matchName && matchStatus;
   });
 
@@ -59,9 +59,17 @@ export default function RegularizationApprovalPage() {
       absent: 'bg-red-500/10 text-red-500 border-red-500/20',
       half_day: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
       on_leave: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20',
+      OFF_DAY_OR_INCOMPLETE: 'bg-red-500/10 text-red-500 border-red-500/20',
+      FULL_DAY_PRESENT: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+      WEEKLY_OFF: 'bg-violet-500/10 text-violet-500 border-violet-500/20',
     };
     return map[status] || 'bg-[var(--surface-alt)] text-[var(--text-muted)] border-[var(--border)]';
   };
+
+  const typeBadge = (type: string) =>
+    type === 'full_day'
+      ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30'
+      : 'bg-[var(--surface-alt)] text-[var(--text-muted)] border-[var(--border)]';
 
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -150,6 +158,7 @@ export default function RegularizationApprovalPage() {
                   <tr>
                     <th>Employee</th>
                     <th>Date</th>
+                    <th>Type</th>
                     <th>Current Log</th>
                     <th>Requested Times</th>
                     <th>Reason</th>
@@ -182,8 +191,15 @@ export default function RegularizationApprovalPage() {
                         <div className="text-sm font-semibold text-[var(--text-primary)]">
                           {req.attendanceLog?.date ? new Date(req.attendanceLog.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
                         </div>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold uppercase tracking-wider ${statusBadge(req.attendanceLog?.status)}`}>
-                          {req.attendanceLog?.status?.replace('_', ' ') || '—'}
+                        <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold uppercase tracking-wider ${statusBadge(req.attendanceLog?.attendanceStatus || req.attendanceLog?.status)}`}>
+                          {(req.attendanceLog?.attendanceStatus || req.attendanceLog?.status || '—').replace('_', ' ')}
+                        </span>
+                      </td>
+
+                      {/* Type */}
+                      <td>
+                        <span className={`text-[10px] px-2.5 py-1 rounded-lg border font-bold uppercase tracking-wider ${typeBadge(req.type)}`}>
+                          {req.type === 'full_day' ? 'Full-Day' : 'Time Change'}
                         </span>
                       </td>
 
@@ -205,10 +221,16 @@ export default function RegularizationApprovalPage() {
 
                       {/* Requested Times */}
                       <td>
-                        <div className="text-[11px] font-medium text-amber-500 space-y-0.5">
-                          <div>In: {req.requestedCheckIn ? new Date(req.requestedCheckIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</div>
-                          <div>Out: {req.requestedCheckOut ? new Date(req.requestedCheckOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</div>
-                        </div>
+                        {req.type === 'full_day' ? (
+                          <div className="text-[11px] font-semibold text-indigo-400 flex items-center gap-1.5">
+                            <Check size={11} /> Preserve original punches
+                          </div>
+                        ) : (
+                          <div className="text-[11px] font-medium text-amber-500 space-y-0.5">
+                            <div>In: {req.requestedCheckIn ? new Date(req.requestedCheckIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</div>
+                            <div>Out: {req.requestedCheckOut ? new Date(req.requestedCheckOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</div>
+                          </div>
+                        )}
                       </td>
 
                       {/* Reason */}

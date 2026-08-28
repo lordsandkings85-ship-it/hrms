@@ -35,7 +35,7 @@ export class LeaveService {
     ]);
   }
 
-  async apply(
+async apply(
     companyId: string,
     employeeId: string,
     leaveTypeId: string,
@@ -49,6 +49,38 @@ export class LeaveService {
     if (!leaveTypeId || !startDate || !endDate) throw new BadRequestException('leaveTypeId, startDate and endDate are required');
     const type = await this.prisma.leaveType.findFirst({ where: { id: leaveTypeId, companyId } });
     if (!type) throw new NotFoundException('Leave type not found');
+
+    const start = new Date(startDate);
+    const year = start.getFullYear();
+    const month = start.getMonth() + 1;
+
+    // Rule 4 — monthly Casual Leave accounting: reserve pending days and check balance
+    if (await this.hasMonthlyBalance(employeeId, leaveTypeId, year)) {
+      const days = isHalfDayCount(start, new Date(endDate), isHalfDay);
+      if (type.negativeBalanceAllowed !== true) {
+        const row = await this.prisma.leaveMonthlyBalance.findUnique({
+          where: { employeeId_leaveTypeId_year_month: { employeeId, leaveTypeId, year, month } },
+        });
+        if (row && row.remaining < days) {
+          throw new BadRequestException(`Insufficient ${type.name} balance for the selected dates`);
+        }
+      }
+      const request = await this.prisma.leaveRequest.create({
+        data: {
+          employeeId,
+          leaveTypeId,
+          startDate: start,
+          endDate: new Date(endDate),
+          isHalfDay,
+          reason,
+        },
+      });
+      await this.prisma.$transaction((tx) =>
+        this.updateMonthlyBalanceTx(tx, companyId, employeeId, leaveTypeId, year, month, { pending: days }),
+      );
+      return request;
+    }
+
     return this.prisma.leaveRequest.create({
       data: {
         employeeId,
@@ -61,7 +93,7 @@ export class LeaveService {
     });
   }
 
-  async approve(id: string, companyId: string, approverId: string) {
+async approve(id: string, companyId: string, approverId: string) {
     const req = await this.prisma.leaveRequest.findUnique({
       where: { id },
       include: { employee: true }
@@ -145,8 +177,14 @@ export class LeaveService {
       }
     }
 
-    return this.prisma.$transaction([
-      this.prisma.leaveBalance.upsert({
+    // Rule 4 — monthly ledger sync for monthly-allocated leave types
+    const year = req.startDate.getFullYear();
+    const month = req.startDate.getMonth() + 1;
+    const monthlyActive = await this.hasMonthlyBalance(req.employeeId, req.leaveTypeId, year);
+    const reservedDays = isHalfDayCount(req.startDate, req.endDate, req.isHalfDay);
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.leaveBalance.upsert({
         where: {
           employeeId_leaveTypeId_year: {
             employeeId: req.employeeId,
@@ -162,12 +200,12 @@ export class LeaveService {
           allotted: 0,
           used: days,
         },
-      }),
-      this.prisma.leaveRequest.update({
+      });
+      await tx.leaveRequest.update({
         where: { id },
         data: { status: 'approved', approverId },
-      }),
-      this.prisma.leaveTransaction.create({
+      });
+      await tx.leaveTransaction.create({
         data: {
           companyId,
           employeeId: req.employeeId,
@@ -179,11 +217,14 @@ export class LeaveService {
           approvedBy: approverId,
           leaveRequestId: id,
         },
-      }),
-      ...(onLeaveLogs.length > 0
-        ? [this.prisma.attendanceLog.createMany({ data: onLeaveLogs })]
-        : []),
-    ]);
+      });
+      if (onLeaveLogs.length > 0) {
+        await tx.attendanceLog.createMany({ data: onLeaveLogs });
+      }
+      if (monthlyActive) {
+        await this.updateMonthlyBalanceTx(tx, companyId, req.employeeId, req.leaveTypeId, year, month, { pending: -reservedDays, taken: days });
+      }
+    });
   }
 
   async reject(id: string, companyId: string, approverId: string) {
@@ -195,9 +236,20 @@ export class LeaveService {
     if (req.employee.companyId !== companyId) throw new ForbiddenException('Leave request does not belong to this company');
     if (req.status !== 'pending') throw new Error('Leave request is already processed');
 
-    return this.prisma.leaveRequest.update({
-      where: { id },
-      data: { status: 'rejected', approverId },
+    const year = req.startDate.getFullYear();
+    const month = req.startDate.getMonth() + 1;
+    const monthlyActive = await this.hasMonthlyBalance(req.employeeId, req.leaveTypeId, year);
+    const reservedDays = isHalfDayCount(req.startDate, req.endDate, req.isHalfDay);
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.leaveRequest.update({
+        where: { id },
+        data: { status: 'rejected', approverId },
+      });
+      if (monthlyActive) {
+        // Release the pending reservation (do not count rejected leave)
+        await this.updateMonthlyBalanceTx(tx, companyId, req.employeeId, req.leaveTypeId, year, month, { pending: -reservedDays });
+      }
     });
   }
 
@@ -219,9 +271,19 @@ export class LeaveService {
       throw new ForbiddenException('Cannot cancel another employee\'s leave request');
     }
     if (req.status === 'pending') {
-      return this.prisma.leaveRequest.update({
-        where: { id },
-        data: { status: 'cancelled', approverId: userId },
+      const year = req.startDate.getFullYear();
+      const month = req.startDate.getMonth() + 1;
+      const monthlyActive = await this.hasMonthlyBalance(req.employeeId, req.leaveTypeId, year);
+      const reservedDays = isHalfDayCount(req.startDate, req.endDate, req.isHalfDay);
+      return this.prisma.$transaction(async (tx) => {
+        await tx.leaveRequest.update({
+          where: { id },
+          data: { status: 'cancelled', approverId: userId },
+        });
+        if (monthlyActive) {
+          // Release the reservation and record the cancellation in the monthly ledger
+          await this.updateMonthlyBalanceTx(tx, req.employee.companyId, req.employeeId, req.leaveTypeId, year, month, { pending: -reservedDays, cancelled: reservedDays });
+        }
       });
     }
     if (req.status !== 'approved') {
@@ -289,26 +351,9 @@ export class LeaveService {
       }
     }
 
-    const restoreBalance =
-      leave.status === 'approved' && restoreDays > 0
-        ? this.prisma.leaveBalance.upsert({
-            where: {
-              employeeId_leaveTypeId_year: {
-                employeeId: leave.employeeId,
-                leaveTypeId: leave.leaveTypeId,
-                year: leave.startDate.getFullYear(),
-              },
-            },
-            update: { used: { decrement: restoreDays } },
-            create: {
-              employeeId: leave.employeeId,
-              leaveTypeId: leave.leaveTypeId,
-              year: leave.startDate.getFullYear(),
-              allotted: 0,
-              used: 0,
-            },
-          })
-        : undefined;
+    const year = leave.startDate.getFullYear();
+    const month = leave.startDate.getMonth() + 1;
+    const monthlyActive = await this.hasMonthlyBalance(leave.employeeId, leave.leaveTypeId, year);
 
     // Delete on_leave AttendanceLog records for the leave dates.
     // Expand range to full UTC days to handle timezone differences
@@ -319,40 +364,63 @@ export class LeaveService {
     const deleteEnd = new Date(leave.endDate);
     deleteEnd.setUTCHours(23, 59, 59, 999);
     deleteEnd.setDate(deleteEnd.getDate() + 1);
-    const deleteAttendance = this.prisma.attendanceLog.deleteMany({
-      where: {
-        employeeId: leave.employeeId,
-        status: 'on_leave',
-        date: { gte: deleteStart, lte: deleteEnd },
-      },
-    });
 
-    const [updatedCancel] = await this.prisma.$transaction([
-      this.prisma.leaveCancellationRequest.update({
+    return this.prisma.$transaction(async (tx) => {
+      await tx.leaveCancellationRequest.update({
         where: { id },
         data: { status: 'approved', approvedBy: approverId },
-      }),
-      this.prisma.leaveRequest.update({
+      });
+      await tx.leaveRequest.update({
         where: { id: cancel.leaveRequestId },
         data: { status: 'cancelled', approverId },
-      }),
-      ...(restoreBalance ? [restoreBalance] : []),
-      deleteAttendance,
-      ...(restoreDays > 0 ? [this.prisma.leaveTransaction.create({
-        data: {
-          companyId,
+      });
+
+      if (leave.status === 'approved' && restoreDays > 0) {
+        await tx.leaveBalance.upsert({
+          where: {
+            employeeId_leaveTypeId_year: {
+              employeeId: leave.employeeId,
+              leaveTypeId: leave.leaveTypeId,
+              year: leave.startDate.getFullYear(),
+            },
+          },
+          update: { used: { decrement: restoreDays } },
+          create: {
+            employeeId: leave.employeeId,
+            leaveTypeId: leave.leaveTypeId,
+            year: leave.startDate.getFullYear(),
+            allotted: 0,
+            used: 0,
+          },
+        });
+        await tx.leaveTransaction.create({
+          data: {
+            companyId,
+            employeeId: leave.employeeId,
+            leaveTypeId: leave.leaveTypeId,
+            year: leave.startDate.getFullYear(),
+            type: 'CANCELLATION_CREDIT',
+            amount: restoreDays,
+            reason: `Cancellation approved — ${restoreDays} day(s) restored`,
+            approvedBy: approverId,
+            leaveRequestId: cancel.leaveRequestId,
+          },
+        });
+      }
+
+      await tx.attendanceLog.deleteMany({
+        where: {
           employeeId: leave.employeeId,
-          leaveTypeId: leave.leaveTypeId,
-          year: leave.startDate.getFullYear(),
-          type: 'CANCELLATION_CREDIT',
-          amount: restoreDays,
-          reason: `Cancellation approved — ${restoreDays} day(s) restored`,
-          approvedBy: approverId,
-          leaveRequestId: cancel.leaveRequestId,
+          status: 'on_leave',
+          date: { gte: deleteStart, lte: deleteEnd },
         },
-      })] : []),
-    ]);
-    return updatedCancel;
+      });
+
+      if (monthlyActive && restoreDays > 0) {
+        // Restore availability in the monthly ledger and keep an audit trail
+        await this.updateMonthlyBalanceTx(tx, companyId, leave.employeeId, leave.leaveTypeId, year, month, { taken: -restoreDays, cancelled: restoreDays });
+      }
+    });
   }
 
   async rejectCancellation(id: string, companyId: string, approverId: string) {
@@ -599,6 +667,51 @@ async balances(employeeId: string, year: number, companyId: string) {
       },
       include: { leaveType: { select: { name: true } } },
       orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // --- Monthly Casual Leave Ledger (Rule 4) ---
+
+  /** True when the monthly ledger is active for this employee + leave type + year */
+  private async hasMonthlyBalance(employeeId: string, leaveTypeId: string, year: number) {
+    return (await this.prisma.leaveMonthlyBalance.count({
+      where: { employeeId, leaveTypeId, year },
+    })) > 0;
+  }
+
+  /**
+   * Adjust a monthly balance row inside a transaction and recompute its remaining.
+   * `cancelled` is kept as an audit trail; it does not reduce availability
+   * (cancellation restores the days), while `taken` and `pending` do.
+   */
+  private async updateMonthlyBalanceTx(
+    tx: any,
+    companyId: string,
+    employeeId: string,
+    leaveTypeId: string,
+    year: number,
+    month: number,
+    changes: { taken?: number; pending?: number; cancelled?: number; adjusted?: number },
+  ) {
+    const where = { employeeId_leaveTypeId_year_month: { employeeId, leaveTypeId, year, month } };
+    const row = await tx.leaveMonthlyBalance.findUnique({ where });
+    if (!row) return;
+    const taken = Math.max(0, row.taken + (changes.taken ?? 0));
+    const pending = Math.max(0, row.pending + (changes.pending ?? 0));
+    const cancelled = Math.max(0, row.cancelled + (changes.cancelled ?? 0));
+    const adjusted = row.adjusted + (changes.adjusted ?? 0);
+    const remaining = Math.max(0, row.openingBalance + row.allocated + adjusted - taken - pending);
+    await tx.leaveMonthlyBalance.update({ where, data: { taken, pending, cancelled, adjusted, remaining } });
+  }
+
+  /** Rule 4 — monthly balance ledger for an employee (optionally filtered by year) */
+  async monthlyBalances(employeeId: string, companyId: string, year?: number) {
+    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+    if (!employee) throw new NotFoundException('Employee not found in this company');
+    return this.prisma.leaveMonthlyBalance.findMany({
+      where: { employeeId, ...(year ? { year } : {}) },
+      include: { leaveType: { select: { id: true, name: true, code: true } } },
+      orderBy: [{ year: 'asc' }, { month: 'asc' }],
     });
   }
 

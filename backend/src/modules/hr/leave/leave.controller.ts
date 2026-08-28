@@ -4,11 +4,15 @@ import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { Permissions } from '../../../common/decorators/permissions.decorator';
 import { CurrentUser, AuthUser } from '../../../common/decorators/current-user.decorator';
 import { LeaveService } from './leave.service';
+import { MonthlyLeaveAllocationService } from './monthly-leave-allocation.service';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('leave')
 export class LeaveController {
-  constructor(private leaveService: LeaveService) {}
+  constructor(
+    private leaveService: LeaveService,
+    private monthlyAllocationService: MonthlyLeaveAllocationService,
+  ) {}
 
   @Get('analytics')
   @Permissions({ module: 'leave', action: 'view' })
@@ -212,6 +216,31 @@ export class LeaveController {
   @Permissions({ module: 'leave', action: 'view' })
   transactions(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string, @Query('year') year?: string) {
     return this.leaveService.transactions(user.companyId, employeeId, year ? Number(year) : undefined);
+  }
+
+  // --- Monthly Casual Leave Ledger (Rule 4) ---
+
+  @Get('monthly-balances/:employeeId')
+  @Permissions({ module: 'leave', action: 'view' })
+  monthlyBalances(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string, @Query('year') year?: string) {
+    return this.leaveService.monthlyBalances(employeeId, user.companyId, year ? Number(year) : undefined);
+  }
+
+  // Idempotent manual trigger of the monthly Casual Leave allocation (also used for backfill/testing)
+  @Post('monthly-allocation')
+  @Permissions({ module: 'leave', action: 'edit' })
+  runMonthlyAllocation(
+    @CurrentUser() user: AuthUser,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    const now = new Date();
+    return this.monthlyAllocationService.runAllocation(
+      year ? Number(year) : now.getFullYear(),
+      month ? Number(month) : now.getMonth() + 1,
+      companyId || user.companyId,
+    );
   }
 
   // --- Leave Year ---

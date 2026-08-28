@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
-  Fingerprint, Play, Square, RefreshCw, Send, MapPin, Navigation
+  Fingerprint, Play, Square, RefreshCw, Send, MapPin, Navigation, AlertTriangle
 } from 'lucide-react';
 import { attendanceApi, attendanceApiExt } from '../../../api/client';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -40,6 +40,7 @@ export default function MyAttendancePage() {
   // Regularization state
   const [selectedLogId, setSelectedLogId] = useState('');
   const [regularizeReason, setRegularizeReason] = useState('');
+  const [regularizeType, setRegularizeType] = useState<'full_day' | 'regularization'>('full_day');
   const [checkInTime, setCheckInTime] = useState('09:00');
   const [checkOutTime, setCheckOutTime] = useState('18:00');
 
@@ -111,6 +112,13 @@ export default function MyAttendancePage() {
     refetchInterval: 30_000
   });
 
+  const { data: todayStatus } = useQuery({
+    queryKey: ['attendance-today-status', myEmpId],
+    queryFn: () => attendanceApi.todayStatus(myEmpId),
+    enabled: !!myEmpId,
+    refetchInterval: 60_000
+  });
+
 
 
   // Check check-in status
@@ -128,6 +136,7 @@ export default function MyAttendancePage() {
       queryClient.invalidateQueries({ queryKey: ['attendance-today', myEmpId] });
       queryClient.invalidateQueries({ queryKey: ['attendance-history', myEmpId] });
       queryClient.invalidateQueries({ queryKey: ['attendance-summary', myEmpId] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-today-status', myEmpId] });
       toastSuccess('Successfully Checked In');
     },
     onError: (err: any) => toastError(err.message || 'Failed to check in'),
@@ -139,6 +148,7 @@ export default function MyAttendancePage() {
       queryClient.invalidateQueries({ queryKey: ['attendance-today', myEmpId] });
       queryClient.invalidateQueries({ queryKey: ['attendance-history', myEmpId] });
       queryClient.invalidateQueries({ queryKey: ['attendance-summary', myEmpId] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-today-status', myEmpId] });
       toastSuccess('Successfully Checked Out');
     },
     onError: (err: any) => toastError(err.message || 'Failed to check out'),
@@ -146,6 +156,13 @@ export default function MyAttendancePage() {
 
   const regularizeMutation = useMutation({
     mutationFn: ({ logId, reason }: { logId: string; reason: string }) => {
+      if (regularizeType === 'full_day') {
+        return attendanceApi.regularize(logId, {
+          employeeId: myEmpId,
+          reason,
+          type: 'full_day'
+        });
+      }
       const logDate = historyLogs?.find((l: any) => l.id === logId)?.date || getServerISO();
       const dateStr = new Date(logDate).toISOString().split('T')[0];
       return attendanceApi.regularize(logId, { 
@@ -160,6 +177,7 @@ export default function MyAttendancePage() {
       setSelectedLogId('');
       setRegularizeReason('');
       queryClient.invalidateQueries({ queryKey: ['attendance-history', myEmpId] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-today-status', myEmpId] });
       handleTabChange('checkin');
     },
     onError: (err: any) => toastError(err.message || 'Failed to submit regularization'),
@@ -246,6 +264,51 @@ export default function MyAttendancePage() {
 
             {/* Punch Card */}
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 text-center space-y-6">
+              {todayStatus && (
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] px-4 py-3 space-y-2 text-left">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-[var(--text-primary)]">
+                      {todayStatus.shiftName ?? 'No shift assigned'}
+                    </p>
+                    <span className="text-[10px] font-semibold text-[var(--text-muted)]">
+                      {todayStatus.shiftStartTime && todayStatus.shiftEndTime
+                        ? `${todayStatus.shiftStartTime} – ${todayStatus.shiftEndTime}`
+                        : '—'}
+                    </span>
+                  </div>
+                  {todayStatus.todayIsSecondSaturday && (
+                    <p className="text-[11px] font-semibold text-emerald-500">Weekly Off · 2nd Saturday — working optional (earns Comp Off)</p>
+                  )}
+                  {isCheckedIn && todayStatus.remainingMinutes != null && (
+                    <p className="text-[11px] font-semibold text-[var(--text-secondary)]">
+                      {todayStatus.remainingMinutes > 0
+                        ? `Remaining: ${Math.floor(todayStatus.remainingMinutes / 60)}h ${Math.round(todayStatus.remainingMinutes % 60)}m of ${todayStatus.requiredMinutes != null ? `${Math.floor(todayStatus.requiredMinutes / 60)}h ${Math.round(todayStatus.requiredMinutes % 60)}m` : 'shift'}`
+                        : 'Shift duration complete'}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-1.5">
+                    {todayStatus.lateStatus === 'LATE' && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">
+                        Late by {Math.round(todayStatus.lateMinutes ?? 0)}m
+                      </span>
+                    )}
+                    {todayStatus.attendanceStatus && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--surface)] text-[var(--text-secondary)]">
+                        {String(todayStatus.attendanceStatus).replace(/_/g, ' ')}
+                      </span>
+                    )}
+                  </div>
+                  {todayStatus.attendanceStatus === 'OFF_DAY_OR_INCOMPLETE' && todayStatus.checkOut && (
+                    <button
+                      onClick={() => handleTabChange('regularize')}
+                      className="flex items-center gap-1 text-[11px] font-bold text-amber-400 hover:text-amber-300"
+                    >
+                      <AlertTriangle size={12} /> Shift marked incomplete — raise correction
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="relative w-28 h-28 bg-indigo-500/10 rounded-full flex items-center justify-center mx-auto">
                 <Fingerprint size={48} className={isCheckedIn ? 'text-green-400' : 'text-indigo-400'} />
               </div>
@@ -291,6 +354,36 @@ export default function MyAttendancePage() {
             </h3>
             <form onSubmit={handleRegularizeSubmit} className="space-y-4">
               <div>
+                <label className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Correction Type</label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setRegularizeType('full_day')}
+                    className={`px-3 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                      regularizeType === 'full_day'
+                        ? 'border-indigo-500/60 bg-indigo-500/10 text-indigo-400'
+                        : 'border-[var(--border)] bg-[var(--surface-alt)] text-[var(--text-muted)]'
+                    }`}
+                  >
+                    Full-day Correction
+                    <span className="block text-[9px] font-medium mt-0.5 opacity-70">I worked the full day</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRegularizeType('regularization')}
+                    className={`px-3 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                      regularizeType === 'regularization'
+                        ? 'border-indigo-500/60 bg-indigo-500/10 text-indigo-400'
+                        : 'border-[var(--border)] bg-[var(--surface-alt)] text-[var(--text-muted)]'
+                    }`}
+                  >
+                    Time Change
+                    <span className="block text-[9px] font-medium mt-0.5 opacity-70">Fix check-in / check-out times</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
                 <label className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Select Date to Regularize</label>
                 <select
                   value={selectedLogId}
@@ -301,13 +394,16 @@ export default function MyAttendancePage() {
                   <option value="">Choose log entry...</option>
                   {historyLogs?.map((log: any) => (
                     <option key={log.id} value={log.id}>
-                      {fmtDateShort(log.date)} (In: {log.checkIn ? new Date(log.checkIn).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Missed'})
+                      {fmtDateShort(log.date)}
+                      {log.attendanceStatus === 'OFF_DAY_OR_INCOMPLETE' ? ' (Incomplete)' : ''}
+                      {' '}(In: {log.checkIn ? new Date(log.checkIn).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Missed'})
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {regularizeType === 'regularization' && (
+                <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Actual Check-In Time</label>
                   <input type="time" value={checkInTime} onChange={e => setCheckInTime(e.target.value)}
@@ -319,6 +415,13 @@ export default function MyAttendancePage() {
                     className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm text-[var(--text-primary)] font-mono focus:outline-none focus:border-blue-500/50" />
                 </div>
               </div>
+              )}
+
+              {regularizeType === 'full_day' && (
+                <p className="text-[11px] text-[var(--text-muted)] leading-relaxed bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl px-3 py-2.5">
+                  Your original check-in/out punches will be preserved. HR will review and mark the day as full-day present.
+                </p>
+              )}
 
               <div>
                 <label className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Reason for Regularization</label>

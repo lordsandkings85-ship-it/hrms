@@ -50,6 +50,12 @@ export class AttendanceController {
     return this.attendanceService.listForCompany(user.companyId, date);
   }
 
+  @Get('today/status/:employeeId')
+  @Permissions({ module: 'attendance', action: 'view' })
+  todayStatus(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string) {
+    return this.attendanceService.getTodayStatus(user.companyId, employeeId);
+  }
+
   @Get('monthly')
   @Permissions({ module: 'attendance', action: 'view' })
   listMonthly(
@@ -92,7 +98,7 @@ export class AttendanceController {
   requestRegularization(
     @CurrentUser() user: AuthUser,
     @Param('logId') logId: string, 
-    @Body() body: { employeeId: string; requestedCheckIn?: string; requestedCheckOut?: string; reason?: string; note?: string }
+    @Body() body: { employeeId: string; requestedCheckIn?: string; requestedCheckOut?: string; reason?: string; note?: string; type?: string }
   ) {
     return this.attendanceService.requestRegularization(
       user.companyId,
@@ -100,7 +106,8 @@ export class AttendanceController {
       body.employeeId, 
       body.requestedCheckIn ? new Date(body.requestedCheckIn) : undefined,
       body.requestedCheckOut ? new Date(body.requestedCheckOut) : undefined,
-      body.reason || body.note || ''
+      body.reason || body.note || '',
+      body.type || 'regularization'
     );
   }
 
@@ -109,12 +116,12 @@ export class AttendanceController {
   approveRegularization(
     @CurrentUser() user: AuthUser,
     @Param('requestId') requestId: string,
-    @Body() body: { status?: string },
+    @Body() body: { status?: string; note?: string },
   ) {
     if (body.status === 'rejected') {
       return this.attendanceService.rejectRegularization(requestId, user.companyId, user.userId);
     }
-    return this.attendanceService.approveRegularization(requestId, user.companyId, user.userId);
+    return this.attendanceService.approveRegularization(requestId, user.companyId, user.userId, body.note);
   }
 
   @Post('regularize/:requestId/reject')
