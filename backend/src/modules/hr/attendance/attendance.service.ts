@@ -9,7 +9,45 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function tzOffsetMs(timeZone: string, date: Date): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = dtf.formatToParts(date);
+  const get = (t: string) => Number(parts.find(p => p.type === t)?.value ?? 0);
+  const asUTC = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+  return asUTC - date.getTime();
+}
+
+function zonedDateTime(timeZone: string, y: number, m: number, d: number, h: number, min: number, s = 0): Date {
+  const guess = new Date(Date.UTC(y, m, d, h, min, s));
+  return new Date(guess.getTime() - tzOffsetMs(timeZone, guess));
+}
+
+function zonedWallClock(timeZone: string, date: Date) {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = dtf.formatToParts(date);
+  const get = (t: string) => Number(parts.find(p => p.type === t)?.value ?? 0);
+  return { y: get('year'), m: get('month') - 1, d: get('day'), hh: get('hour'), mm: get('minute'), ss: get('second') };
 }
 
 @Injectable()
@@ -33,22 +71,42 @@ export class AttendanceService {
 
     const shift = assignment.shift;
     const shiftType = shift.shiftType ?? null;
-    const policies = await this.prisma.attendancePolicy.findMany({ where: { companyId } });
+    const [company, policies] = await Promise.all([
+      this.prisma.company.findUnique({ where: { id: companyId }, select: { timezone: true } }),
+      this.prisma.attendancePolicy.findMany({ where: { companyId } }),
+    ]);
+    const tz = company?.timezone || 'UTC';
     const policyMap = new Map(policies.map(p => [p.key, p.value]));
+    const wall = zonedWallClock(tz, date);
     const [sh, sm] = (shift.startTime || '').split(':').map(Number);
     const [eh, em] = (shift.endTime || '').split(':').map(Number);
-    const shiftStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), sh || 9, sm || 0);
-    const shiftEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), eh || 18, em || 0);
+    const shiftStart = zonedDateTime(tz, wall.y, wall.m, wall.d, sh || 9, sm || 0);
+    const shiftEnd = zonedDateTime(tz, wall.y, wall.m, wall.d, eh || 18, em || 0);
     const graceMins = shiftType?.graceMinutes ?? Number(policyMap.get('custom.gracePeriodMins') ?? 10);
     const requiredMinutes = Math.round((shiftEnd.getTime() - shiftStart.getTime()) / 60000);
+
+    const isFlexible = Boolean(shiftType?.isFlexible) || policyMap.get('custom.flexiTime') === 'true';
+    const coreStartStr = policyMap.get('custom.coreHoursStart') || shiftType?.coreHoursStart || null;
+    const coreEndStr = policyMap.get('custom.coreHoursEnd') || shiftType?.coreHoursEnd || null;
+    let coreStart: Date | null = null;
+    let coreEnd: Date | null = null;
+    if (isFlexible && coreStartStr && coreEndStr) {
+      const [csH, csM] = coreStartStr.split(':').map(Number);
+      const [ceH, ceM] = coreEndStr.split(':').map(Number);
+      coreStart = zonedDateTime(tz, wall.y, wall.m, wall.d, csH || 0, csM || 0);
+      coreEnd = zonedDateTime(tz, wall.y, wall.m, wall.d, ceH || 0, ceM || 0);
+    }
 
     return {
       assignment,
       shift,
       shiftType,
       policyMap,
+      timezone: tz,
       shiftStart,
       shiftEnd,
+      coreStart,
+      coreEnd,
       graceMins,
       requiredMinutes,
     };
@@ -86,27 +144,10 @@ export class AttendanceService {
     let lateMinutes = 0;
     let lateStatus: string | null = null;
     if (ctx) {
-      const { shiftStart, graceMins, shiftType, policyMap } = ctx;
-      const isFlexible = shiftType?.isFlexible || policyMap.get('custom.flexiTime') === 'true';
       const punchTime = today.getTime();
+      const lateAfter = (ctx.coreStart ?? ctx.shiftStart).getTime() + ctx.graceMins * 60000;
 
-      let lateAfter: number | null = null;
-      if (isFlexible) {
-        // Flexi-time: only mark late if outside core hours window
-        const coreStart = policyMap.get('custom.coreHoursStart') || shiftType?.coreHoursStart;
-        const coreEnd = policyMap.get('custom.coreHoursEnd') || shiftType?.coreHoursEnd;
-        if (coreStart && coreEnd) {
-          const [csH, csM] = coreStart.split(':').map(Number);
-          const coreStartTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), csH, csM);
-          lateAfter = coreStartTime.getTime() + graceMins * 60000;
-        } else {
-          lateAfter = shiftStart.getTime() + graceMins * 60000;
-        }
-      } else {
-        lateAfter = shiftStart.getTime() + graceMins * 60000;
-      }
-
-      if (lateAfter != null && punchTime > lateAfter) {
+      if (punchTime > lateAfter) {
         status = 'late';
         lateStatus = 'late';
         lateMinutes = Math.max(0, Math.round((punchTime - lateAfter) / 60000));
@@ -310,20 +351,24 @@ export class AttendanceService {
     const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
     if (!employee) throw new NotFoundException('Employee not found');
 
-    const day = new Date(date);
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { timezone: true } });
+    const tz = company?.timezone || 'UTC';
+
+    const day = new Date(`${date}T00:00:00Z`);
     if (isNaN(day.getTime())) throw new BadRequestException('Invalid date');
     const [h, m] = time.split(':').map(Number);
     if (isNaN(h) || isNaN(m)) throw new BadRequestException('Invalid time');
-    const ts = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
+    const y = day.getUTCFullYear();
+    const mo = day.getUTCMonth();
+    const d = day.getUTCDate();
+    const ts = zonedDateTime(tz, y, mo, d, h, m);
 
-    // Validate: submitted time must be within 5 minutes of server time
-    const now = Date.now();
-    const TOLERANCE_MS = 5 * 60 * 1000;
-    const diff = Math.abs(ts.getTime() - now);
-    if (diff > TOLERANCE_MS) {
+    const wall = zonedWallClock(tz, new Date());
+    const diffMin = Math.abs(h * 60 + m - (wall.hh * 60 + wall.mm));
+    if (diffMin > 5) {
       throw new BadRequestException('Submitted time deviates from server time by more than 5 minutes');
     }
-    const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+    const dayStart = zonedDateTime(tz, y, mo, d, 0, 0);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
     const existing = await this.prisma.attendanceLog.findFirst({
