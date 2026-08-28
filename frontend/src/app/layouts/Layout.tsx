@@ -9,13 +9,14 @@ import {
   FolderKanban, Megaphone, GraduationCap, Building2, BarChart3, Settings,
   CreditCard, Plug, ShieldCheck, LogOut, Calculator, UserMinus, HandCoins, UserCheck,
   ChevronLeft, ChevronDown, ChevronRight, Bell, Menu, Moon, Sun, Monitor, Command, Headphones, Mail, Sparkles,
-  User, Calendar, Target, CheckSquare
+  User, Calendar, Target, CheckSquare, RefreshCw
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { dashboardApi } from '../../api/client';
 import { useTheme, type ThemeMode } from '../../components/ui/ThemeProvider';
 import CommandPalette from '../../components/ui/CommandPalette';
 import TitleBar, { isElectron } from '../../components/ui/TitleBar';
+import UpdateBanner from '../../components/ui/UpdateBanner';
 import workoraIcon from '../../assets/brand/workora-icon.png';
 
 type NavChild = {
@@ -1037,6 +1038,7 @@ export default function Layout() {
       {/* ── MAIN CONTENT ────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0" style={{ background: 'var(--bg-primary)' }}>
         {isElectron() && <TitleBar />}
+        <UpdateBanner />
         {/* Topbar */}
         <header
           className="h-12 flex items-center gap-2 px-4 shrink-0 sticky top-0 z-30"
@@ -1084,6 +1086,18 @@ export default function Layout() {
           </button>
 
           <div className="flex-1" />
+
+          {isElectron() && window.electronAPI && (
+            <button
+              onClick={() => window.electronAPI?.checkForUpdates()}
+              title="Check for updates"
+              style={{ padding: '0.375rem', borderRadius: '0.5rem', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-hover)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; }}
+            >
+              <RefreshCw size={15} />
+            </button>
+          )}
 
           <LiveClock />
           <ThemeToggle />

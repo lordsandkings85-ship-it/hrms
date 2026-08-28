@@ -1,5 +1,6 @@
 import { ipcMain, dialog, shell, clipboard, BrowserWindow, app, nativeTheme } from 'electron';
 import ElectronStore from 'electron-store';
+import { checkForUpdatesNow, installUpdate } from './updater';
 
 interface WindowBounds {
   x?: number;
@@ -99,5 +100,13 @@ export function registerIPC(): void {
 
   ipcMain.handle('theme:get', () => {
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+  });
+
+  ipcMain.on('updater:check', () => {
+    checkForUpdatesNow();
+  });
+
+  ipcMain.on('updater:install', () => {
+    installUpdate();
   });
 }

@@ -115,3 +115,7 @@ export function checkForUpdatesNow(): void {
     log.warn('Manual update check failed:', err.message);
   });
 }
+
+export function installUpdate(): void {
+  setImmediate(() => autoUpdater.quitAndInstall());
+}

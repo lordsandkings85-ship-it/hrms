@@ -119,12 +119,25 @@ export function LeaveBalancesSection() {
     onSuccess: () => { success('Balance allocated'); setShowAllocate(false); setAllocForm({ employeeId: '', leaveTypeId: '', amount: 1, reason: '' }); queryClient.invalidateQueries({ queryKey: ['leave-balances'] }); },
     onError: (e: any) => toastError(e.message || 'Failed'),
   });
+  const [editTarget, setEditTarget] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ allotted: 0, used: 0, carriedOver: 0, encashed: 0, reason: '' });
+  const editMutation = useMutation({
+    mutationFn: (d: { id: string; allotted: number; used: number; carriedOver: number; encashed: number; reason: string }) =>
+      leaveApi.updateBalance(d.id, { allotted: Number(d.allotted) || 0, used: Number(d.used) || 0, carriedOver: Number(d.carriedOver) || 0, encashed: Number(d.encashed) || 0, reason: d.reason }),
+    onSuccess: () => { success('Balance updated'); setEditTarget(null); queryClient.invalidateQueries({ queryKey: ['leave-balances'] }); },
+    onError: (e: any) => toastError(e.message || 'Failed to update'),
+  });
+  const openEdit = (r: any) => {
+    setEditForm({ allotted: r.allotted ?? 0, used: r.used ?? 0, carriedOver: r.carriedOver ?? 0, encashed: r.encashed ?? 0, reason: '' });
+    setEditTarget(r);
+  };
   const rows = (data ?? []).flatMap((e: any) => {
     const balances = Array.isArray(e.balances) ? e.balances : e.leaveBalances && Array.isArray(e.leaveBalances) ? e.leaveBalances : [];
     const displayName = e.name || `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.employeeCode || e.employeeId;
     if (balances.length === 0) return [{ key: `${e.employeeId}-0`, employee: displayName, employeeCode: e.employeeCode, department: e.department, leaveType: '—', allotted: 0, used: 0, carriedOver: 0, remaining: 0 }];
     return balances.map((b: any) => ({
       key: `${e.employeeId}-${b.leaveType || 'unknown'}`,
+      id: b.id,
       employee: displayName,
       employeeCode: e.employeeCode,
       department: e.department,
@@ -132,7 +145,8 @@ export function LeaveBalancesSection() {
       allotted: b.allotted ?? 0,
       used: b.used ?? 0,
       carriedOver: b.carriedOver ?? 0,
-      remaining: b.remaining ?? Math.max(0, (b.allotted ?? 0) + (b.carriedOver ?? 0) - (b.used ?? 0)),
+      encashed: b.encashed ?? 0,
+      remaining: b.remaining ?? Math.max(0, (b.allotted ?? 0) + (b.carriedOver ?? 0) - (b.used ?? 0) - (b.encashed ?? 0)),
     }));
   });
   const columns: Column<any>[] = [
@@ -143,6 +157,13 @@ export function LeaveBalancesSection() {
     { key: 'carriedOver', header: 'Carry Fwd', render: (r: any) => <span className="font-semibold text-sky-500">{r.carriedOver || '—'}</span> },
     { key: 'used', header: 'Used', render: (r: any) => <span className="font-semibold text-amber-500">{r.used}</span> },
     { key: 'remaining', header: 'Balance', render: (r: any) => <span className="font-bold text-emerald-500">{r.remaining}</span> },
+    {
+      key: 'actions', header: '', render: (r: any) => (
+        <div className="flex justify-end">
+          <button onClick={() => openEdit(r)} disabled={!r.id} title="Edit balance" className="p-1.5 rounded-lg text-indigo-400 hover:bg-indigo-500/10 disabled:opacity-25 disabled:cursor-default"><Pencil size={14} /></button>
+        </div>
+      ),
+    },
   ];
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
   return (
@@ -194,6 +215,37 @@ export function LeaveBalancesSection() {
               <button onClick={() => setShowAllocate(false)} className="px-4 py-2 text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)]">Cancel</button>
               <button onClick={() => allocMutation.mutate(allocForm)} disabled={!allocForm.employeeId || !allocForm.leaveTypeId || allocMutation.isPending} className="px-4 py-2 bg-indigo-500 text-white rounded-xl text-xs font-bold hover:bg-indigo-600 disabled:opacity-50">
                 {allocMutation.isPending ? 'Allocating…' : 'Allocate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {editTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditTarget(null)}>
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-black text-[var(--text-primary)] mb-1">Edit Leave Balance</h3>
+            <p className="text-xs text-[var(--text-muted)] mb-4">{editTarget.employee} — {editTarget.leaveType} ({year})</p>
+            <div className="space-y-3">
+              {[
+                { key: 'allotted', label: 'Allocated' },
+                { key: 'used', label: 'Used' },
+                { key: 'carriedOver', label: 'Carry Fwd' },
+                { key: 'encashed', label: 'Encashed' },
+              ].map((f) => (
+                <div key={f.key}>
+                  <label className="text-xs font-bold text-[var(--text-muted)] mb-1 block">{f.label}</label>
+                  <input type="number" min={0} step={0.5} value={editForm[f.key as keyof typeof editForm]} onChange={(e) => setEditForm({ ...editForm, [f.key]: Number(e.target.value) })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm" />
+                </div>
+              ))}
+              <div>
+                <label className="text-xs font-bold text-[var(--text-muted)] mb-1 block">Reason <span className="text-rose-400">*</span></label>
+                <input type="text" value={editForm.reason} onChange={(e) => setEditForm({ ...editForm, reason: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm" placeholder="Required" />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-6 justify-end">
+              <button onClick={() => setEditTarget(null)} className="px-4 py-2 text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)]">Cancel</button>
+              <button onClick={() => editMutation.mutate({ id: editTarget.id, ...editForm })} disabled={!editForm.reason.trim() || editMutation.isPending} className="px-4 py-2 bg-indigo-500 text-white rounded-xl text-xs font-bold hover:bg-indigo-600 disabled:opacity-50">
+                {editMutation.isPending ? 'Updating…' : 'Update'}
               </button>
             </div>
           </div>

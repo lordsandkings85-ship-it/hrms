@@ -524,6 +524,7 @@ async balances(employeeId: string, year: number, companyId: string) {
       name: `${e.firstName} ${e.lastName}`,
       department: e.department?.name || '-',
       balances: e.leaveBalances.map((b) => ({
+        id: b.id,
         leaveType: b.leaveType.name,
         allotted: b.allotted,
         used: b.used,
@@ -655,6 +656,104 @@ async balances(employeeId: string, year: number, companyId: string) {
     }
 
     return { total: data.employeeIds.length, succeeded: results.filter(r => r.success).length, failed: results.filter(r => !r.success).length, results };
+  }
+
+  /**
+   * Set absolute annual balance values for an existing LeaveBalance row.
+   * Always writes a MANUAL_ADJUSTMENT transaction + audit entry, and for
+   * monthly-tracked (Rule 4) leave types also mirrors arbitrary admin edits
+   * into the monthly ledger so the two views stay consistent.
+   */
+  async updateBalance(
+    companyId: string,
+    id: string,
+    data: { allotted?: number; used?: number; carriedOver?: number; encashed?: number; reason?: string },
+    approvedBy: string,
+  ) {
+    if (!data.reason || !data.reason.trim()) throw new BadRequestException('Reason is required');
+    const editReason = data.reason.trim();
+    const balance = await this.prisma.leaveBalance.findUnique({
+      where: { id },
+      include: {
+        employee: { select: { companyId: true } },
+        leaveType: { select: { id: true, name: true } },
+      },
+    });
+    if (!balance || balance.employee.companyId !== companyId) throw new NotFoundException('Leave balance not found');
+
+    const before = {
+      allotted: balance.allotted,
+      used: balance.used,
+      carriedOver: balance.carriedOver,
+      encashed: balance.encashed,
+    };
+    const after: typeof before = { ...before };
+    for (const key of ['allotted', 'used', 'carriedOver', 'encashed'] as const) {
+      if (data[key] === undefined) continue;
+      const val = Number(data[key]);
+      if (!Number.isFinite(val) || val < 0) throw new BadRequestException(`${key} must be a non-negative number`);
+      after[key] = val;
+    }
+    if (before.allotted === after.allotted && before.used === after.used && before.carriedOver === after.carriedOver && before.encashed === after.encashed) {
+      throw new BadRequestException('No changes detected');
+    }
+
+    // Latest month present for this employee + type + year (determines monthly-tracked types under Rule 4)
+    const monthlyRows = await this.prisma.leaveMonthlyBalance.findMany({
+      where: { employeeId: balance.employeeId, leaveTypeId: balance.leaveTypeId, year: balance.year },
+      orderBy: { month: 'desc' },
+      take: 1,
+    });
+
+    const netDays =
+      (after.allotted + after.carriedOver - after.used - after.encashed) -
+      (before.allotted + before.carriedOver - before.used - before.encashed);
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.leaveBalance.update({
+        where: { id },
+        data: { allotted: after.allotted, used: after.used, carriedOver: after.carriedOver, encashed: after.encashed },
+        include: { leaveType: { select: { id: true, name: true } }, employee: { select: { employeeCode: true } } },
+      });
+
+      const changeParts: string[] = [];
+      for (const key of ['allotted', 'used', 'carriedOver', 'encashed'] as const) {
+        if (after[key] !== before[key]) changeParts.push(`${key}: ${before[key]} -> ${after[key]}`);
+      }
+      await tx.leaveTransaction.create({
+        data: {
+          companyId,
+          employeeId: balance.employeeId,
+          leaveTypeId: balance.leaveTypeId,
+          year: balance.year,
+          type: 'MANUAL_ADJUSTMENT',
+          amount: netDays,
+          reason: editReason,
+          approvedBy,
+        },
+      });
+
+      // Keep the monthly ledger consistent for monthly-tracked leave types
+      if (monthlyRows.length > 0) {
+        await this.updateMonthlyBalanceTx(tx, companyId, balance.employeeId, balance.leaveTypeId, balance.year, monthlyRows[0].month, {
+          adjusted: after.allotted - before.allotted,
+          taken: after.used - before.used,
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          userId: approvedBy,
+          action: 'LEAVE_BALANCE_UPDATE',
+          entity: 'LeaveBalance',
+          entityId: id,
+          metadata: { before, after, changes: changeParts, reason: editReason },
+        },
+      });
+
+      return updated;
+    });
   }
 
   async transactions(companyId: string, employeeId: string, year?: number) {

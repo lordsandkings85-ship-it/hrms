@@ -1,18 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Minus, Square, X, Maximize2 } from 'lucide-react';
 
-declare global {
-  interface Window {
-    electronAPI?: {
-      minimize: () => void;
-      maximize: () => void;
-      close: () => void;
-      isMaximized: () => Promise<boolean>;
-      onMaximizeChange: (callback: (maximized: boolean) => void) => () => void;
-    };
-  }
-}
-
 const dragStyle = { WebkitAppRegion: 'drag' } as React.CSSProperties;
 const noDragStyle = { WebkitAppRegion: 'no-drag' } as React.CSSProperties;
 

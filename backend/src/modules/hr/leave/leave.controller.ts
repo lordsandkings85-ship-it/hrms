@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Delete, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Delete, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { Permissions } from '../../../common/decorators/permissions.decorator';
@@ -216,6 +216,16 @@ export class LeaveController {
   @Permissions({ module: 'leave', action: 'view' })
   transactions(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string, @Query('year') year?: string) {
     return this.leaveService.transactions(user.companyId, employeeId, year ? Number(year) : undefined);
+  }
+
+  @Put('balances/:id')
+  @Permissions({ module: 'leave', action: 'edit' })
+  updateBalance(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() body: { allotted?: number; used?: number; carriedOver?: number; encashed?: number; reason?: string },
+  ) {
+    return this.leaveService.updateBalance(user.companyId, id, body, user.userId);
   }
 
   // --- Monthly Casual Leave Ledger (Rule 4) ---

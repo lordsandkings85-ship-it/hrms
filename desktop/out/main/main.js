@@ -53,6 +53,103 @@ function registerSecurity(app) {
     );
   });
 }
+let mainWindow$1 = null;
+let updateCheckInterval = null;
+const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1e3;
+function initAutoUpdater(win) {
+  mainWindow$1 = win;
+  electronUpdater.autoUpdater.logger = log;
+  electronUpdater.autoUpdater.autoDownload = false;
+  electronUpdater.autoUpdater.autoInstallOnAppQuit = true;
+  electronUpdater.autoUpdater.on("checking-for-update", () => {
+    log.info("Checking for updates...");
+  });
+  electronUpdater.autoUpdater.on("update-available", (info) => {
+    log.info(`Update available: ${info.version}`);
+    if (mainWindow$1 && !mainWindow$1.isDestroyed()) {
+      mainWindow$1.webContents.send("updater:available", {
+        version: info.version,
+        releaseNotes: info.releaseNotes
+      });
+    }
+    electron.dialog.showMessageBox(mainWindow$1, {
+      type: "info",
+      title: "Update Available",
+      message: `A new version (${info.version}) is available.`,
+      detail: "Would you like to download and install it now?",
+      buttons: ["Download", "Later"],
+      defaultId: 0,
+      cancelId: 1
+    }).then(({ response }) => {
+      if (response === 0) {
+        electronUpdater.autoUpdater.downloadUpdate();
+      }
+    });
+  });
+  electronUpdater.autoUpdater.on("update-not-available", () => {
+    log.info("No update available.");
+  });
+  electronUpdater.autoUpdater.on("download-progress", (progress) => {
+    log.info(`Download progress: ${progress.percent.toFixed(1)}%`);
+    if (mainWindow$1 && !mainWindow$1.isDestroyed()) {
+      mainWindow$1.webContents.send("updater:progress", {
+        percent: progress.percent,
+        transferred: progress.transferred,
+        total: progress.total
+      });
+    }
+  });
+  electronUpdater.autoUpdater.on("update-downloaded", (info) => {
+    log.info(`Update downloaded: ${info.version}`);
+    if (mainWindow$1 && !mainWindow$1.isDestroyed()) {
+      mainWindow$1.webContents.send("updater:downloaded", {
+        version: info.version
+      });
+    }
+    electron.dialog.showMessageBox(mainWindow$1, {
+      type: "info",
+      title: "Update Ready",
+      message: `Version ${info.version} has been downloaded.`,
+      detail: "The application will restart to apply the update.",
+      buttons: ["Restart Now", "Later"],
+      defaultId: 0,
+      cancelId: 1
+    }).then(({ response }) => {
+      if (response === 0) {
+        setImmediate(() => electronUpdater.autoUpdater.quitAndInstall());
+      }
+    });
+  });
+  electronUpdater.autoUpdater.on("error", (error) => {
+    log.error("Auto-updater error:", error);
+  });
+  electron.app.whenReady().then(() => {
+    setTimeout(() => {
+      electronUpdater.autoUpdater.checkForUpdates().catch((err) => {
+        log.warn("Initial update check failed:", err.message);
+      });
+    }, 1e4);
+    updateCheckInterval = setInterval(() => {
+      electronUpdater.autoUpdater.checkForUpdates().catch((err) => {
+        log.warn("Periodic update check failed:", err.message);
+      });
+    }, CHECK_INTERVAL_MS);
+  });
+  electron.app.on("before-quit", () => {
+    if (updateCheckInterval) {
+      clearInterval(updateCheckInterval);
+      updateCheckInterval = null;
+    }
+  });
+}
+function checkForUpdatesNow() {
+  electronUpdater.autoUpdater.checkForUpdates().catch((err) => {
+    log.warn("Manual update check failed:", err.message);
+  });
+}
+function installUpdate() {
+  setImmediate(() => electronUpdater.autoUpdater.quitAndInstall());
+}
 const store = new ElectronStore({
   name: "workora-window",
   defaults: {
@@ -127,6 +224,12 @@ function registerIPC() {
   });
   electron.ipcMain.handle("theme:get", () => {
     return electron.nativeTheme.shouldUseDarkColors ? "dark" : "light";
+  });
+  electron.ipcMain.on("updater:check", () => {
+    checkForUpdatesNow();
+  });
+  electron.ipcMain.on("updater:install", () => {
+    installUpdate();
   });
 }
 function createAppMenu(mainWindow2) {
@@ -242,95 +345,6 @@ Enterprise Human Resource Management System
   ];
   const menu = electron.Menu.buildFromTemplate(template);
   electron.Menu.setApplicationMenu(menu);
-}
-let mainWindow$1 = null;
-let updateCheckInterval = null;
-const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1e3;
-function initAutoUpdater(win) {
-  mainWindow$1 = win;
-  electronUpdater.autoUpdater.logger = log;
-  electronUpdater.autoUpdater.autoDownload = false;
-  electronUpdater.autoUpdater.autoInstallOnAppQuit = true;
-  electronUpdater.autoUpdater.on("checking-for-update", () => {
-    log.info("Checking for updates...");
-  });
-  electronUpdater.autoUpdater.on("update-available", (info) => {
-    log.info(`Update available: ${info.version}`);
-    if (mainWindow$1 && !mainWindow$1.isDestroyed()) {
-      mainWindow$1.webContents.send("updater:available", {
-        version: info.version,
-        releaseNotes: info.releaseNotes
-      });
-    }
-    electron.dialog.showMessageBox(mainWindow$1, {
-      type: "info",
-      title: "Update Available",
-      message: `A new version (${info.version}) is available.`,
-      detail: "Would you like to download and install it now?",
-      buttons: ["Download", "Later"],
-      defaultId: 0,
-      cancelId: 1
-    }).then(({ response }) => {
-      if (response === 0) {
-        electronUpdater.autoUpdater.downloadUpdate();
-      }
-    });
-  });
-  electronUpdater.autoUpdater.on("update-not-available", () => {
-    log.info("No update available.");
-  });
-  electronUpdater.autoUpdater.on("download-progress", (progress) => {
-    log.info(`Download progress: ${progress.percent.toFixed(1)}%`);
-    if (mainWindow$1 && !mainWindow$1.isDestroyed()) {
-      mainWindow$1.webContents.send("updater:progress", {
-        percent: progress.percent,
-        transferred: progress.transferred,
-        total: progress.total
-      });
-    }
-  });
-  electronUpdater.autoUpdater.on("update-downloaded", (info) => {
-    log.info(`Update downloaded: ${info.version}`);
-    if (mainWindow$1 && !mainWindow$1.isDestroyed()) {
-      mainWindow$1.webContents.send("updater:downloaded", {
-        version: info.version
-      });
-    }
-    electron.dialog.showMessageBox(mainWindow$1, {
-      type: "info",
-      title: "Update Ready",
-      message: `Version ${info.version} has been downloaded.`,
-      detail: "The application will restart to apply the update.",
-      buttons: ["Restart Now", "Later"],
-      defaultId: 0,
-      cancelId: 1
-    }).then(({ response }) => {
-      if (response === 0) {
-        setImmediate(() => electronUpdater.autoUpdater.quitAndInstall());
-      }
-    });
-  });
-  electronUpdater.autoUpdater.on("error", (error) => {
-    log.error("Auto-updater error:", error);
-  });
-  electron.app.whenReady().then(() => {
-    setTimeout(() => {
-      electronUpdater.autoUpdater.checkForUpdates().catch((err) => {
-        log.warn("Initial update check failed:", err.message);
-      });
-    }, 1e4);
-    updateCheckInterval = setInterval(() => {
-      electronUpdater.autoUpdater.checkForUpdates().catch((err) => {
-        log.warn("Periodic update check failed:", err.message);
-      });
-    }, CHECK_INTERVAL_MS);
-  });
-  electron.app.on("before-quit", () => {
-    if (updateCheckInterval) {
-      clearInterval(updateCheckInterval);
-      updateCheckInterval = null;
-    }
-  });
 }
 let mainWindow = null;
 let splashWindow = null;
