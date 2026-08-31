@@ -85,7 +85,8 @@ export async function api<T>(path: string, options: RequestInit = {}, _retried =
     throw new Error(msg);
   }
   if (res.status === 204) return undefined as T;
-  return res.json();
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export const authApi = {
@@ -838,7 +839,7 @@ export const payrollApiExt = {
   lockCycle: (id: string) => api<any>(`/payroll/cycles/${id}/lock`, { method: 'POST' }),
   getPayslipDetail: (id: string) => api<any>(`/payroll/payslip/${id}`),
   taxPreview: (data: any) => api<any>('/payroll/tax-preview', { method: 'POST', body: JSON.stringify(data) }),
-  runPayroll: (data: { month: number; year: number; regime?: string }) =>
+  runPayroll: (data: { month: number; year: number; regime?: string; employeeIds?: string[] }) =>
     api<any>('/payroll/run', { method: 'POST', body: JSON.stringify(data) }),
   
   getAttendanceSummary: (month: number, year: number) => api<any[]>(`/payroll/attendance-summary?month=${month}&year=${year}`),

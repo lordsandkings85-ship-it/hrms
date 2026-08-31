@@ -1,4 +1,4 @@
-import { IsInt, IsISO8601, IsNumber, IsOptional, IsString, Max, Min, ValidateIf } from 'class-validator';
+import { IsArray, IsInt, IsISO8601, IsNumber, IsOptional, IsString, Max, Min, ValidateIf } from 'class-validator';
 
 export class SalaryStructureDto {
   @ValidateIf((o) => o.effectiveFrom !== undefined && o.effectiveFrom !== '')
@@ -32,6 +32,11 @@ export class RunPayrollDto {
   @IsOptional()
   @IsString()
   regime?: 'old' | 'new';
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  employeeIds?: string[];
 }
 
 export class AddPayoutDto {

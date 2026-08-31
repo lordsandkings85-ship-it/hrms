@@ -13,9 +13,16 @@ export class PayrollService {
     if (!employee) throw new NotFoundException('Employee not found in this company');
     const { effectiveFrom, ...rest } = data || {};
 
+    const effectiveDate = effectiveFrom ? new Date(effectiveFrom) : new Date();
+
+    // Find existing structure row for this effective date to update in place (avoids stale-row tie)
+    const existing = await this.prisma.salaryStructure.findFirst({
+      where: { employeeId, effectiveFrom: effectiveDate },
+    });
+
     const previous = await this.prisma.salaryStructure.findFirst({
       where: { employeeId },
-      orderBy: { effectiveFrom: 'desc' },
+      orderBy: [{ effectiveFrom: 'desc' }, { createdAt: 'desc' }],
     });
     const previousCtc = previous
       ? Number(previous.basic) + Number(previous.hra) + Number(previous.da) +
@@ -24,12 +31,10 @@ export class PayrollService {
     const revisedCtc = Number(rest.basic || 0) + Number(rest.hra || 0) + Number(rest.da || 0) +
       Number(rest.conveyance || 0) + Number(rest.medical || 0) + Number(rest.specialAllowance || 0);
 
-    const effectiveDate = effectiveFrom ? new Date(effectiveFrom) : new Date();
-
     const [structure] = await this.prisma.$transaction([
-      this.prisma.salaryStructure.create({
-        data: { employeeId, ...rest, effectiveFrom: effectiveDate },
-      }),
+      existing
+        ? this.prisma.salaryStructure.update({ where: { id: existing.id }, data: { ...rest } })
+        : this.prisma.salaryStructure.create({ data: { employeeId, ...rest, effectiveFrom: effectiveDate } }),
       this.prisma.salaryRevision.create({
         data: {
           companyId,
@@ -50,7 +55,7 @@ export class PayrollService {
     if (!employee) throw new NotFoundException('Employee not found in this company');
     return this.prisma.salaryStructure.findFirst({
       where: { employeeId },
-      orderBy: { effectiveFrom: 'desc' },
+      orderBy: [{ effectiveFrom: 'desc' }, { createdAt: 'desc' }],
     });
   }
 
@@ -77,14 +82,14 @@ export class PayrollService {
     });
   }
 
-  /** Bulk payroll run: computes gross/net + TDS for every active employee */
-  async runPayroll(companyId: string, month: number, year: number, regime: 'old' | 'new' = 'new') {
+  /** Bulk payroll run: computes gross/net + TDS for every active employee (or a selected subset) */
+  async runPayroll(companyId: string, month: number, year: number, regime: 'old' | 'new' = 'new', employeeIds?: string[]) {
     const cycle = await this.openCycle(companyId, month, year);
 
     if (cycle.status === 'locked') throw new BadRequestException('Payroll cycle is locked');
 
 const employees = await this.prisma.employee.findMany({
-      where: { companyId, status: 'active' },
+      where: { companyId, status: 'active', ...(employeeIds?.length ? { id: { in: employeeIds } } : {}) },
       include: { 
         salaryStructures: { orderBy: { effectiveFrom: 'desc' }, take: 1 },
         adminInfo: true,

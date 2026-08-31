@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, FileClock, BadgeIndianRupee, Send, Loader2, Lock, Calculator, FileText } from 'lucide-react';
+import { CalendarClock, FileClock, BadgeIndianRupee, Send, Loader2, Lock, Calculator, FileText, Download, Users, X } from 'lucide-react';
+import JSZip from 'jszip';
 import { payrollApi, payrollApiExt } from '../../../../api/client';
 import { DataTable, Column } from '../../../../components/ui/DataTable';
 import { Modal } from '../../../../components/ui/Modal';
 import { useToast } from '../../../../components/ui/ToastProvider';
-import { MONTHS, currentMonthYear, fmtINR, SectionCard, MonthYearControls, EmployeeSelect } from './shared';
+import { MONTHS, currentMonthYear, fmtINR, SectionCard, MonthYearControls, EmployeeSelect, useEmployeeList } from './shared';
 import { fmtDate } from '../../../../utils/formatDate';
+import { generatePayslipPDF } from '../../../../utils/payslipPDF';
+import { useAuthStore } from '../../../../store/useAuthStore';
 
 export function AttendanceProcessSection() {
   const { month: m, year: y } = currentMonthYear();
@@ -44,12 +47,14 @@ export function RunPayrollSection() {
   const [month, setMonth] = useState(m);
   const [year, setYear] = useState(y);
   const [regime, setRegime] = useState('old');
+  const employees = useEmployeeList();
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const queryClient = useQueryClient();
   const { success, error } = useToast();
   const runMutation = useMutation({
-    mutationFn: () => payrollApiExt.runPayroll({ month, year, regime }),
+    mutationFn: () => payrollApiExt.runPayroll({ month, year, regime, employeeIds: selectedIds.length ? selectedIds : undefined }),
     onSuccess: (res: any) => {
-      success(res?.message || `Payroll run completed for ${MONTHS[month - 1]} ${year}`);
+      success(selectedIds.length ? `Payroll run completed for ${selectedIds.length} employee(s)` : (res?.message || `Payroll run completed for ${MONTHS[month - 1]} ${year}`));
       queryClient.invalidateQueries({ queryKey: ['payroll-cycles'] });
     },
     onError: (e: any) => error(e.message || 'Failed to run payroll'),
@@ -126,6 +131,55 @@ export function RunPayrollSection() {
           <p className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Components</p>
           <p className="text-lg font-black text-[var(--text-primary)] mt-1">PF · ESI · PT · TDS · LOP</p>
         </div>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 text-sm">
+            <Users size={15} className="text-indigo-500" />
+            <span className="font-bold text-[var(--text-primary)]">Run For</span>
+            <select
+              value={selectedIds.length ? 'selected' : 'all'}
+              onChange={(e) => { if (e.target.value === 'all') setSelectedIds([]); }}
+              className="px-3 py-1.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-lg text-sm"
+            >
+              <option value="all">All active employees</option>
+              <option value="selected">Selected employees</option>
+            </select>
+          </div>
+          {selectedIds.length > 0 && (
+            <span className="text-xs text-[var(--text-muted)]">{selectedIds.length} selected</span>
+          )}
+        </div>
+        {selectedIds.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {selectedIds.map((id) => {
+              const e = employees.find((x: any) => x.id === id);
+              return (
+                <span key={id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-xs font-semibold text-indigo-600">
+                  {e?.firstName} {e?.lastName} <span className="text-[10px] text-indigo-400">({e?.employeeCode || '—'})</span>
+                  <button onClick={() => setSelectedIds((ids) => ids.filter((i) => i !== id))} className="text-indigo-400 hover:text-indigo-700"><X size={12} /></button>
+                </span>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-1 text-[11px] text-[var(--text-muted)]">Select specific employees for this run. Leave empty to run for all active employees.</p>
+        )}
+        {selectedIds.length === 0 && (
+          <div className="mt-2 max-w-md">
+            <select
+              value=""
+              onChange={(e) => { if (e.target.value) { setSelectedIds((ids) => (ids.includes(e.target.value) ? ids : [...ids, e.target.value])); } }}
+              className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-lg text-sm"
+            >
+              <option value="">Add employee…</option>
+              {employees.map((e: any) => (
+                <option key={e.id} value={e.id}>{e.firstName} {e.lastName} ({e.employeeCode || '—'})</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <Modal open={previewOpen} onClose={() => setPreviewOpen(false)} title={`Tax Preview — ${MONTHS[month - 1]} ${year}`} size="lg">
@@ -303,19 +357,64 @@ export function SendPayslipsSection() {
     onSuccess: () => { success('Payslips sent'); queryClient.invalidateQueries({ queryKey: ['payroll-cycles'] }); },
     onError: (e: any) => error(e.message || 'Failed to send payslips'),
   });
+  const [zippingCycle, setZippingCycle] = useState<string | null>(null);
+  const zipCycle = async (cycle: any) => {
+    setZippingCycle(cycle.id);
+    try {
+      const paySlips = (await payrollApiExt.getCyclePayslips(cycle.id)) || [];
+      if (!paySlips.length) { error('No payslips to download in this cycle'); return; }
+      const { user } = useAuthStore.getState();
+      const zip = new JSZip();
+      for (const p of paySlips) {
+        const full = await payrollApiExt.getPayslipDetail(p.id);
+        const blob = await generatePayslipPDF({
+          payslip: full,
+          employee: full.employee,
+          company: { name: user?.company?.name || 'Company' },
+        }, { save: false });
+        const empCode = full.employee?.employeeCode || 'employee';
+        const m = full.payrollCycle?.month ?? cycle.month ?? 1;
+        const y = full.payrollCycle?.year ?? cycle.year;
+        zip.file(`${m}_${y}_${empCode}_SalarySlip.pdf`, blob);
+      }
+      const out = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(out);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Payslips_${cycle.month}-${cycle.year}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      success(`Downloaded ${paySlips.length} payslip(s)`);
+    } catch (e: any) {
+      error(e?.message || 'Failed to download payslips');
+    } finally {
+      setZippingCycle(null);
+    }
+  };
   const columns: Column<any>[] = [
     { key: 'label', header: 'Period', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{MONTHS[(r.month || 1) - 1]} {r.year}</span> },
     { key: 'status', header: 'Status', render: (r: any) => <CycleStatusBadge status={r.status} /> },
     { key: 'count', header: 'Payslips', render: (r: any) => <span className="text-[var(--text-muted)] text-xs">{r.payslipCount ?? r.count ?? 0}</span> },
     {
       key: 'actions', header: '', render: (r: any) => (
-        <button
-          onClick={() => sendMutation.mutate(r.id)}
-          disabled={sendMutation.isPending}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500 text-white text-xs font-bold hover:bg-indigo-600 disabled:opacity-50"
-        >
-          {sendMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Send Payslips
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => zipCycle(r)}
+            disabled={zippingCycle === r.id}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs font-bold text-[var(--text-muted)] hover:text-indigo-500 hover:border-indigo-500/30 disabled:opacity-50"
+          >
+            {zippingCycle === r.id ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} Download ZIP
+          </button>
+          <button
+            onClick={() => sendMutation.mutate(r.id)}
+            disabled={sendMutation.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500 text-white text-xs font-bold hover:bg-indigo-600 disabled:opacity-50"
+          >
+            {sendMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Send Payslips
+          </button>
+        </div>
       ),
     },
   ];

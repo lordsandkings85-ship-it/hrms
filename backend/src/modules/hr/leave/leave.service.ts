@@ -100,7 +100,7 @@ async approve(id: string, companyId: string, approverId: string) {
     });
     if (!req) throw new NotFoundException('Leave request not found');
     if (req.employee.companyId !== companyId) throw new ForbiddenException('Leave request does not belong to this company');
-    if (req.status !== 'pending') throw new Error('Leave request is already processed');
+    if (req.status !== 'pending') throw new BadRequestException('Leave request is already processed');
 
     let days = isHalfDayCount(req.startDate, req.endDate, req.isHalfDay);
 
@@ -224,6 +224,7 @@ async approve(id: string, companyId: string, approverId: string) {
       if (monthlyActive) {
         await this.updateMonthlyBalanceTx(tx, companyId, req.employeeId, req.leaveTypeId, year, month, { pending: -reservedDays, taken: days });
       }
+      return { id, status: 'approved' };
     });
   }
 
@@ -234,7 +235,7 @@ async approve(id: string, companyId: string, approverId: string) {
     });
     if (!req) throw new NotFoundException('Leave request not found');
     if (req.employee.companyId !== companyId) throw new ForbiddenException('Leave request does not belong to this company');
-    if (req.status !== 'pending') throw new Error('Leave request is already processed');
+    if (req.status !== 'pending') throw new BadRequestException('Leave request is already processed');
 
     const year = req.startDate.getFullYear();
     const month = req.startDate.getMonth() + 1;
@@ -250,6 +251,7 @@ async approve(id: string, companyId: string, approverId: string) {
         // Release the pending reservation (do not count rejected leave)
         await this.updateMonthlyBalanceTx(tx, companyId, req.employeeId, req.leaveTypeId, year, month, { pending: -reservedDays });
       }
+      return { id, status: 'rejected' };
     });
   }
 

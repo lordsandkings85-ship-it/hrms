@@ -32,7 +32,7 @@ export class PayrollController {
   @Post('run')
   @Permissions({ module: 'payroll', action: 'approve' })
 runPayroll(@CurrentUser() user: AuthUser, @Body() body: RunPayrollDto) {
-    return this.payrollService.runPayroll(user.companyId, body.month, body.year, body.regime);
+    return this.payrollService.runPayroll(user.companyId, body.month, body.year, body.regime, body.employeeIds);
   }
 
   @Get('cycles')

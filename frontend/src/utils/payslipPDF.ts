@@ -157,7 +157,7 @@ function pctOf(amount: number | undefined, base: number | undefined): string {
   return `${pct.toFixed(1)}%`;
 }
 
-export async function generatePayslipPDF(data: PayslipData): Promise<Blob> {
+export async function generatePayslipPDF(data: PayslipData, opts?: { save?: boolean }): Promise<Blob> {
   const { payslip, employee, company, generatedBy, generatedAt } = data;
 
   const doc = new jsPDF('p', 'mm', 'a4');
@@ -370,7 +370,7 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Blob> {
   doc.setFont('helvetica', 'normal');
   doc.text(`Page 1 of 1 | Company: ${companyName}`, 14, 282);
 
-  doc.save(`${month}_${year}_${empCode}_SalarySlip.pdf`);
+  if (opts?.save !== false) doc.save(`${month}_${year}_${empCode}_SalarySlip.pdf`);
 
   return doc.output('blob');
 }

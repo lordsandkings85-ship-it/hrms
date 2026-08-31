@@ -64,6 +64,9 @@ export default function EmployeeSalaryPage() {
       payload[c.key] = v;
     }
     if (effectiveFrom) payload.effectiveFrom = effectiveFrom;
+    payload.pfDeduction = Number(structure?.pfDeduction || 0);
+    payload.esiDeduction = Number(structure?.esiDeduction || 0);
+    payload.ptDeduction = Number(structure?.ptDeduction || 0);
     saveMutation.mutate(payload);
   };
 

@@ -66,10 +66,16 @@ export function StructureSection({ initialEmployeeId }: { initialEmployeeId?: st
   const updateMutation = useMutation({
     mutationFn: () => {
       const { ctc, deductionType, deductionAmount, ...base } = form;
-      const deductions = { pfDeduction: 0, esiDeduction: 0, ptDeduction: 0 };
-      if (deductionType === 'pf') deductions.pfDeduction = deductionAmount;
-      if (deductionType === 'esi') deductions.esiDeduction = deductionAmount;
-      if (deductionType === 'pt') deductions.ptDeduction = deductionAmount;
+      const deductions = {
+        pfDeduction: structure?.pfDeduction ?? 0,
+        esiDeduction: structure?.esiDeduction ?? 0,
+        ptDeduction: structure?.ptDeduction ?? 0,
+      };
+      if (deductionType !== 'none') {
+        deductions.pfDeduction = deductionType === 'pf' ? deductionAmount : 0;
+        deductions.esiDeduction = deductionType === 'esi' ? deductionAmount : 0;
+        deductions.ptDeduction = deductionType === 'pt' ? deductionAmount : 0;
+      }
       return payrollApi.setSalaryStructure(employeeId, { ...base, ...deductions });
     },
     onSuccess: () => { success('Salary structure saved'); queryClient.invalidateQueries({ queryKey: ['admin-salary-structure', employeeId] }); },
