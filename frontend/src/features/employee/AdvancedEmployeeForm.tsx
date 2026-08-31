@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { employeesApi, organizationApi } from '../../api/client';
 import { Save, RefreshCw } from 'lucide-react';
@@ -16,6 +16,80 @@ const TABS = [
   'Emergency', 'Experience', 'WeekOff', 'Qualification', 
   'Certificate', 'Document', 'Immigration'
 ];
+
+const BANKS = [
+  'Bank of Baroda', 'HDFC Bank', 'State Bank of India', 'State Bank of Hyderabad',
+  'State Bank of Mysore', 'State Bank of Travancore', 'State Bank of Bikaner & Jaipur',
+  'State Bank of Patiala', 'State Bank of Indore', 'State Bank of Saurashtra',
+  'Andhra Bank', 'Corporation Bank', 'Oriental Bank of Commerce', 'Syndicate Bank',
+  'Vijaya Bank', 'Allahabad Bank', 'Dena Bank', 'Indian Bank', 'United Bank of India',
+  'Punjab National Bank', 'Canara Bank', 'Union Bank of India', 'Bank of India',
+  'Bank of Maharashtra', 'Central Bank of India', 'Indian Overseas Bank',
+  'UCO Bank', 'Punjab & Sind Bank', 'IDBI Bank', 'Axis Bank', 'ICICI Bank',
+  'Kotak Mahindra Bank', 'Yes Bank', 'IndusInd Bank', 'Federal Bank', 'Karnataka Bank',
+  'Karur Vysya Bank', 'South Indian Bank', 'Catholic Syrian Bank', 'Dhanlaxmi Bank',
+  'Lakshmi Vilas Bank', 'Tamilnad Mercantile Bank', 'City Union Bank', 'RBL Bank',
+  'Bandhan Bank', 'Jammu & Kashmir Bank', 'Nainital Bank', 'Karnataka Vikas Grameena Bank',
+  'IDFC First Bank', 'AU Small Finance Bank', 'Equitas Small Finance Bank',
+  'Ujjivan Small Finance Bank', 'Fincare Small Finance Bank', 'Jana Small Finance Bank',
+  'Suryoday Small Finance Bank', 'Utkarsh Small Finance Bank', 'ESAF Small Finance Bank',
+  'North East Small Finance Bank', 'Shivalik Small Finance Bank', 'Capital Small Finance Bank',
+  'Paytm Payments Bank', 'Airtel Payments Bank', 'India Post Payments Bank',
+  'Fino Payments Bank', 'Jio Payments Bank', 'NSDL Payments Bank',
+  'Bank of America', 'Citibank', 'HSBC', 'Standard Chartered', 'Deutsche Bank',
+  'Barclays', 'DBS Bank', 'BNP Paribas', 'JP Morgan Chase', 'Mizuho Bank',
+  'JPMorgan Chase Bank', 'Societe Generale', 'American Express', 'Morgan Stanley',
+  'Doha Bank', 'Mashreq Bank', 'Bank of Bahrain & Kuwait', 'SBM Bank India',
+  'First Abu Dhabi Bank', 'Qatar National Bank', 'Kuwait Finance House', 'ICICI Bank UK',
+  'SBI Canada', 'Bank of China', 'Citi Bank'
+];
+
+function BankSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return BANKS;
+    return BANKS.filter((b) => b.toLowerCase().includes(q));
+  }, [query]);
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
+  return (
+    <div className="col-span-2 relative" ref={boxRef}>
+      <input
+        ref={inputRef}
+        type="text"
+        value={open ? query : value}
+        placeholder="Type to search bank"
+        onFocus={() => { setQuery(value); setOpen(true); }}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+        className="w-full border rounded px-2 py-1 text-sm"
+      />
+      {open && (
+        <div className="absolute z-20 mt-1 w-full max-h-52 overflow-auto border rounded bg-white dark:bg-slate-800 shadow-lg">
+          {filtered.length === 0 && <div className="px-3 py-2 text-xs text-gray-400">No banks found</div>}
+          {filtered.map((b) => (
+            <div
+              key={b}
+              onMouseDown={(e) => { e.preventDefault(); onChange(b); setQuery(b); setOpen(false); }}
+              className="px-3 py-1.5 text-sm cursor-pointer hover:bg-indigo-50 dark:hover:bg-slate-700"
+            >
+              {b}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 const calculateExperience = (joiningDateStr: string | null | undefined) => {
   if (!joiningDateStr) return { years: 0, months: 0 };
@@ -454,12 +528,7 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
         </div>
         <div className="grid grid-cols-3 items-center gap-2">
           <label className="text-xs text-gray-600 col-span-1">Bank Name</label>
-          <select className="col-span-2 border rounded px-2 py-1 text-sm" value={formData.paymentInfo?.bankName || ''} onChange={e => updateSection('paymentInfo', 'bankName', e.target.value)}>
-             <option value="">-- SELECT --</option>
-             <option value="BOB">BOB</option>
-             <option value="HDFC">HDFC</option>
-             <option value="SBI">SBI</option>
-          </select>
+          <BankSelect value={formData.paymentInfo?.bankName || ''} onChange={(v) => updateSection('paymentInfo', 'bankName', v)} />
         </div>
         <div className="grid grid-cols-3 items-center gap-2">
           <label className="text-xs text-gray-600 col-span-1">Branch Code</label>
