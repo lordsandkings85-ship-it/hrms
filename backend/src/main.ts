@@ -1,8 +1,24 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Catch, ArgumentsHost, ExceptionFilter, HttpException } from '@nestjs/common';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { DecimalToNumberInterceptor } from './common/interceptors/decimal-to-number.interceptor';
+
+@Catch()
+export class DebugFilter implements ExceptionFilter {
+  catch(exception: any, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const res = ctx.getResponse();
+    const status = exception instanceof HttpException ? exception.getStatus() : 500;
+    const msg = exception?.message || String(exception);
+    // eslint-disable-next-line no-console
+    console.error('DEBUG_EXC status=' + status + ' message=' + msg);
+    if (status === 500) {
+      return res.status(500).json({ statusCode: 500, message: 'Internal server error', debugMessage: msg, stack: (exception?.stack || '').split('\n').slice(0, 4) });
+    }
+    return res.status(status).json(exception.getResponse());
+  }
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -41,6 +57,7 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
   app.useGlobalInterceptors(new DecimalToNumberInterceptor());
+  app.useGlobalFilters(new DebugFilter());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
