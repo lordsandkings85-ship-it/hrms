@@ -85,9 +85,9 @@ export class AttendanceService {
     const graceMins = shiftType?.graceMinutes ?? Number(policyMap.get('custom.gracePeriodMins') ?? 10);
     const requiredMinutes = Math.round((shiftEnd.getTime() - shiftStart.getTime()) / 60000);
 
-    const isFlexible = Boolean(shiftType?.isFlexible) || policyMap.get('custom.flexiTime') === 'true';
-    const coreStartStr = policyMap.get('custom.coreHoursStart') || shiftType?.coreHoursStart || null;
-    const coreEndStr = policyMap.get('custom.coreHoursEnd') || shiftType?.coreHoursEnd || null;
+    const isFlexible = shiftType?.isFlexible ?? policyMap.get('custom.flexiTime') === 'true';
+    const coreStartStr = shiftType?.coreHoursStart ?? policyMap.get('custom.coreHoursStart') ?? null;
+    const coreEndStr = shiftType?.coreHoursEnd ?? policyMap.get('custom.coreHoursEnd') ?? null;
     let coreStart: Date | null = null;
     let coreEnd: Date | null = null;
     if (isFlexible && coreStartStr && coreEndStr) {
@@ -329,7 +329,7 @@ export class AttendanceService {
       shiftEnd: shiftEnd ?? null,
       requiredMinutes: ctx?.requiredMinutes ?? null,
       graceMinutes: ctx?.graceMins ?? null,
-      isFlexible: ctx ? (ctx.shiftType?.isFlexible || ctx.policyMap.get('custom.flexiTime') === 'true') : false,
+      isFlexible: ctx ? (ctx.shiftType?.isFlexible ?? ctx.policyMap.get('custom.flexiTime') === 'true') : false,
       isWeeklyOff: Boolean(log?.isWeeklyOff),
       todayIsSecondSaturday: ctx ? this.isSecondSaturday(now) : false,
       workedMinutes,
