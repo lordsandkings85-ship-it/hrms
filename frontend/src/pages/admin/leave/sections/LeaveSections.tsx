@@ -131,6 +131,16 @@ export function LeaveBalancesSection() {
     setEditForm({ allotted: r.allotted ?? 0, used: r.used ?? 0, carriedOver: r.carriedOver ?? 0, encashed: r.encashed ?? 0, reason: '' });
     setEditTarget(r);
   };
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => leaveApi.deleteBalance(id),
+    onSuccess: () => { success('Balance deleted'); queryClient.invalidateQueries({ queryKey: ['leave-balances'] }); },
+    onError: (e: any) => toastError(e.message || 'Failed to delete'),
+  });
+  const confirmDelete = (r: any) => {
+    if (!r.id) return;
+    if (!window.confirm(`Delete the ${r.leaveType} balance for ${r.employee} (${year})? This cannot be undone.`)) return;
+    deleteMutation.mutate(r.id);
+  };
   const rows = (data ?? []).flatMap((e: any) => {
     const balances = Array.isArray(e.balances) ? e.balances : e.leaveBalances && Array.isArray(e.leaveBalances) ? e.leaveBalances : [];
     const displayName = e.name || `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.employeeCode || e.employeeId;
@@ -159,8 +169,9 @@ export function LeaveBalancesSection() {
     { key: 'remaining', header: 'Balance', render: (r: any) => <span className="font-bold text-emerald-500">{r.remaining}</span> },
     {
       key: 'actions', header: '', render: (r: any) => (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-1">
           <button onClick={() => openEdit(r)} disabled={!r.id} title="Edit balance" className="p-1.5 rounded-lg text-indigo-400 hover:bg-indigo-500/10 disabled:opacity-25 disabled:cursor-default"><Pencil size={14} /></button>
+          <button onClick={() => confirmDelete(r)} disabled={!r.id || deleteMutation.isPending} title="Delete balance" className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 disabled:opacity-25 disabled:cursor-default"><Trash2 size={14} /></button>
         </div>
       ),
     },

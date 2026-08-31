@@ -358,6 +358,8 @@ balances: (employeeId: string, year?: number) => {
     api<any>('/leave/balances/adjust', { method: 'POST', body: JSON.stringify(data) }),
   updateBalance: (id: string, data: { allotted?: number; used?: number; carriedOver?: number; encashed?: number; reason: string }) =>
     api<any>(`/leave/balances/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteBalance: (id: string) =>
+    api<any>(`/leave/balances/${id}`, { method: 'DELETE' }),
   bulkAllocate: (data: { employeeIds: string[]; leaveTypeId: string; year: number; amount: number; reason?: string }) =>
     api<any>('/leave/balances/bulk-allocate', { method: 'POST', body: JSON.stringify(data) }),
   transactions: (employeeId: string, year?: number) => {

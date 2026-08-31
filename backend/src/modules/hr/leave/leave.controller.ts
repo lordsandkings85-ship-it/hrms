@@ -228,6 +228,12 @@ export class LeaveController {
     return this.leaveService.updateBalance(user.companyId, id, body, user.userId);
   }
 
+  @Delete('balances/:id')
+  @Permissions({ module: 'leave', action: 'edit' })
+  deleteBalance(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.leaveService.deleteBalance(user.companyId, id, user.userId);
+  }
+
   // --- Monthly Casual Leave Ledger (Rule 4) ---
 
   @Get('monthly-balances/:employeeId')

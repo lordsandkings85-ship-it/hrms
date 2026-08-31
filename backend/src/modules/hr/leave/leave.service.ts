@@ -75,8 +75,10 @@ async apply(
           reason,
         },
       });
-      await this.prisma.$transaction((tx) =>
-        this.updateMonthlyBalanceTx(tx, companyId, employeeId, leaveTypeId, year, month, { pending: days }),
+      await this.prisma.$transaction(
+        (tx) =>
+          this.updateMonthlyBalanceTx(tx, companyId, employeeId, leaveTypeId, year, month, { pending: days }),
+        { timeout: 60000, maxWait: 20000 },
       );
       return request;
     }
@@ -283,16 +285,19 @@ async approve(id: string, companyId: string, approverId: string) {
       const month = req.startDate.getMonth() + 1;
       const monthlyActive = await this.hasMonthlyBalance(req.employeeId, req.leaveTypeId, year);
       const reservedDays = isHalfDayCount(req.startDate, req.endDate, req.isHalfDay);
-      return this.prisma.$transaction(async (tx) => {
-        await tx.leaveRequest.update({
-          where: { id },
-          data: { status: 'cancelled', approverId: userId },
-        });
-        if (monthlyActive) {
-          // Release the reservation and record the cancellation in the monthly ledger
-          await this.updateMonthlyBalanceTx(tx, req.employee.companyId, req.employeeId, req.leaveTypeId, year, month, { pending: -reservedDays, cancelled: reservedDays });
-        }
-      });
+      return this.prisma.$transaction(
+        async (tx) => {
+          await tx.leaveRequest.update({
+            where: { id },
+            data: { status: 'cancelled', approverId: userId },
+          });
+          if (monthlyActive) {
+            // Release the reservation and record the cancellation in the monthly ledger
+            await this.updateMonthlyBalanceTx(tx, req.employee.companyId, req.employeeId, req.leaveTypeId, year, month, { pending: -reservedDays, cancelled: reservedDays });
+          }
+        },
+        { timeout: 60000, maxWait: 20000 },
+      );
     }
     if (req.status !== 'approved') {
       throw new Error('Only pending or approved leave requests can be cancelled');
@@ -373,62 +378,65 @@ async approve(id: string, companyId: string, approverId: string) {
     deleteEnd.setUTCHours(23, 59, 59, 999);
     deleteEnd.setDate(deleteEnd.getDate() + 1);
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.leaveCancellationRequest.update({
-        where: { id },
-        data: { status: 'approved', approvedBy: approverId },
-      });
-      await tx.leaveRequest.update({
-        where: { id: cancel.leaveRequestId },
-        data: { status: 'cancelled', approverId },
-      });
+    return this.prisma.$transaction(
+      async (tx) => {
+        await tx.leaveCancellationRequest.update({
+          where: { id },
+          data: { status: 'approved', approvedBy: approverId },
+        });
+        await tx.leaveRequest.update({
+          where: { id: cancel.leaveRequestId },
+          data: { status: 'cancelled', approverId },
+        });
 
-      if (leave.status === 'approved' && restoreDays > 0) {
-        await tx.leaveBalance.upsert({
-          where: {
-            employeeId_leaveTypeId_year: {
+        if (leave.status === 'approved' && restoreDays > 0) {
+          await tx.leaveBalance.upsert({
+            where: {
+              employeeId_leaveTypeId_year: {
+                employeeId: leave.employeeId,
+                leaveTypeId: leave.leaveTypeId,
+                year: leave.startDate.getFullYear(),
+              },
+            },
+            update: { used: { decrement: restoreDays } },
+            create: {
               employeeId: leave.employeeId,
               leaveTypeId: leave.leaveTypeId,
               year: leave.startDate.getFullYear(),
+              allotted: 0,
+              used: 0,
             },
-          },
-          update: { used: { decrement: restoreDays } },
-          create: {
+          });
+          await tx.leaveTransaction.create({
+            data: {
+              companyId,
+              employeeId: leave.employeeId,
+              leaveTypeId: leave.leaveTypeId,
+              year: leave.startDate.getFullYear(),
+              type: 'CANCELLATION_CREDIT',
+              amount: restoreDays,
+              reason: `Cancellation approved — ${restoreDays} day(s) restored`,
+              approvedBy: approverId,
+              leaveRequestId: cancel.leaveRequestId,
+            },
+          });
+        }
+
+        await tx.attendanceLog.deleteMany({
+          where: {
             employeeId: leave.employeeId,
-            leaveTypeId: leave.leaveTypeId,
-            year: leave.startDate.getFullYear(),
-            allotted: 0,
-            used: 0,
+            status: 'on_leave',
+            date: { gte: deleteStart, lte: deleteEnd },
           },
         });
-        await tx.leaveTransaction.create({
-          data: {
-            companyId,
-            employeeId: leave.employeeId,
-            leaveTypeId: leave.leaveTypeId,
-            year: leave.startDate.getFullYear(),
-            type: 'CANCELLATION_CREDIT',
-            amount: restoreDays,
-            reason: `Cancellation approved — ${restoreDays} day(s) restored`,
-            approvedBy: approverId,
-            leaveRequestId: cancel.leaveRequestId,
-          },
-        });
-      }
 
-      await tx.attendanceLog.deleteMany({
-        where: {
-          employeeId: leave.employeeId,
-          status: 'on_leave',
-          date: { gte: deleteStart, lte: deleteEnd },
-        },
-      });
-
-      if (monthlyActive && restoreDays > 0) {
-        // Restore availability in the monthly ledger and keep an audit trail
-        await this.updateMonthlyBalanceTx(tx, companyId, leave.employeeId, leave.leaveTypeId, year, month, { taken: -restoreDays, cancelled: restoreDays });
-      }
-    });
+        if (monthlyActive && restoreDays > 0) {
+          // Restore availability in the monthly ledger and keep an audit trail
+          await this.updateMonthlyBalanceTx(tx, companyId, leave.employeeId, leave.leaveTypeId, year, month, { taken: -restoreDays, cancelled: restoreDays });
+        }
+      },
+      { timeout: 60000, maxWait: 20000 },
+    );
   }
 
   async rejectCancellation(id: string, companyId: string, approverId: string) {
@@ -719,52 +727,97 @@ async balances(employeeId: string, year: number, companyId: string) {
 
     return this.prisma.$transaction(
       async (tx) => {
-      const updated = await tx.leaveBalance.update({
-        where: { id },
-        data: { allotted: after.allotted, used: after.used, carriedOver: after.carriedOver, encashed: after.encashed },
-        include: { leaveType: { select: { id: true, name: true } }, employee: { select: { employeeCode: true } } },
-      });
-
-      const changeParts: string[] = [];
-      for (const key of ['allotted', 'used', 'carriedOver', 'encashed'] as const) {
-        if (after[key] !== before[key]) changeParts.push(`${key}: ${before[key]} -> ${after[key]}`);
-      }
-      await tx.leaveTransaction.create({
-        data: {
-          companyId,
-          employeeId: balance.employeeId,
-          leaveTypeId: balance.leaveTypeId,
-          year: balance.year,
-          type: 'MANUAL_ADJUSTMENT',
-          amount: netDays,
-          reason: editReason,
-          approvedBy,
-        },
-      });
-
-      // Keep the monthly ledger consistent for monthly-tracked leave types
-      if (monthlyRows.length > 0) {
-        await this.updateMonthlyBalanceTx(tx, companyId, balance.employeeId, balance.leaveTypeId, balance.year, monthlyRows[0].month, {
-          adjusted: after.allotted - before.allotted,
-          taken: after.used - before.used,
+        const updated = await tx.leaveBalance.update({
+          where: { id },
+          data: { allotted: after.allotted, used: after.used, carriedOver: after.carriedOver, encashed: after.encashed },
+          include: { leaveType: { select: { id: true, name: true } }, employee: { select: { employeeCode: true } } },
         });
-      }
 
-      await tx.auditLog.create({
-        data: {
-          companyId,
-          userId: approvedBy,
-          action: 'LEAVE_BALANCE_UPDATE',
-          entity: 'LeaveBalance',
-          entityId: id,
-          metadata: { before, after, changes: changeParts, reason: editReason },
-        },
-      });
+        const changeParts: string[] = [];
+        for (const key of ['allotted', 'used', 'carriedOver', 'encashed'] as const) {
+          if (after[key] !== before[key]) changeParts.push(`${key}: ${before[key]} -> ${after[key]}`);
+        }
+        await tx.leaveTransaction.create({
+          data: {
+            companyId,
+            employeeId: balance.employeeId,
+            leaveTypeId: balance.leaveTypeId,
+            year: balance.year,
+            type: 'MANUAL_ADJUSTMENT',
+            amount: netDays,
+            reason: editReason,
+            approvedBy,
+          },
+        });
 
-      return updated;
-    },
+        // Keep the monthly ledger consistent for monthly-tracked leave types
+        if (monthlyRows.length > 0) {
+          await this.updateMonthlyBalanceTx(tx, companyId, balance.employeeId, balance.leaveTypeId, balance.year, monthlyRows[0].month, {
+            adjusted: after.allotted - before.allotted,
+            taken: after.used - before.used,
+          });
+        }
+
+        await tx.auditLog.create({
+          data: {
+            companyId,
+            userId: approvedBy,
+            action: 'LEAVE_BALANCE_UPDATE',
+            entity: 'LeaveBalance',
+            entityId: id,
+            metadata: { before, after, changes: changeParts, reason: editReason },
+          },
+        });
+
+        return updated;
+      },
       { timeout: 60000, maxWait: 20000 },
     );
+  }
+
+  /**
+   * Delete an annual LeaveBalance row (and any matching monthly-ledger rows for
+   * the same employee + type + year) plus an audit entry.
+   */
+  async deleteBalance(companyId: string, id: string, approvedBy: string) {
+    const balance = await this.prisma.leaveBalance.findUnique({
+      where: { id },
+      include: {
+        employee: { select: { companyId: true } },
+        leaveType: { select: { id: true, name: true } },
+      },
+    });
+    if (!balance || balance.employee.companyId !== companyId) throw new NotFoundException('Leave balance not found');
+
+    await this.prisma.$transaction(
+      async (tx) => {
+        await tx.leaveMonthlyBalance.deleteMany({
+          where: { employeeId: balance.employeeId, leaveTypeId: balance.leaveTypeId, year: balance.year },
+        });
+        await tx.leaveBalance.delete({ where: { id } });
+        await tx.auditLog.create({
+          data: {
+            companyId,
+            userId: approvedBy,
+            action: 'LEAVE_BALANCE_DELETE',
+            entity: 'LeaveBalance',
+            entityId: id,
+            metadata: {
+              employeeId: balance.employeeId,
+              leaveType: balance.leaveType?.name,
+              year: balance.year,
+              allotted: balance.allotted,
+              used: balance.used,
+              carriedOver: balance.carriedOver,
+              encashed: balance.encashed,
+            },
+          },
+        });
+      },
+      { timeout: 60000, maxWait: 20000 },
+    );
+
+    return { success: true, id };
   }
 
   async transactions(companyId: string, employeeId: string, year?: number) {

@@ -127,7 +127,8 @@ export class MonthlyLeaveAllocationService {
     const carryForward = prev ? prev.remaining : 0;
 
     try {
-      await this.prisma.$transaction(async (tx) => {
+      await this.prisma.$transaction(
+        async (tx) => {
         await tx.leaveMonthlyBalance.create({
           data: {
             companyId,
@@ -167,7 +168,9 @@ export class MonthlyLeaveAllocationService {
           update: { allotted: { increment: amount } },
           create: { employeeId, leaveTypeId, year, allotted: amount, used: 0 },
         });
-      });
+      },
+        { timeout: 60000, maxWait: 20000 },
+      );
       return true;
     } catch (e: any) {
       // P2002 = unique constraint -> already allocated (idempotent run)
