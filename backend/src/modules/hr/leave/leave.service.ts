@@ -183,49 +183,52 @@ async approve(id: string, companyId: string, approverId: string) {
     const monthlyActive = await this.hasMonthlyBalance(req.employeeId, req.leaveTypeId, year);
     const reservedDays = isHalfDayCount(req.startDate, req.endDate, req.isHalfDay);
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.leaveBalance.upsert({
-        where: {
-          employeeId_leaveTypeId_year: {
+    return this.prisma.$transaction(
+      async (tx) => {
+        await tx.leaveBalance.upsert({
+          where: {
+            employeeId_leaveTypeId_year: {
+              employeeId: req.employeeId,
+              leaveTypeId: req.leaveTypeId,
+              year: req.startDate.getFullYear(),
+            },
+          },
+          update: { used: { increment: days } },
+          create: {
             employeeId: req.employeeId,
             leaveTypeId: req.leaveTypeId,
             year: req.startDate.getFullYear(),
+            allotted: 0,
+            used: days,
           },
-        },
-        update: { used: { increment: days } },
-        create: {
-          employeeId: req.employeeId,
-          leaveTypeId: req.leaveTypeId,
-          year: req.startDate.getFullYear(),
-          allotted: 0,
-          used: days,
-        },
-      });
-      await tx.leaveRequest.update({
-        where: { id },
-        data: { status: 'approved', approverId },
-      });
-      await tx.leaveTransaction.create({
-        data: {
-          companyId,
-          employeeId: req.employeeId,
-          leaveTypeId: req.leaveTypeId,
-          year: req.startDate.getFullYear(),
-          type: 'LEAVE_TAKEN',
-          amount: days,
-          reason: `Approved ${days} day(s) of leave`,
-          approvedBy: approverId,
-          leaveRequestId: id,
-        },
-      });
-      if (onLeaveLogs.length > 0) {
-        await tx.attendanceLog.createMany({ data: onLeaveLogs });
-      }
-      if (monthlyActive) {
-        await this.updateMonthlyBalanceTx(tx, companyId, req.employeeId, req.leaveTypeId, year, month, { pending: -reservedDays, taken: days });
-      }
-      return { id, status: 'approved' };
-    });
+        });
+        await tx.leaveRequest.update({
+          where: { id },
+          data: { status: 'approved', approverId },
+        });
+        await tx.leaveTransaction.create({
+          data: {
+            companyId,
+            employeeId: req.employeeId,
+            leaveTypeId: req.leaveTypeId,
+            year: req.startDate.getFullYear(),
+            type: 'LEAVE_TAKEN',
+            amount: days,
+            reason: `Approved ${days} day(s) of leave`,
+            approvedBy: approverId,
+            leaveRequestId: id,
+          },
+        });
+        if (onLeaveLogs.length > 0) {
+          await tx.attendanceLog.createMany({ data: onLeaveLogs });
+        }
+        if (monthlyActive) {
+          await this.updateMonthlyBalanceTx(tx, companyId, req.employeeId, req.leaveTypeId, year, month, { pending: -reservedDays, taken: days });
+        }
+        return { id, status: 'approved' };
+      },
+      { timeout: 60000, maxWait: 20000 },
+    );
   }
 
   async reject(id: string, companyId: string, approverId: string) {
@@ -242,17 +245,20 @@ async approve(id: string, companyId: string, approverId: string) {
     const monthlyActive = await this.hasMonthlyBalance(req.employeeId, req.leaveTypeId, year);
     const reservedDays = isHalfDayCount(req.startDate, req.endDate, req.isHalfDay);
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.leaveRequest.update({
-        where: { id },
-        data: { status: 'rejected', approverId },
-      });
-      if (monthlyActive) {
-        // Release the pending reservation (do not count rejected leave)
-        await this.updateMonthlyBalanceTx(tx, companyId, req.employeeId, req.leaveTypeId, year, month, { pending: -reservedDays });
-      }
-      return { id, status: 'rejected' };
-    });
+    return this.prisma.$transaction(
+      async (tx) => {
+        await tx.leaveRequest.update({
+          where: { id },
+          data: { status: 'rejected', approverId },
+        });
+        if (monthlyActive) {
+          // Release the pending reservation (do not count rejected leave)
+          await this.updateMonthlyBalanceTx(tx, companyId, req.employeeId, req.leaveTypeId, year, month, { pending: -reservedDays });
+        }
+        return { id, status: 'rejected' };
+      },
+      { timeout: 60000, maxWait: 20000 },
+    );
   }
 
   /**
