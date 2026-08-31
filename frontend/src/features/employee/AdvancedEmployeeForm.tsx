@@ -618,9 +618,13 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
             <select className="col-span-2 border rounded px-2 py-1 text-sm" value={formData.personalInfo?.bloodGroup || ''} onChange={e => updateSection('personalInfo', 'bloodGroup', e.target.value)}>
               <option value="">--SELECT--</option>
               <option value="A+">A+</option>
-              <option value="O+">O+</option>
+              <option value="A-">A-</option>
               <option value="B+">B+</option>
+              <option value="B-">B-</option>
               <option value="AB+">AB+</option>
+              <option value="AB-">AB-</option>
+              <option value="O+">O+</option>
+              <option value="O-">O-</option>
             </select>
           </div>
           <div className="grid grid-cols-3 items-center gap-2">
