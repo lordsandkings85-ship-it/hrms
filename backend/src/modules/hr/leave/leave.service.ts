@@ -717,7 +717,8 @@ async balances(employeeId: string, year: number, companyId: string) {
       (after.allotted + after.carriedOver - after.used - after.encashed) -
       (before.allotted + before.carriedOver - before.used - before.encashed);
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(
+      async (tx) => {
       const updated = await tx.leaveBalance.update({
         where: { id },
         data: { allotted: after.allotted, used: after.used, carriedOver: after.carriedOver, encashed: after.encashed },
@@ -761,7 +762,9 @@ async balances(employeeId: string, year: number, companyId: string) {
       });
 
       return updated;
-    });
+    },
+      { timeout: 60000, maxWait: 20000 },
+    );
   }
 
   async transactions(companyId: string, employeeId: string, year?: number) {

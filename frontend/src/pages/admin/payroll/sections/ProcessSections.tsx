@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, FileClock, BadgeIndianRupee, Send, Loader2, Lock, Calculator, FileText, Download, Users, X } from 'lucide-react';
+import { CalendarClock, FileClock, BadgeIndianRupee, Send, Loader2, Lock, Calculator, FileText, Download } from 'lucide-react';
 import JSZip from 'jszip';
 import { payrollApi, payrollApiExt } from '../../../../api/client';
 import { DataTable, Column } from '../../../../components/ui/DataTable';
@@ -52,9 +52,9 @@ export function RunPayrollSection() {
   const queryClient = useQueryClient();
   const { success, error } = useToast();
   const runMutation = useMutation({
-    mutationFn: () => payrollApiExt.runPayroll({ month, year, regime, employeeIds: selectedIds.length ? selectedIds : undefined }),
-    onSuccess: (res: any) => {
-      success(selectedIds.length ? `Payroll run completed for ${selectedIds.length} employee(s)` : (res?.message || `Payroll run completed for ${MONTHS[month - 1]} ${year}`));
+    mutationFn: (ids?: string[]) => payrollApiExt.runPayroll({ month, year, regime, employeeIds: ids && ids.length ? ids : undefined }),
+    onSuccess: (res: any, ids?: string[]) => {
+      success(ids && ids.length ? `Payroll run completed for ${ids.length} employee(s)` : (res?.message || `Payroll run completed for ${MONTHS[month - 1]} ${year}`));
       queryClient.invalidateQueries({ queryKey: ['payroll-cycles'] });
     },
     onError: (e: any) => error(e.message || 'Failed to run payroll'),
@@ -109,11 +109,11 @@ export function RunPayrollSection() {
             <Calculator size={14} /> Preview Tax
           </button>
           <button
-            onClick={() => runMutation.mutate()}
+            onClick={() => runMutation.mutate(selectedIds.length ? selectedIds : undefined)}
             disabled={runMutation.isPending}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 text-xs font-bold uppercase tracking-wider shadow-sm disabled:opacity-50"
           >
-            {runMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <FileClock size={14} />} Run Payroll
+            {runMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <FileClock size={14} />} Run Payroll{selectedIds.length ? ` (${selectedIds.length})` : ''}
           </button>
         </div>
       }
@@ -133,53 +133,73 @@ export function RunPayrollSection() {
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2 text-sm">
-            <Users size={15} className="text-indigo-500" />
-            <span className="font-bold text-[var(--text-primary)]">Run For</span>
-            <select
-              value={selectedIds.length ? 'selected' : 'all'}
-              onChange={(e) => { if (e.target.value === 'all') setSelectedIds([]); }}
-              className="px-3 py-1.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-lg text-sm"
-            >
-              <option value="all">All active employees</option>
-              <option value="selected">Selected employees</option>
-            </select>
-          </div>
-          {selectedIds.length > 0 && (
-            <span className="text-xs text-[var(--text-muted)]">{selectedIds.length} selected</span>
-          )}
+      <div className="mt-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={employees.length > 0 && selectedIds.length === employees.length}
+              onChange={(e) => setSelectedIds(e.target.checked ? employees.map((x: any) => x.id) : [])}
+              className="w-4 h-4 rounded border border-[var(--border)] accent-indigo-500 cursor-pointer"
+            />
+            <span className="font-bold text-[var(--text-primary)]">Select all ({employees.length})</span>
+          </label>
+          <button
+            onClick={() => setSelectedIds(selectedIds.length ? [] : employees.map((x: any) => x.id))}
+            className="text-xs font-bold uppercase tracking-wider text-indigo-500 hover:text-indigo-700"
+          >
+            {selectedIds.length ? 'Clear all' : 'All'}
+          </button>
         </div>
-        {selectedIds.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {selectedIds.map((id) => {
-              const e = employees.find((x: any) => x.id === id);
-              return (
-                <span key={id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-xs font-semibold text-indigo-600">
-                  {e?.firstName} {e?.lastName} <span className="text-[10px] text-indigo-400">({e?.employeeCode || '—'})</span>
-                  <button onClick={() => setSelectedIds((ids) => ids.filter((i) => i !== id))} className="text-indigo-400 hover:text-indigo-700"><X size={12} /></button>
-                </span>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="mt-1 text-[11px] text-[var(--text-muted)]">Select specific employees for this run. Leave empty to run for all active employees.</p>
-        )}
-        {selectedIds.length === 0 && (
-          <div className="mt-2 max-w-md">
-            <select
-              value=""
-              onChange={(e) => { if (e.target.value) { setSelectedIds((ids) => (ids.includes(e.target.value) ? ids : [...ids, e.target.value])); } }}
-              className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-lg text-sm"
-            >
-              <option value="">Add employee…</option>
-              {employees.map((e: any) => (
-                <option key={e.id} value={e.id}>{e.firstName} {e.lastName} ({e.employeeCode || '—'})</option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div className="max-h-[420px] overflow-y-auto rounded-xl border border-[var(--border)]">
+          <table className="data-table w-full">
+            <thead className="sticky top-0 bg-[var(--surface-alt)] z-10">
+              <tr>
+                <th className="w-10"><span className="sr-only">Select</span></th>
+                <th className="text-left">Employee</th>
+                <th className="text-left hidden sm:table-cell">Department</th>
+                <th className="text-left hidden md:table-cell">Designation</th>
+              </tr>
+            </thead>
+            <tbody>
+              {employees.map((e: any) => {
+                const checked = selectedIds.includes(e.id);
+                return (
+                  <tr
+                    key={e.id}
+                    onClick={() => setSelectedIds((ids) => (checked ? ids.filter((i) => i !== e.id) : [...ids, e.id]))}
+                    className={`transition-colors cursor-pointer hover:bg-surface-hover ${checked ? 'bg-indigo-500/5' : ''}`}
+                  >
+                    <td className="text-center" onClick={(ev) => ev.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => setSelectedIds((ids) => (checked ? ids.filter((i) => i !== e.id) : [...ids, e.id]))}
+                        className="w-4 h-4 rounded border border-[var(--border)] accent-indigo-500 cursor-pointer"
+                      />
+                    </td>
+                    <td>
+                      <div className="font-bold text-[var(--text-primary)]">{e.firstName} {e.lastName}</div>
+                      <div className="text-xs text-[var(--text-muted)]">{e.employeeCode || e.employeeId || '—'}</div>
+                    </td>
+                    <td className="hidden sm:table-cell text-xs text-[var(--text-muted)]">{e.department?.name || '—'}</td>
+                    <td className="hidden md:table-cell text-xs text-[var(--text-muted)]">{e.designation?.title || '—'}</td>
+                  </tr>
+                );
+              })}
+              {employees.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="py-12 text-center text-sm text-[var(--text-muted)]">No active employees available to run payroll for.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+          {selectedIds.length > 0
+            ? `Run Payroll will process only the ${selectedIds.length} selected employee(s).`
+            : "Select one or more employees above. Leave empty to run payroll for all active employees."}
+        </p>
       </div>
 
       <Modal open={previewOpen} onClose={() => setPreviewOpen(false)} title={`Tax Preview — ${MONTHS[month - 1]} ${year}`} size="lg">
@@ -357,15 +377,21 @@ export function SendPayslipsSection() {
     onSuccess: () => { success('Payslips sent'); queryClient.invalidateQueries({ queryKey: ['payroll-cycles'] }); },
     onError: (e: any) => error(e.message || 'Failed to send payslips'),
   });
-  const [zippingCycle, setZippingCycle] = useState<string | null>(null);
-  const zipCycle = async (cycle: any) => {
-    setZippingCycle(cycle.id);
+  const [pickCycle, setPickCycle] = useState<any>(null);
+  const { data: pickPayslips, isLoading: loadingPick } = useQuery({
+    queryKey: ['pick-cycle-payslips', pickCycle?.id],
+    queryFn: () => payrollApiExt.getCyclePayslips(pickCycle.id),
+    enabled: !!pickCycle,
+  });
+  const [zipping, setZipping] = useState(false);
+
+  const zipPayslips = async (cycle: any, payslips: any[]) => {
+    if (!payslips.length) { error('No payslips selected to download'); return; }
+    setZipping(true);
     try {
-      const paySlips = (await payrollApiExt.getCyclePayslips(cycle.id)) || [];
-      if (!paySlips.length) { error('No payslips to download in this cycle'); return; }
       const { user } = useAuthStore.getState();
       const zip = new JSZip();
-      for (const p of paySlips) {
+      for (const p of payslips) {
         const full = await payrollApiExt.getPayslipDetail(p.id);
         const blob = await generatePayslipPDF({
           payslip: full,
@@ -386,13 +412,29 @@ export function SendPayslipsSection() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      success(`Downloaded ${paySlips.length} payslip(s)`);
+      success(`Downloaded ${payslips.length} payslip(s)`);
+      setPickCycle(null);
     } catch (e: any) {
       error(e?.message || 'Failed to download payslips');
     } finally {
-      setZippingCycle(null);
+      setZipping(false);
     }
   };
+
+  const payslipColumns: Column<any>[] = [
+    {
+      key: 'employee', header: 'Employee', render: (p: any) => (
+        <div>
+          <div className="font-bold text-[var(--text-primary)]">{p.employee?.firstName} {p.employee?.lastName}</div>
+          <div className="text-xs text-[var(--text-muted)]">{p.employee?.employeeCode}</div>
+        </div>
+      ),
+    },
+    { key: 'net', header: 'Net Pay', render: (p: any) => <span className="font-mono font-bold text-emerald-500">{fmtINR(p.netPay)}</span> },
+    { key: 'gross', header: 'Gross Pay', render: (p: any) => <span className="font-mono font-semibold">{fmtINR(p.grossPay)}</span> },
+  ];
+  const paySlips = pickPayslips ?? [];
+
   const columns: Column<any>[] = [
     { key: 'label', header: 'Period', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{MONTHS[(r.month || 1) - 1]} {r.year}</span> },
     { key: 'status', header: 'Status', render: (r: any) => <CycleStatusBadge status={r.status} /> },
@@ -401,11 +443,10 @@ export function SendPayslipsSection() {
       key: 'actions', header: '', render: (r: any) => (
         <div className="flex items-center gap-2">
           <button
-            onClick={() => zipCycle(r)}
-            disabled={zippingCycle === r.id}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs font-bold text-[var(--text-muted)] hover:text-indigo-500 hover:border-indigo-500/30 disabled:opacity-50"
+            onClick={() => setPickCycle(r)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs font-bold text-[var(--text-muted)] hover:text-indigo-500 hover:border-indigo-500/30"
           >
-            {zippingCycle === r.id ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} Download ZIP
+            <Download size={12} /> Select & Download
           </button>
           <button
             onClick={() => sendMutation.mutate(r.id)}
@@ -421,6 +462,44 @@ export function SendPayslipsSection() {
   return (
     <SectionCard title="Send Payslips" icon={Send}>
       <DataTable columns={columns} data={cycles ?? []} loading={isLoading} keyField="id" emptyTitle="No payroll cycles" emptyMessage="Run payroll before sending payslips." />
+      <Modal
+        open={!!pickCycle}
+        onClose={() => setPickCycle(null)}
+        title={pickCycle ? `Download Payslips — ${MONTHS[(pickCycle.month || 1) - 1]} ${pickCycle.year}` : ''}
+        size="lg"
+      >
+        {paySlips.length === 0 && !loadingPick ? (
+          <p className="text-sm text-[var(--text-muted)] py-6 text-center">No payslips in this cycle.</p>
+        ) : (
+          <DataTable
+            columns={payslipColumns}
+            data={paySlips}
+            loading={loadingPick}
+            keyField="id"
+            pageSize={8}
+            searchable
+            searchPlaceholder="Search employees…"
+            bulkActions={[
+              {
+                label: 'Download Selected',
+                icon: Download,
+                onClick: (rows: any[]) => zipPayslips(pickCycle, rows),
+              },
+            ]}
+            toolbar={
+              <button
+                onClick={() => zipPayslips(pickCycle, paySlips)}
+                disabled={zipping || !paySlips.length}
+                className="btn-ghost py-1.5 px-3 text-xs disabled:opacity-50"
+              >
+                {zipping ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Download All
+              </button>
+            }
+            emptyTitle="No payslips"
+            emptyMessage="No payslips in this cycle yet."
+          />
+        )}
+      </Modal>
     </SectionCard>
   );
 }
