@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Timer, MapPin, Save } from 'lucide-react';
+import { Timer, MapPin, Save, Play } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AdminSection } from '../../../components/ui/AdminSection';
-import { attendancePolicyApi, attendanceApiExt } from '../../../api/client';
+import { attendancePolicyApi, attendanceApiExt, leaveApi } from '../../../api/client';
 import { useToast } from '../../../components/ui/ToastProvider';
 
 const DEFAULTS = [
@@ -155,6 +155,38 @@ export default function AttendancePolicyPage() {
             ? `Configured: Latitude ${configuredLat}, Longitude ${configuredLng}${configuredRadius ? `, Radius ${configuredRadius}m` : ''}`
             : 'Not configured yet'}
         </p>
+      </AdminSection>
+      <AdminSection title="Monthly Casual Leave Allocation" icon={Play} subtitle="Manually trigger the monthly casual leave allocation job for the current or past months">
+        <p className="text-sm text-[var(--text-muted)] mb-4">
+          If the automatic cron job missed a month (e.g. server was down), use this to backfill casual leaves for eligible employees.
+        </p>
+        <div className="flex items-end gap-3 flex-wrap">
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Year</label>
+            <input type="number" defaultValue={new Date().getFullYear()} id="alloc-year"
+              className="px-3 py-1.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-lg text-sm w-32 focus:outline-none focus:border-indigo-500" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Month</label>
+            <input type="number" min={1} max={12} defaultValue={new Date().getMonth() + 1} id="alloc-month"
+              className="px-3 py-1.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-lg text-sm w-32 focus:outline-none focus:border-indigo-500" />
+          </div>
+          <button
+            onClick={async () => {
+              const y = (document.getElementById('alloc-year') as HTMLInputElement)?.value || String(new Date().getFullYear());
+              const m = (document.getElementById('alloc-month') as HTMLInputElement)?.value || String(new Date().getMonth() + 1);
+              try {
+                const result = await leaveApi.runMonthlyAllocation(y, m);
+                toastSuccess(`Allocation complete: ${result?.allocated ?? 0} records created`);
+              } catch (e: any) {
+                toastError(e?.message || 'Allocation failed');
+              }
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 text-xs font-bold uppercase tracking-wider"
+          >
+            <Play size={14} /> Run Allocation
+          </button>
+        </div>
       </AdminSection>
     </div>
   );

@@ -6,7 +6,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { 
   FileText, CalendarDays, Sparkles 
 } from 'lucide-react';
-import { attendanceApi } from '../../../api/client';
+import { attendanceApi, leaveApi } from '../../../api/client';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Spinner as CustomSpinner } from '../../../components/ui/Spinner';
@@ -35,6 +35,57 @@ export default function MyViewAttendancePage() {
     },
     enabled: !!myEmpId
   });
+
+  const { data: holidays } = useQuery({
+    queryKey: ['holidays'],
+    queryFn: () => leaveApi.listHolidays(),
+  });
+
+  const attendanceEvents = (Object.values(
+    (historyLogs || []).reduce((acc: any, row: any) => {
+      const dateStr = row.date.split('T')[0];
+      if (!acc[dateStr]) {
+        let title = 'Present';
+        let color = '#10b981'; // Green
+        if (row.status === 'late') {
+          title = 'Late';
+          color = '#f59e0b'; // Amber
+        } else if (row.status === 'half_day') {
+          title = 'Half Day';
+          color = '#3b82f6'; // Blue
+        } else if (row.status === 'on_leave') {
+          title = 'Leave';
+          color = '#8b5cf6'; // Purple
+        } else if (row.status === 'absent') {
+          title = 'Absent';
+          color = '#ef4444'; // Red
+        }
+        acc[dateStr] = {
+          id: row.id,
+          title,
+          date: dateStr,
+          backgroundColor: color,
+          textColor: '#ffffff'
+        };
+      }
+      return acc;
+    }, {})
+  ) as any[]);
+
+  const holidayEvents = (holidays || [])
+    .filter((h: any) => {
+      const d = new Date(h.date);
+      return d.getFullYear() === currentYear && (d.getMonth() + 1) === currentMonth;
+    })
+    .map((h: any) => ({
+      id: `holiday-${h.id}`,
+      title: h.name,
+      date: new Date(h.date).toISOString().split('T')[0],
+      backgroundColor: '#06b6d4', // Cyan/Teal
+      textColor: '#ffffff',
+    }));
+
+  const allEvents = [...attendanceEvents, ...holidayEvents];
 
   return (
     <div className="p-6 space-y-6">
@@ -113,44 +164,28 @@ export default function MyViewAttendancePage() {
                   left: 'title',
                   right: 'prev,next today'
                 }}
-                events={[
-                  ...(Object.values(
-                    (historyLogs || []).reduce((acc: any, row: any) => {
-                      const dateStr = row.date.split('T')[0];
-                      if (!acc[dateStr]) {
-                        let title = 'Present';
-                        let color = '#10b981'; // Green
-                        if (row.status === 'late') {
-                          title = 'Late';
-                          color = '#f59e0b'; // Amber
-                        } else if (row.status === 'half_day') {
-                          title = 'Half Day';
-                          color = '#3b82f6'; // Blue
-                        } else if (row.status === 'on_leave') {
-                          title = 'Leave';
-                          color = '#8b5cf6'; // Purple
-                        } else if (row.status === 'absent') {
-                          title = 'Absent';
-                          color = '#ef4444'; // Red
-                        }
-                        acc[dateStr] = {
-                          id: row.id,
-                          title,
-                          date: dateStr,
-                          backgroundColor: color,
-                          textColor: '#ffffff'
-                        };
-                      }
-                      return acc;
-                    }, {})
-                  ) as any[])
-                ]}
+                events={allEvents}
                 datesSet={(arg) => {
                   setCurrentYear(arg.view.currentStart.getFullYear());
                   setCurrentMonth(arg.view.currentStart.getMonth() + 1);
                 }}
                 height="auto"
               />
+            </div>
+            <div className="flex flex-wrap gap-3 mt-3">
+              {[
+                { label: 'Present', color: '#10b981' },
+                { label: 'Late', color: '#f59e0b' },
+                { label: 'Half Day', color: '#3b82f6' },
+                { label: 'Leave', color: '#8b5cf6' },
+                { label: 'Absent', color: '#ef4444' },
+                { label: 'Holiday', color: '#06b6d4' },
+              ].map(({ label, color }) => (
+                <span key={label} className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                  <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }}></span>
+                  {label}
+                </span>
+              ))}
             </div>
           </div>
         </div>

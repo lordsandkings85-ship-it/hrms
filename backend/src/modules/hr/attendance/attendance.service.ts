@@ -494,6 +494,18 @@ export class AttendanceService {
     const onLeave = uniqueLogs.filter(l => l.status === 'on_leave').length;
     const totalOvertimeMins = logs.reduce((s, l) => s + l.overtimeMinutes, 0);
 
+    // Fetch company holidays for the month and exclude those on working days
+    const holidays = await this.prisma.holiday.findMany({
+      where: { companyId, date: { gte: start, lt: end } },
+    });
+    const holidayCount = holidays.filter(h => {
+      const dow = h.date.getDay();
+      if (workingDaysPerWeek === 5 && dow >= 1 && dow <= 5) return true;
+      if (workingDaysPerWeek === 6 && dow >= 1 && dow <= 6) return true;
+      if (workingDaysPerWeek === 7) return true;
+      return false;
+    }).length;
+
     const daysInMonth = new Date(year, month, 0).getDate();
     let workingDaysInMonth = 0;
     for (let i = 1; i <= daysInMonth; i++) {
@@ -503,9 +515,9 @@ export class AttendanceService {
       else if (workingDaysPerWeek === 7) workingDaysInMonth++;
     }
 
-    const absent = Math.max(0, workingDaysInMonth - present - late - halfDay - onLeave);
+    const absent = Math.max(0, workingDaysInMonth - holidayCount - present - late - halfDay - onLeave);
 
-    return { present, late, halfDay, onLeave, absent, totalOvertimeMins, totalDays: workingDaysInMonth, logs };
+    return { present, late, halfDay, onLeave, absent, holidays: holidayCount, totalOvertimeMins, totalDays: workingDaysInMonth - holidayCount, logs };
   }
 
 async listPendingRegularizations(companyId: string) {

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../../store/useAuthStore';
-import { attendanceApiExt, attendanceApi } from '../../../api/client';
-import { Calendar as CalendarIcon, CheckCircle, XCircle, Clock as ClockIcon, AlertCircle, Search, Users } from 'lucide-react';
+import { attendanceApiExt, attendanceApi, leaveApi } from '../../../api/client';
+import { Calendar as CalendarIcon, CheckCircle, XCircle, Clock as ClockIcon, AlertCircle, Search, Users, Gift } from 'lucide-react';
 import { Spinner } from '../../../components/ui/Spinner';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { getServerYear, getServerMonth } from '../../../utils/serverTime';
@@ -420,6 +420,15 @@ function EmployeeSummary() {
             <div>
               <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">On Leave</p>
               <h2 className="text-2xl font-black text-slate-900 dark:text-white">{summary.onLeave}</h2>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-cyan-50 dark:bg-cyan-500/10 flex items-center justify-center text-cyan-500 shrink-0">
+              <Gift size={24} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Holidays</p>
+              <h2 className="text-2xl font-black text-slate-900 dark:text-white">{summary.holidays ?? 0}</h2>
             </div>
           </div>
         </div>
