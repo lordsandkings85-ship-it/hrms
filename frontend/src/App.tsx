@@ -121,6 +121,7 @@ const SettingsSetupPage = lazy(() => import('./pages/admin/settings/SettingsSetu
 const OrgMastersPage = lazy(() => import('./pages/admin/company/OrgMastersPage'));
 const ComplianceSetupPage = lazy(() => import('./pages/admin/compliance/ComplianceSetupPage'));
 const MorePage              = lazy(() => import('./pages/common/MorePage'));
+const AboutUpdatesPage      = lazy(() => import('./pages/common/AboutUpdatesPage'));
 const NotFoundPage = lazy(() => import('./pages/common/NotFoundPage'));
 
 function isAuthed() {
@@ -366,6 +367,8 @@ export default function App() {
 
           // ── Misc ──────────────────────────────────────────────────────
           { path: 'more',                    El: MorePage },
+          { path: 'about',                   El: AboutUpdatesPage },
+          { path: 'about/update',            El: AboutUpdatesPage },
 
         ].map(({ path, El }) => (
           <Route

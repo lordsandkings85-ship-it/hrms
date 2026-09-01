@@ -56,73 +56,56 @@ function registerSecurity(app) {
 let mainWindow$1 = null;
 let updateCheckInterval = null;
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1e3;
+const OFFLINE_MESSAGE = "Unable to check for updates. Check your internet connection and try again.";
+function sendToRenderer(channel, payload) {
+  if (mainWindow$1 && !mainWindow$1.isDestroyed()) {
+    mainWindow$1.webContents.send(channel, payload ?? {});
+  }
+}
 function initAutoUpdater(win) {
   mainWindow$1 = win;
   electronUpdater.autoUpdater.logger = log;
   electronUpdater.autoUpdater.autoDownload = false;
-  electronUpdater.autoUpdater.autoInstallOnAppQuit = true;
+  electronUpdater.autoUpdater.autoInstallOnAppQuit = false;
   electronUpdater.autoUpdater.on("checking-for-update", () => {
     log.info("Checking for updates...");
+    sendToRenderer("updater:checking");
   });
   electronUpdater.autoUpdater.on("update-available", (info) => {
     log.info(`Update available: ${info.version}`);
-    if (mainWindow$1 && !mainWindow$1.isDestroyed()) {
-      mainWindow$1.webContents.send("updater:available", {
-        version: info.version,
-        releaseNotes: info.releaseNotes
-      });
-    }
-    electron.dialog.showMessageBox(mainWindow$1, {
-      type: "info",
-      title: "Update Available",
-      message: `A new version (${info.version}) is available.`,
-      detail: "Would you like to download and install it now?",
-      buttons: ["Download", "Later"],
-      defaultId: 0,
-      cancelId: 1
-    }).then(({ response }) => {
-      if (response === 0) {
-        electronUpdater.autoUpdater.downloadUpdate();
-      }
+    sendToRenderer("updater:available", {
+      version: info.version,
+      releaseNotes: info.releaseNotes
     });
   });
   electronUpdater.autoUpdater.on("update-not-available", () => {
     log.info("No update available.");
+    sendToRenderer("updater:not-available");
   });
   electronUpdater.autoUpdater.on("download-progress", (progress) => {
     log.info(`Download progress: ${progress.percent.toFixed(1)}%`);
-    if (mainWindow$1 && !mainWindow$1.isDestroyed()) {
-      mainWindow$1.webContents.send("updater:progress", {
-        percent: progress.percent,
-        transferred: progress.transferred,
-        total: progress.total
-      });
-    }
+    sendToRenderer("updater:progress", {
+      percent: progress.percent,
+      transferred: progress.transferred,
+      total: progress.total
+    });
   });
   electronUpdater.autoUpdater.on("update-downloaded", (info) => {
     log.info(`Update downloaded: ${info.version}`);
-    if (mainWindow$1 && !mainWindow$1.isDestroyed()) {
-      mainWindow$1.webContents.send("updater:downloaded", {
-        version: info.version
-      });
-    }
-    electron.dialog.showMessageBox(mainWindow$1, {
-      type: "info",
-      title: "Update Ready",
-      message: `Version ${info.version} has been downloaded.`,
-      detail: "The application will restart to apply the update.",
-      buttons: ["Restart Now", "Later"],
-      defaultId: 0,
-      cancelId: 1
-    }).then(({ response }) => {
-      if (response === 0) {
-        setImmediate(() => electronUpdater.autoUpdater.quitAndInstall());
-      }
+    sendToRenderer("updater:downloaded", {
+      version: info.version
     });
   });
   electronUpdater.autoUpdater.on("error", (error) => {
     log.error("Auto-updater error:", error);
+    const message = typeof error === "string" ? error : error?.message ?? "An unknown update error occurred.";
+    const offline = /network|connection|timed ?out|ECONN|offline|failed to fetch/i.test(message);
+    sendToRenderer("updater:error", {
+      message: offline ? OFFLINE_MESSAGE : `Update failed: ${message}`,
+      offline
+    });
   });
+  if (!electron.app.isPackaged) return;
   electron.app.whenReady().then(() => {
     setTimeout(() => {
       electronUpdater.autoUpdater.checkForUpdates().catch((err) => {
@@ -145,6 +128,11 @@ function initAutoUpdater(win) {
 function checkForUpdatesNow() {
   electronUpdater.autoUpdater.checkForUpdates().catch((err) => {
     log.warn("Manual update check failed:", err.message);
+  });
+}
+function downloadUpdateNow() {
+  electronUpdater.autoUpdater.downloadUpdate().catch((err) => {
+    log.warn("Update download failed:", err.message);
   });
 }
 function installUpdate() {
@@ -227,6 +215,9 @@ function registerIPC() {
   });
   electron.ipcMain.on("updater:check", () => {
     checkForUpdatesNow();
+  });
+  electron.ipcMain.on("updater:download", () => {
+    downloadUpdateNow();
   });
   electron.ipcMain.on("updater:install", () => {
     installUpdate();

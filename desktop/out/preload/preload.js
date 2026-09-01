@@ -32,10 +32,21 @@ function exposeAPI() {
       return () => window.removeEventListener("offline", handler);
     },
     checkForUpdates: () => electron.ipcRenderer.send("updater:check"),
+    downloadUpdate: () => electron.ipcRenderer.send("updater:download"),
+    onUpdateChecking: (callback) => {
+      const handler = () => callback();
+      electron.ipcRenderer.on("updater:checking", handler);
+      return () => electron.ipcRenderer.removeListener("updater:checking", handler);
+    },
     onUpdateAvailable: (callback) => {
       const handler = (_event, info) => callback(info);
       electron.ipcRenderer.on("updater:available", handler);
       return () => electron.ipcRenderer.removeListener("updater:available", handler);
+    },
+    onUpdateNotAvailable: (callback) => {
+      const handler = () => callback();
+      electron.ipcRenderer.on("updater:not-available", handler);
+      return () => electron.ipcRenderer.removeListener("updater:not-available", handler);
     },
     onDownloadProgress: (callback) => {
       const handler = (_event, info) => callback(info);
@@ -46,6 +57,11 @@ function exposeAPI() {
       const handler = (_event, info) => callback(info);
       electron.ipcRenderer.on("updater:downloaded", handler);
       return () => electron.ipcRenderer.removeListener("updater:downloaded", handler);
+    },
+    onUpdateError: (callback) => {
+      const handler = (_event, info) => callback(info);
+      electron.ipcRenderer.on("updater:error", handler);
+      return () => electron.ipcRenderer.removeListener("updater:error", handler);
     },
     quitAndInstall: () => electron.ipcRenderer.send("updater:install"),
     getTheme: () => electron.ipcRenderer.invoke("theme:get"),

@@ -64,9 +64,18 @@ The desktop app ships auto-updates via **GitHub Releases** using `electron-updat
 ## How the client updates
 
 - Windows NSIS + `electron-updater`: on startup (10 s delay) and every 4 h the
-  app checks `latest.yml`, offers **Download / Later**, downloads in the
-  background (progress shown by the in-app banner), and on completion offers
-  **Restart Now** (`autoInstallOnAppQuit` = true as a fallback).
+  app checks `latest.yml` in the background (production builds only — dev mode
+  never auto-checks).
+- When an update is available the **in-app UpdateBanner** appears, plus the
+  **About & Updates** page (`/about`, reachable from the top-bar info icon in
+  the desktop app) shows status, available version, a live download progress
+  bar, and errors.
+- Flow: **Check for Updates** → **Download Update** (background, progress%) →
+  **Restart & Update**. Installation is **never automatic**: `autoInstallOnAppQuit`
+  is `false`, so a restart only happens when the user explicitly clicks
+  **Restart & Update**.
+- Offline / network errors surface as a friendly message instead of a silent
+  native dialog.
 - Note: auto-update is **Windows-only right now** (we only build the NSIS target).
 
 ## Gotchas

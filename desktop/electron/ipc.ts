@@ -1,6 +1,6 @@
 import { ipcMain, dialog, shell, clipboard, BrowserWindow, app, nativeTheme } from 'electron';
 import ElectronStore from 'electron-store';
-import { checkForUpdatesNow, installUpdate } from './updater';
+import { checkForUpdatesNow, downloadUpdateNow, installUpdate } from './updater';
 
 interface WindowBounds {
   x?: number;
@@ -104,6 +104,10 @@ export function registerIPC(): void {
 
   ipcMain.on('updater:check', () => {
     checkForUpdatesNow();
+  });
+
+  ipcMain.on('updater:download', () => {
+    downloadUpdateNow();
   });
 
   ipcMain.on('updater:install', () => {

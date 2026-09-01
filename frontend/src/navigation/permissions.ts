@@ -26,6 +26,7 @@ export const PUBLIC_AUTHENTICATED_ROUTES: string[] = [
   '/payroll',
   '/helpdesk',
   '/announcements',
+  '/about',
 ];
 
 /** Determine if a role has admin-level access */

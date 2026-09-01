@@ -26,9 +26,13 @@ export interface ElectronAPI {
   onOffline: (callback: () => void) => () => void;
 
   checkForUpdates: () => void;
+  downloadUpdate: () => void;
+  onUpdateChecking: (callback: () => void) => () => void;
   onUpdateAvailable: (callback: (info: { version: string; releaseNotes: string | string[] }) => void) => () => void;
+  onUpdateNotAvailable: (callback: () => void) => () => void;
   onDownloadProgress: (callback: (info: { percent: number; transferred: number; total: number }) => void) => () => void;
   onUpdateDownloaded: (callback: (info: { version: string }) => void) => () => void;
+  onUpdateError: (callback: (info: { message: string; offline: boolean }) => void) => () => void;
   quitAndInstall: () => void;
 
   getTheme: () => Promise<'light' | 'dark'>;
@@ -75,10 +79,21 @@ function exposeAPI(): void {
     },
 
     checkForUpdates: () => ipcRenderer.send('updater:check'),
+    downloadUpdate: () => ipcRenderer.send('updater:download'),
+    onUpdateChecking: (callback) => {
+      const handler = () => callback();
+      ipcRenderer.on('updater:checking', handler);
+      return () => ipcRenderer.removeListener('updater:checking', handler);
+    },
     onUpdateAvailable: (callback) => {
       const handler = (_event: unknown, info: { version: string; releaseNotes: string | string[] }) => callback(info);
       ipcRenderer.on('updater:available', handler);
       return () => ipcRenderer.removeListener('updater:available', handler);
+    },
+    onUpdateNotAvailable: (callback) => {
+      const handler = () => callback();
+      ipcRenderer.on('updater:not-available', handler);
+      return () => ipcRenderer.removeListener('updater:not-available', handler);
     },
     onDownloadProgress: (callback) => {
       const handler = (_event: unknown, info: { percent: number; transferred: number; total: number }) => callback(info);
@@ -89,6 +104,11 @@ function exposeAPI(): void {
       const handler = (_event: unknown, info: { version: string }) => callback(info);
       ipcRenderer.on('updater:downloaded', handler);
       return () => ipcRenderer.removeListener('updater:downloaded', handler);
+    },
+    onUpdateError: (callback) => {
+      const handler = (_event: unknown, info: { message: string; offline: boolean }) => callback(info);
+      ipcRenderer.on('updater:error', handler);
+      return () => ipcRenderer.removeListener('updater:error', handler);
     },
     quitAndInstall: () => ipcRenderer.send('updater:install'),
 
