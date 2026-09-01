@@ -208,4 +208,34 @@ describe('PermissionsGuard', () => {
       })),
     ).resolves.toBe(true);
   });
+
+  it('blocks self-bypass on POST /payroll/payouts even with body.employeeId match', async () => {
+    const guard = new PermissionsGuard(
+      { getAllAndOverride: () => [{ module: 'payroll', action: 'edit' }] } as any,
+      mockPrisma({ employeeId: 'emp-1', role: { isSystem: false }, grants: [] }) as any,
+    );
+    await expect(
+      guard.canActivate(ctx({
+        user: { userId: 'u-1', roleId: 'r-1' },
+        body: { employeeId: 'emp-1', amount: 999999 },
+        route: { path: '/payroll/payouts' },
+        method: 'POST',
+      })),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('blocks self-bypass on POST /leave/balances/adjust even with body.employeeId match', async () => {
+    const guard = new PermissionsGuard(
+      { getAllAndOverride: () => [{ module: 'leave', action: 'edit' }] } as any,
+      mockPrisma({ employeeId: 'emp-1', role: { isSystem: false }, grants: [] }) as any,
+    );
+    await expect(
+      guard.canActivate(ctx({
+        user: { userId: 'u-1', roleId: 'r-1' },
+        body: { employeeId: 'emp-1', amount: 999 },
+        route: { path: '/leave/balances/adjust' },
+        method: 'POST',
+      })),
+    ).rejects.toThrow(ForbiddenException);
+  });
 });

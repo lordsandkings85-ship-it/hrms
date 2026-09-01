@@ -4,7 +4,19 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { DecimalToNumberInterceptor } from './common/interceptors/decimal-to-number.interceptor';
 
+function assertRequiredEnv(envs: string[]): void {
+  const missing = envs.filter((e) => !process.env[e] || process.env[e]!.trim() === '');
+  if (missing.length > 0) {
+    // Fail fast at boot rather than silently running with weak/empty secrets.
+    throw new Error(
+      `Missing required environment variable(s): ${missing.join(', ')}`,
+    );
+  }
+}
+
 async function bootstrap() {
+  assertRequiredEnv(['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'ENCRYPTION_KEY']);
+
   const app = await NestFactory.create(AppModule);
 
   // Trust the first hop so client IPs (used by the throttler) are correct behind
@@ -14,15 +26,29 @@ async function bootstrap() {
   // Security headers: X-Content-Type-Options, X-Frame-Options, HSTS, etc.
   app.use(helmet());
 
-  app.enableCors({
-    origin: (origin, callback) => {
-      const allowed = [
+  // CORS allow-list: prefer the CORS_ORIGINS env var (comma-separated exact
+  // origins); fall back to dev defaults. No wildcard, credentials allowed.
+  const corsOrigins = (process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  const allowedOrigins: (string | RegExp)[] = corsOrigins.length > 0
+    ? corsOrigins
+    : [
         /^https:\/\/.*\.vercel\.app$/,
         /^https:\/\/.*\.onrender\.com$/,
         /^http:\/\/localhost(:\d+)?$/,
         /^http:\/\/127\.0\.0\.1(:\d+)?$/,
       ];
-      if (!origin || allowed.some(re => re.test(origin))) {
+
+  app.enableCors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const ok = allowedOrigins.some((a) =>
+        typeof a === 'string' ? a === origin : a.test(origin),
+      );
+      if (ok) {
         callback(null, true);
       } else {
         callback(new Error(`CORS blocked: ${origin}`));

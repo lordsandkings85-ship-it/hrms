@@ -11,6 +11,22 @@ interface CachedPermissions {
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+/**
+ * Route prefixes on which an employee may NOT self-bypass the required
+ * permission for mutating requests (POST/PUT/PATCH/DELETE). Self-service is
+ * still allowed on read methods and on employee-owned modules (attendance,
+ * leave apply, expenses, travel, timesheets, documents, assets, helpdesk,
+ * training, exit, fnf, employee-services, projects, announcements, shifts).
+ * Without this, a user could e.g. POST /payroll/payouts with their own
+ * employeeId in the body and skip the payroll:edit check entirely.
+ */
+const SENSITIVE_MUTATION_PREFIXES = [
+  '/payroll', '/salary', '/employees', '/performance', '/recruitment',
+  '/reports', '/organization', '/org-masters', '/attendance-policy',
+  '/compliance-setup', '/tax-setup', '/integrations', '/billing',
+  '/super-admin', '/settings', '/leave/balances', '/leave/monthly-',
+];
+
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   private permCache = new Map<string, { data: CachedPermissions; expiresAt: number }>();
@@ -70,9 +86,19 @@ export class PermissionsGuard implements CanActivate {
         /^\/employees\/[^/]+$/.test(path.replace(/^\/api\/v1/, '')) &&
         !['GET', 'HEAD', 'OPTIONS'].includes(method);
 
-      if (
+      const isReadOnlyMethod = ['GET', 'HEAD', 'OPTIONS'].includes(method);
+      const pathNoPrefix = path.replace(/^\/api\/v1/, '');
+      const isSensitiveMutation =
+        !isReadOnlyMethod &&
+        SENSITIVE_MUTATION_PREFIXES.some((p) => pathNoPrefix.startsWith(p));
+
+      const canSelfService =
+        (isReadOnlyMethod || !isSensitiveMutation) &&
         !isSalaryMutation &&
-        !isEmployeeRecordMutation &&
+        !isEmployeeRecordMutation;
+
+      if (
+        canSelfService &&
         userEmployeeId &&
         (params?.employeeId === userEmployeeId ||
           params?.id === userEmployeeId ||

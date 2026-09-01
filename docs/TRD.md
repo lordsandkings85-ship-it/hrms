@@ -160,7 +160,7 @@ Source of truth: `backend/prisma/schema.prisma` (mysql provider). Key entities:
 ## 8. Configuration (`.env.example`)
 
 ```dotenv
-DATABASE_URL="mysql://u593848004_hrms:Lords@2018@127.0.0.1:3306/u593848004_hrms"
+DATABASE_URL="mysql://u593848004_hrms:<db_password>@127.0.0.1:3306/u593848004_hrms"
 JWT_ACCESS_SECRET / JWT_REFRESH_SECRET        # render.yaml: generateValue
 JWT_ACCESS_EXPIRES_IN="15m"  JWT_REFRESH_EXPIRES_IN="7d"
 PORT=5000

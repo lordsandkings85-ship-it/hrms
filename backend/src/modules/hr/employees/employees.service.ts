@@ -96,7 +96,7 @@ export class EmployeesService {
   async findAll(
     companyId: string,
     userId: string,
-    opts: { page?: number; pageSize?: number; search?: string; departmentId?: string; status?: string; joiningDate?: string; orderBy?: string },
+    opts: { page?: number; pageSize?: number; search?: string; departmentId?: string; status?: string },
   ) {
     const page = opts.page && opts.page > 0 ? opts.page : 1;
     const pageSize = opts.pageSize && opts.pageSize > 0 ? Math.min(opts.pageSize, 100) : 50;
@@ -117,20 +117,6 @@ export class EmployeesService {
       isSystem: false,
       ...(opts.status ? { status: opts.status } : {}),
       ...(opts.departmentId ? { departmentId: opts.departmentId } : {}),
-      ...(opts.joiningDate
-        ? (() => {
-            const d = new Date(opts.joiningDate);
-            if (isNaN(d.getTime())) return {};
-            const next = new Date(d);
-            next.setDate(d.getDate() + 1);
-            return {
-              joiningDate: {
-                gte: d,
-                lt: next,
-              },
-            };
-          })()
-        : {}),
       ...(opts.search
         ? {
             OR: [
@@ -152,15 +138,7 @@ export class EmployeesService {
           manager: true,
           shiftAssignment: { include: { shift: true }, orderBy: { effectiveFrom: 'desc' } },
         },
-        orderBy: ([] as any).concat(
-          opts.orderBy === 'joiningDateAsc'
-            ? [{ joiningDate: 'asc' as const }]
-            : opts.orderBy === 'joiningDateDesc'
-            ? [{ joiningDate: 'desc' as const }]
-            : opts.orderBy === 'name'
-            ? [{ firstName: 'asc' as const }, { lastName: 'asc' as const }]
-            : [{ createdAt: 'desc' as const }],
-        ),
+        orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
@@ -305,20 +283,32 @@ export class EmployeesService {
 
   async archive(companyId: string, userId: string, id: string) {
     await this.findOne(companyId, userId, id);
-    const employee = await this.prisma.employee.update({
-      where: { id },
-      data: { status: 'archived' },
-    });
+    const [employee] = await this.prisma.$transaction([
+      this.prisma.employee.update({
+        where: { id },
+        data: { status: 'archived' },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { user: { employeeId: id }, revoked: false },
+        data: { revoked: true },
+      }),
+    ]);
     await this.audit(companyId, userId, 'archive', id);
     return employee;
   }
 
   async terminate(companyId: string, userId: string, id: string) {
     await this.findOne(companyId, userId, id);
-    const employee = await this.prisma.employee.update({
-      where: { id },
-      data: { status: 'terminated' },
-    });
+    const [employee] = await this.prisma.$transaction([
+      this.prisma.employee.update({
+        where: { id },
+        data: { status: 'terminated' },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { user: { employeeId: id }, revoked: false },
+        data: { revoked: true },
+      }),
+    ]);
     await this.audit(companyId, userId, 'terminate', id);
     return employee;
   }

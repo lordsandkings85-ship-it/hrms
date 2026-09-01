@@ -4,7 +4,7 @@ import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { Permissions } from '../../../common/decorators/permissions.decorator';
 import { CurrentUser, AuthUser } from '../../../common/decorators/current-user.decorator';
 import { PayrollService } from './payroll.service';
-import { AddPayoutDto, RunPayrollDto, SalaryStructureDto } from './dto/payroll.dto';
+import { AddPayoutDto, RunPayrollDto, SalaryStructureDto, TaxPreviewDto } from './dto/payroll.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('payroll')
@@ -59,9 +59,9 @@ runPayroll(@CurrentUser() user: AuthUser, @Body() body: RunPayrollDto) {
     return this.payrollService.getPayslipDetail(user.companyId, id);
   }
 
-  @Post('tax-preview')
+@Post('tax-preview')
   @Permissions({ module: 'payroll', action: 'view' })
-  taxPreview(@Body() body: any) {
+  taxPreview(@Body() body: TaxPreviewDto) {
     return this.payrollService.computeTaxPreview(body);
   }
   @Get('attendance-summary')

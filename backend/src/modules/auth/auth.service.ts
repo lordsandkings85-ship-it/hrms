@@ -4,7 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { authenticator } from 'otplib';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SeederService } from '../../prisma/seeder.service';
-import { decryptEmployeeNested, decryptPiiFields } from '../../utils/crypto.util';
+import { decrypt, decryptEmployeeNested, decryptPiiFields, encrypt } from '../../utils/crypto.util';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
@@ -94,8 +94,20 @@ export class AuthService {
 
     if (user.mfaEnabled) {
       if (!dto.mfaToken) throw new UnauthorizedException('MFA token required');
-      const ok = authenticator.check(dto.mfaToken, user.mfaSecret || '');
+      const ok = authenticator.check(dto.mfaToken, decrypt(user.mfaSecret || '') ?? '');
       if (!ok) throw new UnauthorizedException('Invalid MFA token');
+    }
+
+    // Block logins for separated/archived employees while still allowing
+    // platform super-admins and system (internal) employee records.
+    if (user.employeeId && !user.isSuperAdmin) {
+      const employee = await this.prisma.employee.findUnique({
+        where: { id: user.employeeId },
+        select: { status: true, isSystem: true },
+      });
+      if (employee && !employee.isSystem && employee.status !== 'active') {
+        throw new UnauthorizedException('Your account is no longer active');
+      }
     }
 
     await this.prisma.user.update({
@@ -122,6 +134,18 @@ export class AuthService {
     if (!matched) throw new UnauthorizedException('Invalid refresh token');
 
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+
+    // Same separation gate as login: don't issue fresh tokens for exited employees.
+    if (user.employeeId && !user.isSuperAdmin) {
+      const employee = await this.prisma.employee.findUnique({
+        where: { id: user.employeeId },
+        select: { status: true, isSystem: true },
+      });
+      if (employee && !employee.isSystem && employee.status !== 'active') {
+        throw new UnauthorizedException('Your account is no longer active');
+      }
+    }
+
     return this.issueTokens(user.id, user.companyId, user.email, user.roleId || undefined);
   }
 
@@ -130,7 +154,7 @@ export class AuthService {
     const secret = authenticator.generateSecret();
     const user = await this.prisma.user.update({
       where: { id: userId },
-      data: { mfaSecret: secret, mfaEnabled: true },
+      data: { mfaSecret: encrypt(secret), mfaEnabled: true },
     });
     const otpauth = authenticator.keyuri(user.email, 'HRMS SaaS', secret);
     return { otpauth };

@@ -79,7 +79,7 @@ export function registerIPC(): void {
     return result;
   });
 
-  ipcMain.on('app:print', (event, options?: Electron.PrintOptions) => {
+  ipcMain.on('app:print', (event, options?: Electron.WebContentsPrintOptions) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win) {
       win.webContents.print(options ?? { silent: false });
@@ -95,7 +95,9 @@ export function registerIPC(): void {
   });
 
   ipcMain.handle('shell:openExternal', async (_event, url: string) => {
-    await shell.openExternal(url);
+    if (typeof url === 'string' && /^(https?):\/\//i.test(url)) {
+      await shell.openExternal(url);
+    }
   });
 
   ipcMain.handle('theme:get', () => {

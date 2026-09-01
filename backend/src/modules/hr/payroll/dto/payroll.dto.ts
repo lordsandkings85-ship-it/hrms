@@ -49,3 +49,18 @@ export class AddPayoutDto {
   @IsNumber() @Min(0) amount: number;
   @IsOptional() @IsString() notes?: string;
 }
+
+export class TaxPreviewDto {
+  @IsNumber() @Min(0) basic: number;
+  @IsNumber() @Min(0) hra: number;
+  @IsNumber() @Min(0) da: number;
+  @IsNumber() @Min(0) conveyance: number;
+  @IsNumber() @Min(0) medical: number;
+  @IsNumber() @Min(0) specialAllowance: number;
+  @IsOptional() @IsNumber() @Min(0) rentPaid?: number;
+  @IsOptional() @IsString() cityType?: 'metro' | 'non-metro';
+  @IsOptional() @IsNumber() @Min(0) section80C?: number;
+  @IsOptional() @IsNumber() @Min(0) section80D?: number;
+  @IsOptional() @IsNumber() @Min(0) homeLoanInterest?: number;
+  @IsString() regime: 'old' | 'new';
+}

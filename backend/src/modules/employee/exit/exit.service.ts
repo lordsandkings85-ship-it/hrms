@@ -52,6 +52,12 @@ export class ExitService {
         data: { status: 'archived' },
       });
 
+      // Revoke any active sessions for the exiting employee
+      await tx.refreshToken.updateMany({
+        where: { user: { employeeId: dto.employeeId }, revoked: false },
+        data: { revoked: true },
+      });
+
       return created;
     });
 

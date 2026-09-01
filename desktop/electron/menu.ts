@@ -56,14 +56,18 @@ export function createAppMenu(mainWindow: BrowserWindow): void {
         { role: 'zoomOut' },
         { type: 'separator' },
         { role: 'togglefullscreen' },
-        { type: 'separator' },
-        {
-          label: 'Developer Tools',
-          accelerator: 'F12',
-          click: () => {
-            mainWindow.webContents.toggleDevTools();
-          },
-        },
+        ...(app.isPackaged
+          ? []
+          : ([
+              { type: 'separator' as const },
+              {
+                label: 'Developer Tools',
+                accelerator: 'F12',
+                click: () => {
+                  mainWindow.webContents.toggleDevTools();
+                },
+              },
+            ] as Electron.MenuItemConstructorOptions[])),
       ],
     },
     {
@@ -78,7 +82,7 @@ export function createAppMenu(mainWindow: BrowserWindow): void {
             ]
           : []),
       ],
-    },
+    } as Electron.MenuItemConstructorOptions,
     {
       label: 'Help',
       submenu: [

@@ -4,12 +4,15 @@ const path = require("path");
 const ElectronStore = require("electron-store");
 const electronUpdater = require("electron-updater");
 const log = require("electron-log");
-const ALLOWED_NAVIGATE_PREFIXES = [
-  "file://",
-  "http://localhost",
-  "http://127.0.0.1"
-];
 function registerSecurity(app) {
+  const allowExternal = (url) => typeof url === "string" && /^https?:\/\//i.test(url);
+  const allowedNavigate = (url) => {
+    if (url.startsWith("file://")) return true;
+    if (!app.isPackaged && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/.test(url)) {
+      return true;
+    }
+    return false;
+  };
   app.whenReady().then(() => {
     const ses = electron.session.defaultSession;
     ses.webRequest.onHeadersReceived((details, callback) => {
@@ -17,7 +20,7 @@ function registerSecurity(app) {
         responseHeaders: {
           ...details.responseHeaders,
           "Content-Security-Policy": [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://hrms-backend-rl2c.onrender.com wss:; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://hrms-backend-rl2c.onrender.com wss://hrms-backend-rl2c.onrender.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
           ]
         }
       });
@@ -29,22 +32,20 @@ function registerSecurity(app) {
   });
   app.on("web-contents-created", (_event, contents) => {
     contents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith("https://") || url.startsWith("http://")) {
-        const { shell } = require("electron");
-        shell.openExternal(url);
+      if (allowExternal(url)) {
+        electron.shell.openExternal(url);
       }
       return { action: "deny" };
     });
     contents.on("will-navigate", (navEvent, url) => {
-      const isAllowed = ALLOWED_NAVIGATE_PREFIXES.some(
-        (prefix) => url.startsWith(prefix)
-      );
-      if (!isAllowed) {
+      if (!allowedNavigate(url)) {
         navEvent.preventDefault();
       }
     });
     contents.on("before-input-event", (inputEvent, input) => {
-      if (input.control && input.key.toLowerCase() === "i") {
+      const devKeys = ["i", "j", "c", "s"];
+      const isDevCombo = (input.control || input.meta) && input.shift && devKeys.includes(input.key.toLowerCase());
+      if (input.key === "F12" || isDevCombo) {
         inputEvent.preventDefault();
       }
     });
@@ -208,7 +209,9 @@ function registerIPC() {
     return electron.clipboard.readText();
   });
   electron.ipcMain.handle("shell:openExternal", async (_event, url) => {
-    await electron.shell.openExternal(url);
+    if (typeof url === "string" && /^(https?):\/\//i.test(url)) {
+      await electron.shell.openExternal(url);
+    }
   });
   electron.ipcMain.handle("theme:get", () => {
     return electron.nativeTheme.shouldUseDarkColors ? "dark" : "light";
@@ -276,14 +279,16 @@ function createAppMenu(mainWindow2) {
         { role: "zoomOut" },
         { type: "separator" },
         { role: "togglefullscreen" },
-        { type: "separator" },
-        {
-          label: "Developer Tools",
-          accelerator: "F12",
-          click: () => {
-            mainWindow2.webContents.toggleDevTools();
+        ...electron.app.isPackaged ? [] : [
+          { type: "separator" },
+          {
+            label: "Developer Tools",
+            accelerator: "F12",
+            click: () => {
+              mainWindow2.webContents.toggleDevTools();
+            }
           }
-        }
+        ]
       ]
     },
     {
@@ -367,7 +372,8 @@ function createSplashWindow() {
     skipTaskbar: true,
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      sandbox: true
     }
   });
   const splashPath = getResourcePath("loading.html");

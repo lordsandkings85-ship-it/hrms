@@ -1,5 +1,5 @@
 import { autoUpdater, UpdateInfo } from 'electron-updater';
-import type { ProgressInfo } from 'electron-updater/types';
+import type { ProgressInfo } from 'electron-updater';
 import { BrowserWindow, app } from 'electron';
 import log from 'electron-log';
 

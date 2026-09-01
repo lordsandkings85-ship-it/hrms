@@ -15,7 +15,7 @@ ssh root@your-vps-ip
 # Create database and user
 mysql -u root -p
 CREATE DATABASE u593848004_hrms CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'u593848004_hrms'@'localhost' IDENTIFIED BY 'Lords@2018';
+CREATE USER 'u593848004_hrms'@'localhost' IDENTIFIED BY '<db_password>';
 GRANT ALL PRIVILEGES ON u593848004_hrms.* TO 'u593848004_hrms'@'localhost';
 FLUSH PRIVILEGES;
 EXIT;
@@ -51,7 +51,7 @@ npm run build
 cat > .env << 'EOF'
 NODE_ENV=production
 PORT=5000
-DATABASE_URL="mysql://u593848004_hrms:Lords@2018@127.0.0.1:3306/u593848004_hrms"
+DATABASE_URL="mysql://u593848004_hrms:<db_password>@127.0.0.1:3306/u593848004_hrms"
 JWT_ACCESS_SECRET="<generate-a-random-secret>"
 JWT_REFRESH_SECRET="<generate-another-random-secret>"
 JWT_ACCESS_EXPIRES_IN="15m"
