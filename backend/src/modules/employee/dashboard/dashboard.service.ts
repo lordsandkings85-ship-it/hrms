@@ -14,10 +14,8 @@ async getSummary(companyId: string, user?: any) {
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
-    const [
+const [
       totalEmployees,
-      presentToday,
-      onLeaveToday,
       pendingLeaveApprovals,
       openPositions,
       activeProjects,
@@ -37,21 +35,6 @@ where: {
           }
         } 
       }),
-      this.prisma.attendanceLog.count({
-        where: {
-          employee: { companyId },
-          date: { gte: startOfDay, lt: endOfDay },
-          status: { in: ['present', 'late', 'half_day'] },
-        },
-      }),
-      this.prisma.leaveRequest.count({
-        where: {
-          employee: { companyId },
-          status: 'approved',
-          startDate: { lte: endOfDay },
-          endDate: { gte: startOfDay },
-        },
-      }),
       this.prisma.leaveRequest.count({
         where: { employee: { companyId }, status: 'pending' },
       }),
@@ -62,7 +45,7 @@ where: {
       }),
     ]);
 
-    // Late arrivals count
+// Late arrivals count
     const lateArrivals = await this.prisma.attendanceLog.count({
       where: {
         employee: { companyId },
@@ -70,6 +53,47 @@ where: {
         status: 'late'
       }
     });
+
+    // Present / on-leave / absent from distinct active employee sets
+    const activeIds = await this.prisma.employee.findMany({
+      where: {
+        companyId,
+        status: 'active',
+        isSystem: false,
+        NOT: {
+          user: {
+            role: {
+              isSystem: true,
+            },
+          },
+        },
+      },
+      select: { id: true },
+    });
+    const presentGroup = await this.prisma.attendanceLog.groupBy({
+      by: ['employeeId'],
+      where: {
+        employee: { companyId, isSystem: false },
+        date: { gte: startOfDay, lt: endOfDay },
+        status: { in: ['present', 'late', 'half_day'] },
+      },
+      _count: true,
+    });
+    const onLeaveGroup = await this.prisma.leaveRequest.groupBy({
+      by: ['employeeId'],
+      where: {
+        employee: { companyId, isSystem: false },
+        status: 'approved',
+        startDate: { lte: endOfDay },
+        endDate: { gte: startOfDay },
+      },
+      _count: true,
+    });
+    const presentSet = new Set(presentGroup.map((g) => g.employeeId));
+    const onLeaveSet = new Set(onLeaveGroup.map((g) => g.employeeId));
+    const presentToday = activeIds.filter((e) => presentSet.has(e.id) && !onLeaveSet.has(e.id)).length;
+    const onLeaveToday = activeIds.filter((e) => onLeaveSet.has(e.id)).length;
+    const absentToday = Math.max(totalEmployees - presentToday - onLeaveToday, 0);
 
     // Pending Payroll for current month
     const currentMonthStr = today.getMonth() + 1;
@@ -360,7 +384,7 @@ const summary = {
       widgets: {
         totalEmployees,
         presentToday,
-        absentToday: Math.max(totalEmployees - presentToday - onLeaveToday, 0),
+        absentToday,
         onLeaveToday,
         lateArrivals,
         pendingApprovals: pendingLeaveApprovals,
