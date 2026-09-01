@@ -30,7 +30,7 @@ type Row = { label: string; amount?: number; text?: string; isTotal?: boolean; b
 
 /** Loads the company logo once; resolves to a data URL plus natural dimensions, or null if it can't load. */
 let logoPromise: Promise<{ dataUrl: string; width: number; height: number } | null> | null = null;
-function getLogo() {
+export function getLogo() {
   if (!logoPromise) {
     logoPromise = new Promise((resolve) => {
       const img = new Image();

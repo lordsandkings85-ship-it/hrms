@@ -24,10 +24,15 @@ export default function Form16Page() {
   const [selectedYear, setSelectedYear] = useState('FY 2025-26');
   const selectedData = form16List?.find((d: any) => d.financialYear === selectedYear) || form16List?.[0];
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!selectedData) return;
     const name = [user?.employee?.firstName, user?.employee?.lastName].filter(Boolean).join(' ') || user?.email || '';
-    generateForm16PDF(selectedData, { name, code: user?.employee?.employeeCode, pan: user?.employee?.pan });
+    await generateForm16PDF(selectedData, { name, code: user?.employee?.employeeCode, pan: user?.employee?.pan }, {
+      name: user?.company?.name,
+      pan: user?.company?.panNumber,
+      gst: user?.company?.gstNumber,
+      address: user?.company?.address,
+    });
   };
 
   return (

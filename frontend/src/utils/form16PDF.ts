@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { getLogo } from './payslipPDF';
 
 const BRAND: [number, number, number] = [238, 87, 64];
 const DARK: [number, number, number] = [30, 41, 59];
@@ -29,17 +30,46 @@ export interface Form16Data {
   };
 }
 
-export function generateForm16PDF(data: Form16Data, employee: { name: string; code?: string; pan?: string }, companyName = 'Company Name'): void {
+export interface CompanyInfo {
+  name?: string;
+  pan?: string;
+  gst?: string;
+  address?: string;
+}
+
+export async function generateForm16PDF(data: Form16Data, employee: { name: string; code?: string; pan?: string }, company: CompanyInfo = {}): Promise<void> {
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageWidth = 210;
+  const companyName = company.name || 'Company Name';
 
   doc.setFillColor(...BRAND);
   doc.rect(0, 0, pageWidth, 24, 'F');
+
+  const logo = await getLogo();
+  let leftTextX = 14;
+  if (logo) {
+    const logoBoxH = 12;
+    let logoW = logoBoxH * (logo.width / logo.height);
+    if (logoW > 40) logoW = 40;
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(11, (24 - logoBoxH - 3) / 2, logoW + 2, logoBoxH + 3, 1, 1, 'F');
+    doc.addImage(logo.dataUrl, 'PNG', 12, (24 - logoBoxH) / 2, logoW, logoBoxH, undefined, 'FAST');
+    leftTextX = 14 + logoW + 4;
+  }
+
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text(companyName, 14, 11);
+  doc.text(companyName, leftTextX, 10.5);
+  const meta = [company.pan && `PAN: ${company.pan}`, company.gst && `GSTIN: ${company.gst}`].filter(Boolean).join('  |  ');
+  if (meta) {
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(254, 215, 205);
+    doc.text(meta, leftTextX, 14.5);
+  }
   doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
   doc.text('FORM 16 (PART A & B)', pageWidth - 14, 11, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);

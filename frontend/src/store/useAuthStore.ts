@@ -26,6 +26,8 @@ export interface UserProfile {
   };
   company?: {
     name: string;
+    panNumber?: string;
+    gstNumber?: string;
     address?: string;
   };
 }
