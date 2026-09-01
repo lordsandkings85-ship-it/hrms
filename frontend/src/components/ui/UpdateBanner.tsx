@@ -4,7 +4,7 @@ import { isElectron } from './TitleBar';
 import { useState } from 'react';
 
 export default function UpdateBanner() {
-  const { state, check, install } = useUpdateState();
+  const { state, download, install } = useUpdateState();
   const [visible, setVisible] = useState(true);
 
   if (!isElectron() || !visible) return null;
@@ -23,12 +23,12 @@ export default function UpdateBanner() {
           <Download size={14} />
           <span>Version {version.length ? `v${version} ` : ''}is available.</span>
           <button
-            onClick={check}
+            onClick={download}
             className="ml-auto px-3 py-1 rounded-lg text-[11px] font-bold bg-white/90 hover:bg-white"
             style={{ color: 'var(--action-primary)' }}
           >
-            <RefreshCw size={11} className="inline mr-1 -mb-0.5" />
-            Check
+            <Download size={11} className="inline mr-1 -mb-0.5" />
+            Download
           </button>
         </>
       )}
