@@ -141,7 +141,7 @@ export class AuthService {
       include: {
         role: true,
         employee: true,
-        company: { select: { name: true } },
+        company: { select: { name: true, panNumber: true, gstNumber: true, address: true } },
       },
     });
     if (!user) throw new UnauthorizedException('User not found');

@@ -20,6 +20,8 @@ export class EmployeesService {
 
   async create(companyId: string, userId: string, dto: CreateEmployeeDto) {
     const { password, workingDaysPerWeek, ctc, roleName, contactInfo, paymentInfo, adminInfo, personalInfo, familyMembers, emergencyContacts, experiences, immigrations, documentInfos, certifications, qualifications, ...employeeData } = dto;
+    if (!(employeeData as any).pan && (personalInfo as any)?.panNo) (employeeData as any).pan = (personalInfo as any).panNo;
+    if (!(employeeData as any).aadhaar && (adminInfo as any)?.aadhaarCardNo) (employeeData as any).aadhaar = (adminInfo as any).aadhaarCardNo;
     const encryptedData = encryptPiiFields(employeeData as any);
 
     let assignedRoleId: string | null = null;
@@ -235,6 +237,8 @@ export class EmployeesService {
     if (!exists) throw new NotFoundException('Employee not found');
 
     const { password, workingDaysPerWeek, ctc, roleName, experience, contactInfo, paymentInfo, adminInfo, personalInfo, familyMembers, emergencyContacts, experiences, immigrations, documentInfos, certifications, qualifications, ...employeeData } = dto;
+    if (!(employeeData as any).pan && (personalInfo as any)?.panNo) (employeeData as any).pan = (personalInfo as any).panNo;
+    if (!(employeeData as any).aadhaar && (adminInfo as any)?.aadhaarCardNo) (employeeData as any).aadhaar = (adminInfo as any).aadhaarCardNo;
     const encryptedData = encryptPiiFields(employeeData as any);
 
     const employee = await this.prisma.$transaction(async (tx) => {
