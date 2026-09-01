@@ -125,6 +125,7 @@ export default function EmployeesPage() {
   const [filterDesig, setFilterDesig] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [sortBy, setSortBy] = useState('joiningDateDesc');
   const [createLoginFor, setCreateLoginFor] = useState<{ id: string; name: string; email: string } | null>(null);
   const [resetPasswordFor, setResetPasswordFor] = useState<{ id: string; name: string; email: string } | null>(null);
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
@@ -150,8 +151,16 @@ export default function EmployeesPage() {
   }, [search]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['employees', debouncedSearch, page],
-    queryFn: () => employeesApi.list({ search: debouncedSearch, page }),
+    queryKey: ['employees', debouncedSearch, page, filterDate, sortBy],
+    queryFn: () => employeesApi.list({
+      search: debouncedSearch,
+      page,
+      joiningDate: filterDate || undefined,
+      orderBy:
+        sortBy === 'name' ? 'name' :
+        sortBy === 'joiningDateAsc' ? 'joiningDateAsc' :
+        'joiningDateDesc',
+    }),
   });
 
   const { data: loginStatuses } = useQuery({
@@ -263,6 +272,18 @@ export default function EmployeesPage() {
               >
                 Import Employees
               </button>
+
+              {/* Sort Select */}
+              <select
+                value={sortBy}
+                onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
+                className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-[11px] px-2 py-1.5 rounded focus:outline-none"
+                title="Sort employees"
+              >
+                <option value="joiningDateDesc">Joining date (newest)</option>
+                <option value="joiningDateAsc">Joining date (oldest)</option>
+                <option value="name">Name (A-Z)</option>
+              </select>
 
               {/* Export File Format Icons */}
               <div className="flex items-center gap-1 ml-2 border-l border-slate-200 dark:border-slate-700 pl-2">
@@ -433,7 +454,7 @@ export default function EmployeesPage() {
                         type="text"
                         placeholder=""
                         value={filterDate}
-                        onChange={(e) => setFilterDate(e.target.value)}
+                        onChange={(e) => { setFilterDate(e.target.value); setPage(1); }}
                         className="w-full bg-transparent text-[10px] focus:outline-none"
                       />
                       <Calendar size={10} className="text-slate-400 shrink-0" />

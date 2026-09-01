@@ -96,7 +96,7 @@ export class EmployeesService {
   async findAll(
     companyId: string,
     userId: string,
-    opts: { page?: number; pageSize?: number; search?: string; departmentId?: string; status?: string },
+    opts: { page?: number; pageSize?: number; search?: string; departmentId?: string; status?: string; joiningDate?: string; orderBy?: string },
   ) {
     const page = opts.page && opts.page > 0 ? opts.page : 1;
     const pageSize = opts.pageSize && opts.pageSize > 0 ? Math.min(opts.pageSize, 100) : 50;
@@ -117,6 +117,20 @@ export class EmployeesService {
       isSystem: false,
       ...(opts.status ? { status: opts.status } : {}),
       ...(opts.departmentId ? { departmentId: opts.departmentId } : {}),
+      ...(opts.joiningDate
+        ? (() => {
+            const d = new Date(opts.joiningDate);
+            if (isNaN(d.getTime())) return {};
+            const next = new Date(d);
+            next.setDate(d.getDate() + 1);
+            return {
+              joiningDate: {
+                gte: d,
+                lt: next,
+              },
+            };
+          })()
+        : {}),
       ...(opts.search
         ? {
             OR: [
@@ -138,7 +152,15 @@ export class EmployeesService {
           manager: true,
           shiftAssignment: { include: { shift: true }, orderBy: { effectiveFrom: 'desc' } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: ([] as any).concat(
+          opts.orderBy === 'joiningDateAsc'
+            ? [{ joiningDate: 'asc' as const }]
+            : opts.orderBy === 'joiningDateDesc'
+            ? [{ joiningDate: 'desc' as const }]
+            : opts.orderBy === 'name'
+            ? [{ firstName: 'asc' as const }, { lastName: 'asc' as const }]
+            : [{ createdAt: 'desc' as const }],
+        ),
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),

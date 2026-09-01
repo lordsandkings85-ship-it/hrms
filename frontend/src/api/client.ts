@@ -212,11 +212,13 @@ export interface LoginStatus {
 }
 
 export const employeesApi = {
-  list: (params: { page?: number; pageSize?: number; search?: string } = {}) => {
+  list: (params: { page?: number; pageSize?: number; search?: string; joiningDate?: string; orderBy?: string } = {}) => {
     const qs = new URLSearchParams();
     if (params.page) qs.set('page', String(params.page));
     if (params.pageSize) qs.set('pageSize', String(params.pageSize));
     if (params.search) qs.set('search', params.search);
+    if (params.joiningDate) qs.set('joiningDate', params.joiningDate);
+    if (params.orderBy) qs.set('orderBy', params.orderBy);
     return api<{ items: Employee[]; total: number; page: number; totalPages: number }>(
       `/employees?${qs.toString()}`,
     );
