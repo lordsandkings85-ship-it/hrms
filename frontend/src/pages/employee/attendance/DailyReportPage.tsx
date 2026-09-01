@@ -7,6 +7,7 @@ import { getServerNow, getServerDate } from '../../../utils/serverTime';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { Spinner } from '../../../components/ui/Spinner';
 import { fmtTime12 } from '../../../utils/formatDate';
+import AbsentTodayPanel from '../../../components/attendance/AbsentTodayPanel';
 
 function useIsAdmin() {
   const { user } = useAuthStore();
@@ -85,6 +86,8 @@ function AdminDailyReport() {
           </div>
         </div>
       </div>
+
+      <AbsentTodayPanel />
 
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm min-h-[400px]">
         <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--border)]">

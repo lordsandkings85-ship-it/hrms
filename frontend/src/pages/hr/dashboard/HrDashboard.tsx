@@ -173,7 +173,11 @@ export default function HrDashboard() {
                 <div className="text-3xl font-extrabold text-[var(--text-primary)] font-mono mt-1 mb-3">{data.widgets?.totalEmployees ?? 0}</div>
                 <div className="flex gap-4">
                   <div className="text-xs font-semibold flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> {data.widgets?.presentToday ?? 0} Present</div>
-                  <div className="text-xs font-semibold flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-500"></div> {data.widgets?.absentToday ?? 0} Absent</div>
+                  <div className="text-xs font-semibold flex items-center gap-1.5">
+                    <Link to="/attendance/daily-report" className="flex items-center gap-1.5 rounded-lg px-2 py-1 -m-1 hover:bg-red-500/10 transition-colors" title="View absent list">
+                      <div className="w-2 h-2 rounded-full bg-red-500"></div> {data.widgets?.absentToday ?? 0} Absent
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>

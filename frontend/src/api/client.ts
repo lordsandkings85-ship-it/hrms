@@ -272,6 +272,11 @@ listToday: (date?: string) => {
     if (date) qs.set('date', date);
     return api<any[]>(`/attendance/today?${qs.toString()}`);
   },
+  listAbsent: (date?: string) => {
+    const qs = new URLSearchParams();
+    if (date) qs.set('date', date);
+    return api<any>(`/attendance/absent?${qs.toString()}`);
+  },
   todayStatus: (employeeId: string) =>
     api<any>(`/attendance/today/status/${employeeId}`),
   listMonthly: (year?: number, month?: number) => {

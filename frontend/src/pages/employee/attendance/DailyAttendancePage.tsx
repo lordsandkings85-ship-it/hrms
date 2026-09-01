@@ -9,6 +9,7 @@ import { useToast } from '../../../components/ui/ToastProvider';
 import { Modal } from '../../../components/ui/Modal';
 import { getServerDate } from '../../../utils/serverTime';
 import { fmtDate, fmtTime12 } from '../../../utils/formatDate';
+import AbsentTodayPanel from '../../../components/attendance/AbsentTodayPanel';
 
 function useIsAdmin() {
   const { user } = useAuthStore();
@@ -120,6 +121,8 @@ function AdminDailyAttendance() {
           </div>
         </div>
       </div>
+
+      <AbsentTodayPanel />
 
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm min-h-[400px]">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6 pb-4 border-b border-[var(--border)]">
