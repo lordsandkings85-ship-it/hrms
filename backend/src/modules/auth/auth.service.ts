@@ -4,6 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { authenticator } from 'otplib';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SeederService } from '../../prisma/seeder.service';
+import { decryptEmployeeNested, decryptPiiFields } from '../../utils/crypto.util';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
@@ -146,7 +147,10 @@ export class AuthService {
     });
     if (!user) throw new UnauthorizedException('User not found');
     const { passwordHash, mfaSecret, ...safeUser } = user;
-    return safeUser;
+    return {
+      ...safeUser,
+      employee: user.employee ? decryptEmployeeNested(decryptPiiFields(user.employee)) : user.employee,
+    };
   }
 
   private async issueTokens(userId: string, companyId: string, email: string, roleId?: string) {
