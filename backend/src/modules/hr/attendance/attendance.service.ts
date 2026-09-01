@@ -470,11 +470,22 @@ export class AttendanceService {
       }),
     ]);
 
-    const loggedEmployeeIds = new Set(logs.map((l) => l.employeeId));
+        const loggedEmployeeIds = new Set(logs.map((l) => l.employeeId));
     const halfDayEmployeeIds = new Set(halfDayLeaves.map((l) => l.employeeId));
+
+    const OVERRIDE_INCOMPLETE = new Set([
+      'OFF_DAY_OR_INCOMPLETE',
+      'INCOMPLETE',
+      'INCOMPLETE_SHIFT',
+      'HALF_DAY',
+      'OFF_DAY',
+    ]);
 
     const enrichedLogs = logs.map((l) => {
       if (halfDayEmployeeIds.has(l.employeeId)) {
+        return { ...l, status: 'half_day_leave' };
+      }
+      if (l.checkOut && OVERRIDE_INCOMPLETE.has(String(l.attendanceStatus ?? '').trim().toUpperCase())) {
         return { ...l, status: 'half_day_leave' };
       }
       return l;
