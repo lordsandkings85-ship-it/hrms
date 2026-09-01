@@ -24,9 +24,10 @@ async getSummary(companyId: string, user?: any) {
       pendingRegularizationCount,
     ] = await this.prisma.$transaction([
       this.prisma.employee.count({ 
-        where: { 
+where: { 
           companyId, 
           status: 'active',
+          isSystem: false,
           NOT: {
             user: {
               role: {
@@ -192,8 +193,8 @@ async getSummary(companyId: string, user?: any) {
 
     // --- NEW: Monthly Payroll Cost ---
     // Calculate active total monthly CTC sum as baseline
-    const activeEmployees = await this.prisma.employee.findMany({
-      where: { companyId, status: 'active' },
+const activeEmployees = await this.prisma.employee.findMany({
+      where: { companyId, status: 'active', isSystem: false },
       include: { salaryStructures: { orderBy: { effectiveFrom: 'desc' }, take: 1 } }
     });
     

@@ -464,7 +464,7 @@ export class AttendanceService {
         select: { employeeId: true },
       }),
       this.prisma.employee.findMany({
-        where: { companyId, status: 'active' },
+        where: { companyId, status: 'active', isSystem: false },
         select: {
           id: true, firstName: true, lastName: true, employeeCode: true, workingDaysPerWeek: true,
           department: { select: { name: true } },

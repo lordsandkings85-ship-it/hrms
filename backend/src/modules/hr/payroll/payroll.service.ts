@@ -99,7 +99,7 @@ export class PayrollService {
     if (cycle.status === 'locked') throw new BadRequestException('Payroll cycle is locked');
 
 const employees = await this.prisma.employee.findMany({
-      where: { companyId, status: 'active', ...(employeeIds?.length ? { id: { in: employeeIds } } : {}) },
+      where: { companyId, status: 'active', isSystem: false, ...(employeeIds?.length ? { id: { in: employeeIds } } : {}) },
       include: { 
         salaryStructures: { orderBy: { effectiveFrom: 'desc' }, take: 1 },
         adminInfo: true,
@@ -324,7 +324,7 @@ async getAttendanceSummary(companyId: string, month: number, year: number) {
 
     const [employees, holidays, logs, cycle] = await Promise.all([
       this.prisma.employee.findMany({
-        where: { companyId, status: 'active' },
+        where: { companyId, status: 'active', isSystem: false },
         select: { id: true, employeeCode: true, firstName: true, lastName: true, workingDaysPerWeek: true, department: { select: { name: true } } }
       }),
       this.prisma.holiday.findMany({ where: { companyId, date: { gte: start, lt: end } } }),

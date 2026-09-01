@@ -353,6 +353,7 @@ model Employee {
   employmentType          String?
   workLocation            String?
   status                  String                      @default("active")
+  isSystem                Boolean                     @default(false)
   skills                  Json?
   education               Json?
   experience              Json?

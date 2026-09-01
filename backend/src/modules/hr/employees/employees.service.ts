@@ -114,7 +114,7 @@ export class EmployeesService {
           }
         }
       },
-      employeeCode: { not: 'HR-001' },
+      isSystem: false,
       ...(opts.status ? { status: opts.status } : {}),
       ...(opts.departmentId ? { departmentId: opts.departmentId } : {}),
       ...(opts.search
