@@ -68,7 +68,8 @@ function AdminDailyReport() {
         row.status === 'present' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
         row.status === 'late' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
         row.status === 'absent' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
-        'bg-indigo-500/10 text-indigo-500 border-indigo-500/20'}`}>{row.status?.replace('_', ' ')}</span>
+        row.status === 'half_day_leave' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+        'bg-indigo-500/10 text-indigo-500 border-indigo-500/20'}`}>{row.status === 'half_day_leave' ? 'Present / Half Day' : row.status?.replace('_', ' ')}</span>
     )},
   ];
 

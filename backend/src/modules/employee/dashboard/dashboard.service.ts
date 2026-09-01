@@ -84,12 +84,24 @@ where: {
       where: {
         employee: { companyId, isSystem: false },
         status: 'approved',
+        isHalfDay: false,
         startDate: { lte: endOfDay },
         endDate: { gte: startOfDay },
       },
       _count: true,
     });
-    const presentSet = new Set(presentGroup.map((g) => g.employeeId));
+    const halfDayLeaveGroup = await this.prisma.leaveRequest.groupBy({
+      by: ['employeeId'],
+      where: {
+        employee: { companyId, isSystem: false },
+        status: 'approved',
+        isHalfDay: true,
+        startDate: { lte: endOfDay },
+        endDate: { gte: startOfDay },
+      },
+      _count: true,
+    });
+    const presentSet = new Set([...presentGroup.map((g) => g.employeeId), ...halfDayLeaveGroup.map((g) => g.employeeId)]);
     const onLeaveSet = new Set(onLeaveGroup.map((g) => g.employeeId));
     const presentToday = activeIds.filter((e) => presentSet.has(e.id) && !onLeaveSet.has(e.id)).length;
     const onLeaveToday = activeIds.filter((e) => onLeaveSet.has(e.id)).length;

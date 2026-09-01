@@ -438,17 +438,66 @@ export class AttendanceService {
     const startOfDay = new Date(day.getFullYear(), day.getMonth(), day.getDate());
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
-    return this.prisma.attendanceLog.findMany({
-      where: { employee: { companyId }, date: { gte: startOfDay, lt: endOfDay } },
-      include: {
-        employee: {
-          select: {
-            firstName: true, lastName: true, employeeCode: true,
-            department: { select: { name: true } },
+    const [logs, halfDayLeaves] = await Promise.all([
+      this.prisma.attendanceLog.findMany({
+        where: { employee: { companyId }, date: { gte: startOfDay, lt: endOfDay } },
+        include: {
+          employee: {
+            select: {
+              firstName: true, lastName: true, employeeCode: true,
+              department: { select: { name: true } },
+            },
           },
         },
-      },
-      orderBy: { checkIn: 'asc' },
+        orderBy: { checkIn: 'asc' },
+      }),
+      this.prisma.leaveRequest.findMany({
+        where: {
+          status: 'approved',
+          isHalfDay: true,
+          employee: { companyId, isSystem: false },
+          startDate: { lte: endOfDay },
+          endDate: { gte: startOfDay },
+        },
+        include: {
+          employee: {
+            select: {
+              firstName: true, lastName: true, employeeCode: true,
+              department: { select: { name: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const loggedEmployeeIds = new Set(logs.map((l) => l.employeeId));
+    const halfDayEmployeeIds = new Set(halfDayLeaves.map((l) => l.employeeId));
+
+    const enrichedLogs = logs.map((l) => {
+      if (halfDayEmployeeIds.has(l.employeeId)) {
+        return { ...l, status: 'half_day_leave' };
+      }
+      return l;
+    });
+
+    const halfDayEntries = halfDayLeaves
+      .filter((l) => !loggedEmployeeIds.has(l.employeeId))
+      .map((l) => ({
+        id: `halfday-${l.id}`,
+        employeeId: l.employeeId,
+        date: startOfDay,
+        checkIn: null,
+        checkOut: null,
+        status: 'half_day_leave' as const,
+        method: null,
+        employee: l.employee,
+      }));
+
+    return [...enrichedLogs, ...halfDayEntries].sort((a: any, b: any) => {
+      if (a.checkIn && b.checkIn) return new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime();
+      if (a.checkIn) return -1;
+      if (b.checkIn) return 1;
+      return 0;
     });
   }
 
@@ -472,7 +521,7 @@ export class AttendanceService {
       }),
       this.prisma.leaveRequest.findMany({
         where: { status: 'approved', employee: { companyId }, startDate: { lte: endOfDay }, endDate: { gte: startOfDay } },
-        select: { employeeId: true },
+        select: { employeeId: true, isHalfDay: true },
       }),
       this.prisma.holiday.findMany({
         where: { companyId, date: { gte: startOfDay, lt: endOfDay } },
@@ -490,7 +539,8 @@ export class AttendanceService {
     ]);
 
     const checkedIn = new Set(checkedLogs.map(l => l.employeeId));
-    const onLeaveIds = new Set(approvedLeaves.map(l => l.employeeId));
+    const fullDayLeaveIds = new Set(approvedLeaves.filter(l => !l.isHalfDay).map(l => l.employeeId));
+    const halfDayLeaveIds = new Set(approvedLeaves.filter(l => l.isHalfDay).map(l => l.employeeId));
     const isHoliday = holidays.length > 0;
     const secondSatEnabled = new Map(policies.map(p => [p.key, p.value])).get('custom.secondSaturdayOff') === 'true';
     const isSecondSat = this.isSecondSaturday(day);
@@ -504,7 +554,8 @@ export class AttendanceService {
 
     const absentEmployees = employees.filter((e) => {
       if (checkedIn.has(e.id)) return false;
-      if (onLeaveIds.has(e.id)) return false;
+      if (fullDayLeaveIds.has(e.id)) return false;
+      if (halfDayLeaveIds.has(e.id)) return false;
       const workDays = e.workingDaysPerWeek ?? 5;
       const isWorkingDay =
         workDays === 7 ? true : workDays === 6 ? dow >= 1 && dow <= 6 : dow >= 1 && dow <= 5;
@@ -524,7 +575,8 @@ export class AttendanceService {
     return {
       date: startOfDay.toISOString(),
       count: absentEmployees.length,
-      onLeaveToday: onLeaveIds.size,
+      onLeaveToday: fullDayLeaveIds.size,
+      halfDayToday: halfDayLeaveIds.size,
       employees: absentEmployees,
     };
   }

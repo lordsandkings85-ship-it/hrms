@@ -13,6 +13,7 @@ export default function AbsentTodayPanel() {
   const employees = Array.isArray(data) ? data : data?.employees || [];
   const count = Array.isArray(data) ? employees.length : data?.count ?? employees.length;
   const onLeaveToday = Array.isArray(data) ? 0 : data?.onLeaveToday ?? 0;
+  const halfDayToday = Array.isArray(data) ? 0 : data?.halfDayToday ?? 0;
 
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm">
@@ -27,6 +28,11 @@ export default function AbsentTodayPanel() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {halfDayToday > 0 && (
+            <span className="flex items-center gap-1.5 text-[11px] font-bold text-blue-500 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-full">
+              <CalendarOff size={12} /> Present / Half Day: {halfDayToday}
+            </span>
+          )}
           {onLeaveToday > 0 && (
             <span className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-500 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1.5 rounded-full">
               <CalendarOff size={12} /> On leave today: {onLeaveToday}
