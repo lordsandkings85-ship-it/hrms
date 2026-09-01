@@ -259,6 +259,13 @@ export class LeaveController {
     );
   }
 
+  // Read-only status of the monthly Casual Leave allocation (for admin visibility)
+  @Get('monthly-allocation/status')
+  @Permissions({ module: 'leave', action: 'view' })
+  monthlyAllocationStatus(@CurrentUser() user: AuthUser) {
+    return this.monthlyAllocationService.getAllocationStatus(user.companyId);
+  }
+
   // --- Leave Year ---
 
   @Get('years')

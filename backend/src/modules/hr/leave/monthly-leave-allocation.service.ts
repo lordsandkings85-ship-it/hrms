@@ -19,13 +19,23 @@ export class MonthlyLeaveAllocationService {
 
   constructor(private prisma: PrismaService) {}
 
-  // Run on the 1st of every month at midnight — allocates the current month
-  @Cron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  // Self-healing scheduler: runs every 4 hours and is idempotent, so any month
+  // missed (e.g. server was down on the 1st) gets backfilled automatically within
+  // hours instead of being skipped forever. Allocations only create rows for months
+  // that don't already exist — re-running never double-allocates.
+  @Cron('0 0,4,8,12,16,20 * * *')
   async handleMonthlyCasualLeaveAllocation() {
-    this.logger.log('Starting monthly Casual Leave allocation job...');
+    this.logger.log('Starting monthly Casual Leave allocation job (catch-up run)...');
     const now = new Date();
-    const result = await this.runAllocation(now.getFullYear(), now.getMonth() + 1);
-    this.logger.log(`Monthly Casual Leave allocation done: ${JSON.stringify(result)}`);
+    try {
+      const result = await this.runAllocation(now.getFullYear(), now.getMonth() + 1);
+      this.logger.log(`Monthly Casual Leave allocation done: ${JSON.stringify(result)}`);
+      if (result.allocated > 0) {
+        this.logger.warn(`Caught up ${result.allocated} missed monthly Casual Leave allocation(s).`);
+      }
+    } catch (e: any) {
+      this.logger.error(`Monthly Casual Leave allocation job failed: ${e?.message}`, e?.stack);
+    }
   }
 
   /**
@@ -53,6 +63,8 @@ export class MonthlyLeaveAllocationService {
 
     let allocated = 0;
     let companiesSkipped = 0;
+    const errors: { companyId: string; employeeId: string; year: number; month: number; error: string }[] = [];
+    let skipped = 0;
 
     for (const company of companies) {
       const policyMap = await this.getPolicyMap(company.id);
@@ -82,20 +94,35 @@ export class MonthlyLeaveAllocationService {
 
       for (const monthMeta of months) {
         for (const employee of employees) {
-          const allocatedNow = await this.allocateMonthForEmployee(
-            company.id,
-            employee.id,
-            leaveType.id,
-            monthMeta.year,
-            monthMeta.month,
-            monthlyAmount,
-          );
-          if (allocatedNow) allocated++;
+          try {
+            const allocatedNow = await this.allocateMonthForEmployee(
+              company.id,
+              employee.id,
+              leaveType.id,
+              monthMeta.year,
+              monthMeta.month,
+              monthlyAmount,
+            );
+            if (allocatedNow) allocated++;
+            else skipped++;
+          } catch (e: any) {
+            // A single employee/month failure must not abort the whole company run.
+            errors.push({
+              companyId: company.id,
+              employeeId: employee.id,
+              year: monthMeta.year,
+              month: monthMeta.month,
+              error: e?.message || String(e),
+            });
+            this.logger.error(
+              `Allocation failed for employee ${employee.id}, ${monthMeta.year}-${monthMeta.month}: ${e?.message}`,
+            );
+          }
         }
       }
     }
 
-    return { targetYear, targetMonth, allocated, companiesSkipped };
+    return { targetYear, targetMonth, allocated, skipped, companiesSkipped, errors };
   }
 
   /** Allocate one month for one employee. Returns true when a new allocation was created. */
@@ -201,5 +228,41 @@ export class MonthlyLeaveAllocationService {
   private async getPolicyMap(companyId: string) {
     const policies = await this.prisma.attendancePolicy.findMany({ where: { companyId } });
     return new Map(policies.map(p => [p.key, p.value]));
+  }
+
+  /**
+   * Report the last casual-leave allocation status for a company so admins can see
+   * whether the monthly job actually ran for the current month.
+   */
+  async getAllocationStatus(companyId: string) {
+    const leaveType = await this.prisma.leaveType.findFirst({
+      where: { companyId, OR: [{ code: 'CL' }, { name: { contains: 'Casual Leave' } }] },
+    });
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+
+    let lastRun: Date | null = null;
+    if (leaveType) {
+      const lastTx = await this.prisma.leaveTransaction.findFirst({
+        where: { companyId, leaveTypeId: leaveType.id, type: 'MONTHLY_ALLOCATION' },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true, year: true },
+      });
+      lastRun = lastTx?.createdAt ?? null;
+    }
+
+    // Whether the current month's allocation row exists for any eligible employee
+    const currentMonthAllocated = await this.prisma.leaveMonthlyBalance.count({
+      where: { companyId, year: currentYear, month: currentMonth, allocated: { gt: 0 } },
+    });
+
+    return {
+      lastRun,
+      currentYear,
+      currentMonth,
+      currentMonthAllocated,
+      currentMonthCredited: currentMonthAllocated > 0,
+    };
   }
 }

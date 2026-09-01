@@ -41,6 +41,11 @@ export default function AttendancePolicyPage() {
     queryFn: () => attendanceApiExt.getGeofence(),
   });
 
+  const { data: allocationStatus, refetch: refetchAllocationStatus } = useQuery({
+    queryKey: ['monthly-allocation-status'],
+    queryFn: () => leaveApi.monthlyAllocationStatus(),
+  });
+
   const [geoForm, setGeoForm] = useState({ lat: '', lng: '', radius: '200' });
 
   const geofence = (geofenceConfig || {}) as any;
@@ -157,8 +162,24 @@ export default function AttendancePolicyPage() {
         </p>
       </AdminSection>
       <AdminSection title="Monthly Casual Leave Allocation" icon={Play} subtitle="Manually trigger the monthly casual leave allocation job for the current or past months">
+        <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] p-4 space-y-2 text-sm">
+          <p className="text-[var(--text-primary)] font-semibold">
+            Current month: <span className="font-mono">
+              {(allocationStatus?.currentMonth ?? '—') + '/' + (allocationStatus?.currentYear ?? '—')}
+            </span>
+          </p>
+          <p className={allocationStatus?.currentMonthCredited ? 'text-emerald-500' : 'text-amber-500'}>
+            {allocationStatus?.currentMonthCredited
+              ? `Credited: ${allocationStatus.currentMonthAllocated} employee(s) have this month's casual leave`
+              : 'Not credited yet for the current month — run the allocation below.'}
+          </p>
+          <p className="text-[var(--text-muted)]">
+            Last allocation run: <span className="font-mono">{allocationStatus?.lastRun ? new Date(allocationStatus.lastRun).toLocaleString() : 'Never'}</span>
+          </p>
+        </div>
         <p className="text-sm text-[var(--text-muted)] mb-4">
           If the automatic cron job missed a month (e.g. server was down), use this to backfill casual leaves for eligible employees.
+          The job runs automatically every few hours and is idempotent (never double-credits).
         </p>
         <div className="flex items-end gap-3 flex-wrap">
           <div>
@@ -177,7 +198,8 @@ export default function AttendancePolicyPage() {
               const m = (document.getElementById('alloc-month') as HTMLInputElement)?.value || String(new Date().getMonth() + 1);
               try {
                 const result = await leaveApi.runMonthlyAllocation(y, m);
-                toastSuccess(`Allocation complete: ${result?.allocated ?? 0} records created`);
+                toastSuccess(`Allocation complete: ${result?.allocated ?? 0} record(s) created, ${result?.skipped ?? 0} already allocated`);
+                refetchAllocationStatus();
               } catch (e: any) {
                 toastError(e?.message || 'Allocation failed');
               }
