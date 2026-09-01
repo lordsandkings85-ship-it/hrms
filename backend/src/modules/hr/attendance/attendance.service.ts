@@ -452,6 +452,83 @@ export class AttendanceService {
     });
   }
 
+  async listAbsent(companyId: string, date?: string) {
+    const day = date ? new Date(date) : new Date();
+    const startOfDay = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+    const dow = day.getDay();
+
+    const [checkedLogs, employees, approvedLeaves, holidays, policies, assignments] = await Promise.all([
+      this.prisma.attendanceLog.findMany({
+        where: { employee: { companyId }, date: { gte: startOfDay, lt: endOfDay } },
+        select: { employeeId: true },
+      }),
+      this.prisma.employee.findMany({
+        where: { companyId, status: 'active' },
+        select: {
+          id: true, firstName: true, lastName: true, employeeCode: true, workingDaysPerWeek: true,
+          department: { select: { name: true } },
+        },
+      }),
+      this.prisma.leaveRequest.findMany({
+        where: { status: 'approved', employee: { companyId }, startDate: { lte: endOfDay }, endDate: { gte: startOfDay } },
+        select: { employeeId: true },
+      }),
+      this.prisma.holiday.findMany({
+        where: { companyId, date: { gte: startOfDay, lt: endOfDay } },
+        select: { id: true },
+      }),
+      this.prisma.attendancePolicy.findMany({ where: { companyId }, select: { key: true, value: true } }),
+      this.prisma.shiftAssignment.findMany({
+        where: {
+          employee: { companyId },
+          effectiveFrom: { lte: startOfDay },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gte: startOfDay } }],
+        },
+        include: { shift: { select: { startTime: true, endTime: true } } },
+      }),
+    ]);
+
+    const checkedIn = new Set(checkedLogs.map(l => l.employeeId));
+    const onLeaveIds = new Set(approvedLeaves.map(l => l.employeeId));
+    const isHoliday = holidays.length > 0;
+    const secondSatEnabled = new Map(policies.map(p => [p.key, p.value])).get('custom.secondSaturdayOff') === 'true';
+    const isSecondSat = this.isSecondSaturday(day);
+
+    const shiftByEmployee = new Map<string, { startTime: string; endTime: string }>();
+    for (const a of assignments) {
+      if (!shiftByEmployee.has(a.employeeId)) {
+        shiftByEmployee.set(a.employeeId, { startTime: a.shift.startTime, endTime: a.shift.endTime });
+      }
+    }
+
+    const absentEmployees = employees.filter((e) => {
+      if (checkedIn.has(e.id)) return false;
+      if (onLeaveIds.has(e.id)) return false;
+      const workDays = e.workingDaysPerWeek ?? 5;
+      const isWorkingDay =
+        workDays === 7 ? true : workDays === 6 ? dow >= 1 && dow <= 6 : dow >= 1 && dow <= 5;
+      if (!isWorkingDay) return false;
+      if (isHoliday) return false;
+      if (secondSatEnabled && workDays === 6 && isSecondSat) return false;
+      return true;
+    }).map((e) => ({
+      id: e.id,
+      name: `${e.firstName} ${e.lastName || ''}`.trim(),
+      employeeCode: e.employeeCode,
+      department: e.department?.name ?? null,
+      shiftStart: shiftByEmployee.get(e.id)?.startTime ?? null,
+      shiftEnd: shiftByEmployee.get(e.id)?.endTime ?? null,
+    }));
+
+    return {
+      date: startOfDay.toISOString(),
+      count: absentEmployees.length,
+      onLeaveToday: onLeaveIds.size,
+      employees: absentEmployees,
+    };
+  }
+
   async listForCompanyMonth(companyId: string, year?: number, month?: number) {
     const now = new Date();
     const y = year ?? now.getFullYear();

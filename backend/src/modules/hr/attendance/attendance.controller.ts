@@ -50,6 +50,12 @@ export class AttendanceController {
     return this.attendanceService.listForCompany(user.companyId, date);
   }
 
+  @Get('absent')
+  @Permissions({ module: 'attendance', action: 'view' })
+  listAbsent(@CurrentUser() user: AuthUser, @Query('date') date?: string) {
+    return this.attendanceService.listAbsent(user.companyId, date);
+  }
+
   @Get('today/status/:employeeId')
   @Permissions({ module: 'attendance', action: 'view' })
   todayStatus(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string) {
