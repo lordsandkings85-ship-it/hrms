@@ -13,11 +13,21 @@ export class PayrollService {
     if (!employee) throw new NotFoundException('Employee not found in this company');
     const { effectiveFrom, ...rest } = data || {};
 
-    const effectiveDate = effectiveFrom ? new Date(effectiveFrom) : new Date();
+    // Normalize to the calendar date (UTC midnight) so edits always land on the same
+    // day's row regardless of any time-of-day leftover on stored rows, and so the
+    // latest-revision ordering in getSalaryStructure stays deterministic.
+    const effectiveDate = (() => {
+      const d = effectiveFrom && effectiveFrom.trim() ? new Date(effectiveFrom) : new Date();
+      d.setUTCHours(0, 0, 0, 0);
+      return d;
+    })();
+    const effectiveEnd = new Date(effectiveDate.getTime() + 24 * 60 * 60 * 1000);
 
-    // Find existing structure row for this effective date to update in place (avoids stale-row tie)
+    // Find existing structure row for this effective DATE (range, not exact instant)
+    // to update in place instead of silently inserting a losing duplicate row.
     const existing = await this.prisma.salaryStructure.findFirst({
-      where: { employeeId, effectiveFrom: effectiveDate },
+      where: { employeeId, effectiveFrom: { gte: effectiveDate, lt: effectiveEnd } },
+      orderBy: [{ effectiveFrom: 'desc' }, { createdAt: 'desc' }],
     });
 
     const previous = await this.prisma.salaryStructure.findFirst({
@@ -33,8 +43,8 @@ export class PayrollService {
 
     const [structure] = await this.prisma.$transaction([
       existing
-        ? this.prisma.salaryStructure.update({ where: { id: existing.id }, data: { ...rest } })
-        : this.prisma.salaryStructure.create({ data: { employeeId, ...rest, effectiveFrom: effectiveDate } }),
+        ? this.prisma.salaryStructure.update({ where: { id: existing.id }, data: { effectiveFrom: effectiveDate, ...rest } })
+        : this.prisma.salaryStructure.create({ data: { employeeId, effectiveFrom: effectiveDate, ...rest } }),
       this.prisma.salaryRevision.create({
         data: {
           companyId,
