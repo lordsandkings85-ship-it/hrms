@@ -544,7 +544,7 @@ export default function EmployeesPage() {
                         {/* Last Login */}
                         <td className="p-2 border-r border-slate-200 dark:border-slate-800 text-[10px] text-slate-500">
                           {loginInfo?.lastLoginAt
-                            ? new Date(loginInfo.lastLoginAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                            ? new Date(loginInfo.lastLoginAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
                             : '—'}
                         </td>
 

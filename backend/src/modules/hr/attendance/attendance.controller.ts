@@ -104,8 +104,8 @@ export class AttendanceController {
       user.companyId,
       logId, 
       body.employeeId, 
-      body.requestedCheckIn ? new Date(body.requestedCheckIn) : undefined,
-      body.requestedCheckOut ? new Date(body.requestedCheckOut) : undefined,
+      body.requestedCheckIn,
+      body.requestedCheckOut,
       body.reason || body.note || '',
       body.type || 'regularization'
     );

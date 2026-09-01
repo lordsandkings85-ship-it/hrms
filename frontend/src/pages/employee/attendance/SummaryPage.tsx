@@ -6,6 +6,7 @@ import { Calendar as CalendarIcon, CheckCircle, XCircle, Clock as ClockIcon, Ale
 import { Spinner } from '../../../components/ui/Spinner';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { getServerYear, getServerMonth } from '../../../utils/serverTime';
+import { fmtTime12 } from '../../../utils/formatDate';
 
 function useIsAdmin() {
   const { user } = useAuthStore();
@@ -175,12 +176,12 @@ function AdminSummary() {
     )},
     { key: 'checkIn', header: 'Check In', render: (row: any) => (
       <span className="font-mono text-xs text-emerald-500">
-        {row.checkIn ? new Date(row.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
+        {row.checkIn ? fmtTime12(row.checkIn) : '--'}
       </span>
     )},
     { key: 'checkOut', header: 'Check Out', render: (row: any) => (
       <span className="font-mono text-xs text-rose-500">
-        {row.checkOut ? new Date(row.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
+        {row.checkOut ? fmtTime12(row.checkOut) : '--'}
       </span>
     )},
     { key: 'hours', header: 'Hours', render: (row: any) => (

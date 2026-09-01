@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MapPin, Navigation, Crosshair, Search } from 'lucide-react';
 import { attendanceApi, attendanceApiExt } from '../../../api/client';
+import { fmtTime12 } from '../../../utils/formatDate';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { DataTable, Column } from '../../../components/ui/DataTable';
@@ -72,8 +73,8 @@ function AdminGeofence() {
     }},
     { key: 'time', header: 'Check In/Out', render: (log: any) => (
       <div className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-        <div><span className="text-[var(--text-primary)]">In:</span> {log.checkIn ? new Date(log.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}</div>
-        <div><span className="text-[var(--text-primary)]">Out:</span> {log.checkOut ? new Date(log.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : 'Pending'}</div>
+        <div><span className="text-[var(--text-primary)]">In:</span> {log.checkIn ? fmtTime12(log.checkIn) : '--'}</div>
+        <div><span className="text-[var(--text-primary)]">Out:</span> {log.checkOut ? fmtTime12(log.checkOut) : 'Pending'}</div>
       </div>
     )},
     { key: 'actions', header: 'Location', render: (row: any) => (

@@ -6,6 +6,7 @@ import { DataTable, Column } from '../../../components/ui/DataTable';
 import { Modal } from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { getServerDate } from '../../../utils/serverTime';
+import { fmtTime12 } from '../../../utils/formatDate';
 
 const STATUS_OPTIONS = ['all', 'present', 'late', 'absent', 'half_day', 'on_leave'];
 
@@ -105,8 +106,8 @@ export default function MarkAttendanceApprovalPage() {
       header: 'Check In/Out',
       render: (log: any) => (
         <div className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-          <div><span className="text-[var(--text-primary)]">In:</span> {log.checkIn ? new Date(log.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}</div>
-          <div><span className="text-[var(--text-primary)]">Out:</span> {log.checkOut ? new Date(log.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : 'Pending'}</div>
+          <div><span className="text-[var(--text-primary)]">In:</span> {log.checkIn ? fmtTime12(log.checkIn) : '—'}</div>
+          <div><span className="text-[var(--text-primary)]">Out:</span> {log.checkOut ? fmtTime12(log.checkOut) : 'Pending'}</div>
         </div>
       )
     },

@@ -6,20 +6,12 @@ import { DataTable, Column } from '../../../components/ui/DataTable';
 import { AdminSection, StatusBadge } from '../../../components/ui/AdminSection';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { useEmployeeList } from '../payroll/sections/shared';
-import { fmtDate } from '../../../utils/formatDate';
+import { fmtDate, fmt24To12 } from '../../../utils/formatDate';
 import ShiftTypesSection from './sections/ShiftTypesSection';
 
 type TabKey = 'types' | 'shifts';
 
-const formatTime12 = (time24: string) => {
-  if (!time24) return '';
-  const [h, m] = time24.split(':');
-  let hour = parseInt(h, 10);
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  hour = hour % 12;
-  hour = hour ? hour : 12;
-  return `${hour.toString().padStart(2, '0')}:${m} ${ampm}`;
-};
+const formatTime12 = fmt24To12;
 
 const TABS: { key: TabKey; label: string; icon: any }[] = [
   { key: 'types', label: 'Shift Types', icon: Zap },

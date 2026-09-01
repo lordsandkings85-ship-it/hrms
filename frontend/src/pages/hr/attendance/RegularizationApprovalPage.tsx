@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ShieldAlert, Search, Filter, Check, X, Clock, MapPin, RefreshCw } from 'lucide-react';
 import { attendanceApi } from '../../../api/client';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { fmtTime12 } from '../../../utils/formatDate';
 
 const LOG_STATUS_OPTIONS = ['all', 'full_day', 'regularization'];
 
@@ -209,12 +210,12 @@ export default function RegularizationApprovalPage() {
                           <div className="flex items-center gap-1.5">
                             <Clock size={10} className="text-emerald-500" />
                             <span className="text-[var(--text-primary)]">In:</span>
-                            {req.attendanceLog?.checkIn ? new Date(req.attendanceLog.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Missed'}
+                            {req.attendanceLog?.checkIn ? fmtTime12(req.attendanceLog.checkIn) : 'Missed'}
                           </div>
                           <div className="flex items-center gap-1.5">
                             <Clock size={10} className="text-red-400" />
                             <span className="text-[var(--text-primary)]">Out:</span>
-                            {req.attendanceLog?.checkOut ? new Date(req.attendanceLog.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'}
+                            {req.attendanceLog?.checkOut ? fmtTime12(req.attendanceLog.checkOut) : 'Pending'}
                           </div>
                         </div>
                       </td>
@@ -227,8 +228,8 @@ export default function RegularizationApprovalPage() {
                           </div>
                         ) : (
                           <div className="text-[11px] font-medium text-amber-500 space-y-0.5">
-                            <div>In: {req.requestedCheckIn ? new Date(req.requestedCheckIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</div>
-                            <div>Out: {req.requestedCheckOut ? new Date(req.requestedCheckOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</div>
+                            <div>In: {req.requestedCheckIn ? fmtTime12(req.requestedCheckIn) : '—'}</div>
+                            <div>Out: {req.requestedCheckOut ? fmtTime12(req.requestedCheckOut) : '—'}</div>
                           </div>
                         )}
                       </td>

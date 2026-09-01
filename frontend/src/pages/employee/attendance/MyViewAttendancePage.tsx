@@ -11,7 +11,7 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Spinner as CustomSpinner } from '../../../components/ui/Spinner';
 import { getServerYear, getServerMonth } from '../../../utils/serverTime';
-import { fmtDateCompact } from '../../../utils/formatDate';
+import { fmtDateCompact, fmtTime12 } from '../../../utils/formatDate';
 
 export default function MyViewAttendancePage() {
   const { user } = useAuthStore();
@@ -211,8 +211,8 @@ export default function MyViewAttendancePage() {
                       {fmtDateCompact(row.date)}
                     </div>
                     <div className="text-[11px] text-[var(--text-muted)] mt-0.5 flex items-center gap-2">
-                      <span>In: {row.checkIn ? new Date(row.checkIn).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
-                      <span>Out: {row.checkOut ? new Date(row.checkOut).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
+                      <span>In: {row.checkIn ? fmtTime12(row.checkIn) : '—'}</span>
+                      <span>Out: {row.checkOut ? fmtTime12(row.checkOut) : '—'}</span>
                     </div>
                   </div>
                   <div className="text-right">

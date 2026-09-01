@@ -7,7 +7,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 
 import { Spinner } from '../../../components/ui/Spinner';
-import { fmtDate } from '../../../utils/formatDate';
+import { fmtDate, fmtDateTime } from '../../../utils/formatDate';
 import {
   Users, AlertTriangle, Calendar, FileClock,
   Briefcase, HandCoins,
@@ -385,7 +385,7 @@ export default function HrDashboard() {
                         <div className={`mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${badge}`}><Icon size={14}/></div>
                         <div>
                           <p className="text-[13px] text-[var(--text-primary)] font-bold leading-snug">{notif.title}</p>
-                          <p className="text-[11px] text-[var(--text-muted)] mt-1">{new Date(notif.time || Date.now()).toLocaleString()}</p>
+                          <p className="text-[11px] text-[var(--text-muted)] mt-1">{fmtDateTime(notif.time || Date.now())}</p>
                         </div>
                       </div>
                     );

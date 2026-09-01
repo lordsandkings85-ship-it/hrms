@@ -10,7 +10,7 @@ import { PageHeader } from '../../../components/ui/PageHeader';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { getServerDate, getServerYear, getServerMonth, getServerISO } from '../../../utils/serverTime';
 import { useShiftRemaining, fmtShiftHM } from '../../../hooks/useShiftRemaining';
-import { fmtDateShort } from '../../../utils/formatDate';
+import { fmtDateShort, fmtTime12, fmt24To12 } from '../../../utils/formatDate';
 
 type TabKey = 'checkin' | 'regularize';
 
@@ -176,8 +176,8 @@ export default function MyAttendancePage() {
       const dateStr = new Date(logDate).toISOString().split('T')[0];
       return attendanceApi.regularize(logId, { 
         employeeId: myEmpId, 
-        requestedCheckIn: `${dateStr}T${checkInTime}:00`, 
-        requestedCheckOut: `${dateStr}T${checkOutTime}:00`, 
+        requestedCheckIn: checkInTime ? `${dateStr}T${checkInTime}:00+05:30` : null, 
+        requestedCheckOut: checkOutTime ? `${dateStr}T${checkOutTime}:00+05:30` : null, 
         reason 
       });
     },
@@ -281,7 +281,7 @@ export default function MyAttendancePage() {
                     </p>
                     <span className="text-[10px] font-semibold text-[var(--text-muted)]">
                       {todayStatus.shiftStartTime && todayStatus.shiftEndTime
-                        ? `${todayStatus.shiftStartTime} – ${todayStatus.shiftEndTime}`
+                        ? `${fmt24To12(todayStatus.shiftStartTime)} – ${fmt24To12(todayStatus.shiftEndTime)}`
                         : '—'}
                     </span>
                   </div>
@@ -325,7 +325,7 @@ export default function MyAttendancePage() {
                 <h3 className="text-lg font-bold text-[var(--text-primary)]">{isCheckedIn ? 'You are Checked In' : 'Ready to Start Work?'}</h3>
                 <p className="text-sm text-[var(--text-muted)] mt-1">
                   {isCheckedIn
-                    ? `Shift started at ${activeLog?.checkIn ? new Date(activeLog.checkIn).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}`
+                    ? `Shift started at ${activeLog?.checkIn ? fmtTime12(activeLog.checkIn) : '—'}`
                     : 'Check in to record your shift timings for today.'}
                 </p>
               </div>
@@ -405,7 +405,7 @@ export default function MyAttendancePage() {
                     <option key={log.id} value={log.id}>
                       {fmtDateShort(log.date)}
                       {log.attendanceStatus === 'OFF_DAY_OR_INCOMPLETE' ? ' (Incomplete)' : ''}
-                      {' '}(In: {log.checkIn ? new Date(log.checkIn).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Missed'})
+                      {' '}(In: {log.checkIn ? fmtTime12(log.checkIn) : 'Missed'})
                     </option>
                   ))}
                 </select>

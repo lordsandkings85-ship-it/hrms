@@ -282,7 +282,7 @@ listToday: (date?: string) => {
   },
   listPendingRegularizations: () =>
     api<any[]>('/attendance/regularize/pending'),
-  regularize: (logId: string, data: { employeeId: string; requestedCheckIn?: string; requestedCheckOut?: string; reason: string; type?: string }) =>
+  regularize: (logId: string, data: { employeeId: string; requestedCheckIn?: string | null; requestedCheckOut?: string | null; reason: string; type?: string }) =>
     api<any>(`/attendance/regularize/${logId}`, { method: 'POST', body: JSON.stringify(data) }),
   approveRegularization: (requestId: string) =>
     api<any>(`/attendance/regularize/${requestId}/approve`, { method: 'POST' }),
@@ -324,6 +324,7 @@ balances: (employeeId: string, year?: number) => {
     if (companyId) qs.set('companyId', companyId);
     return api<any>(`/leave/monthly-allocation?${qs.toString()}`);
   },
+  monthlyAllocationStatus: () => api<any>('/leave/monthly-allocation/status'),
   listHolidays: () => api<any[]>('/leave/holidays'),
   createHoliday: (data: { name: string; date: string }) =>
     api<any>('/leave/holidays', { method: 'POST', body: JSON.stringify(data) }),

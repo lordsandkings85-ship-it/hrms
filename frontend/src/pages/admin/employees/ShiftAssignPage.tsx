@@ -5,17 +5,9 @@ import { employeesApi, shiftsApi } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { getServerNow } from '../../../utils/serverTime';
 import { useToast } from '../../../components/ui/ToastProvider';
-import { fmtDate } from '../../../utils/formatDate';
+import { fmtDate, fmt24To12 } from '../../../utils/formatDate';
 
-const formatTime12 = (time24: string) => {
-  if (!time24) return '';
-  const [h, m] = time24.split(':');
-  let hour = parseInt(h, 10);
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  hour = hour % 12;
-  hour = hour ? hour : 12;
-  return `${hour.toString().padStart(2, '0')}:${m} ${ampm}`;
-};
+const formatTime12 = fmt24To12;
 
 function currentAssignment(row: any) {
   const list = row?.shiftAssignment ?? [];

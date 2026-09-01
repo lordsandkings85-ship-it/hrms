@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { getServerNow } from '../../../utils/serverTime';
+import { fmt24To12 } from '../../../utils/formatDate';
 import { EditProfileModal } from '../../../features/employee/EditProfileModal';
 
 export default function MyProfilePage() {
@@ -77,7 +78,7 @@ export default function MyProfilePage() {
     ?.find((sa: any) => !sa.effectiveTo || new Date(sa.effectiveTo) > getServerNow())
     ?.shift;
   const shiftLabel = activeShift
-    ? `${activeShift.name || 'Shift'}${activeShift.startTime ? ` (${activeShift.startTime}${activeShift.endTime ? ' - ' + activeShift.endTime : ''})` : ''}`
+    ? `${activeShift.name || 'Shift'}${activeShift.startTime ? ` (${fmt24To12(activeShift.startTime)}${activeShift.endTime ? ' - ' + fmt24To12(activeShift.endTime) : ''})` : ''}`
     : '—';
 
   const experienceData = emp.joiningDate ? (() => {

@@ -11,7 +11,7 @@ import React, { useState, useEffect } from 'react';
 import { useServerTime } from '../../../hooks/useServerTime';
 import { useShiftRemaining, fmtShiftHM } from '../../../hooks/useShiftRemaining';
 import { getServerDate, getServerYear, getServerMonth } from '../../../utils/serverTime';
-import { fmtDate } from '../../../utils/formatDate';
+import { fmtDate, fmt24To12 } from '../../../utils/formatDate';
 
 // SVG ring chart using CSS variables
 function RingChart({ value, max, color = 'var(--info)' }: { value: number; max: number; color?: string }) {
@@ -217,7 +217,7 @@ export default function EmployeeDashboard() {
                      <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{todayStatus.shiftName ?? 'No shift assigned'}</p>
                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                         {todayStatus.shiftStartTime && todayStatus.shiftEndTime
-                           ? `${todayStatus.shiftStartTime} – ${todayStatus.shiftEndTime}`
+                           ? `${fmt24To12(todayStatus.shiftStartTime)} – ${fmt24To12(todayStatus.shiftEndTime)}`
                            : '—'}
                         {todayStatus.isFlexible ? ' · Flexible' : ''}
                      </p>

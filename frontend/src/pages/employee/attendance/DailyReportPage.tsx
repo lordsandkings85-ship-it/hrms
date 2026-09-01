@@ -6,6 +6,7 @@ import { attendanceApi } from '../../../api/client';
 import { getServerNow, getServerDate } from '../../../utils/serverTime';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { Spinner } from '../../../components/ui/Spinner';
+import { fmtTime12 } from '../../../utils/formatDate';
 
 function useIsAdmin() {
   const { user } = useAuthStore();
@@ -16,10 +17,7 @@ function useIsAdmin() {
 const STATUS_OPTIONS = ['all', 'present', 'late'];
 
 function fmtTime(iso?: string | null) {
-  if (!iso) return '--';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '--';
-  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return fmtTime12(iso);
 }
 
 function fmtDuration(checkIn?: string | null, checkOut?: string | null) {

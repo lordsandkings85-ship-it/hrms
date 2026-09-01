@@ -8,7 +8,7 @@ import { StatusBadge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { Modal } from '../../../components/ui/Modal';
 import { getServerDate } from '../../../utils/serverTime';
-import { fmtDate } from '../../../utils/formatDate';
+import { fmtDate, fmtTime12 } from '../../../utils/formatDate';
 
 function useIsAdmin() {
   const { user } = useAuthStore();
@@ -99,8 +99,8 @@ function AdminDailyAttendance() {
       key: 'time', header: 'Check In/Out',
       render: (log: any) => (
         <div className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
-          <div><span className="text-[var(--text-primary)]">In:</span> {log.checkIn ? new Date(log.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}</div>
-          <div><span className="text-[var(--text-primary)]">Out:</span> {log.checkOut ? new Date(log.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : 'Pending'}</div>
+          <div><span className="text-[var(--text-primary)]">In:</span> {log.checkIn ? fmtTime12(log.checkIn) : '--'}</div>
+          <div><span className="text-[var(--text-primary)]">Out:</span> {log.checkOut ? fmtTime12(log.checkOut) : 'Pending'}</div>
         </div>
       )
     },
@@ -246,10 +246,10 @@ function EmployeeDailyAttendance() {
   const columns: Column<any>[] = [
     { key: 'date', header: 'Date', render: (row: any) => <span className="font-bold text-slate-800 dark:text-slate-200">{fmtDate(row.date)}</span> },
     { key: 'checkIn', header: 'Check In', render: (row: any) => (
-      <div className="flex items-center gap-2"><LogIn size={14} className="text-emerald-500" /><span className="font-mono text-sm">{row.checkIn ? new Date(row.checkIn).toLocaleTimeString() : '--'}</span></div>
+      <div className="flex items-center gap-2"><LogIn size={14} className="text-emerald-500" /><span className="font-mono text-sm">{row.checkIn ? fmtTime12(row.checkIn) : '--'}</span></div>
     ) },
     { key: 'checkOut', header: 'Check Out', render: (row: any) => (
-      <div className="flex items-center gap-2"><LogOut size={14} className="text-rose-500" /><span className="font-mono text-sm">{row.checkOut ? new Date(row.checkOut).toLocaleTimeString() : '--'}</span></div>
+      <div className="flex items-center gap-2"><LogOut size={14} className="text-rose-500" /><span className="font-mono text-sm">{row.checkOut ? fmtTime12(row.checkOut) : '--'}</span></div>
     ) },
     { key: 'method', header: 'Method', render: (row: any) => <span className="text-xs font-semibold px-2 py-1 rounded bg-slate-100 dark:bg-slate-800">{row.method || 'WEB'}</span> },
     { key: 'status', header: 'Status', render: (row: any) => <StatusBadge status={row.status || 'present'} /> },

@@ -10,17 +10,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useState } from 'react';
 import { useToast } from '../../../components/ui/ToastProvider';
-import { fmtDateShort } from '../../../utils/formatDate';
+import { fmtDateShort, fmt24To12 } from '../../../utils/formatDate';
 
-const formatTime12 = (time24: string) => {
-  if (!time24) return '';
-  const [h, m] = time24.split(':');
-  let hour = parseInt(h, 10);
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  hour = hour % 12;
-  hour = hour ? hour : 12;
-  return `${hour.toString().padStart(2, '0')}:${m} ${ampm}`;
-};
+const formatTime12 = fmt24To12;
 
 const changeRequestSchema = z.object({
   requestedShiftId: z.string().min(1, 'Please select a new shift'),

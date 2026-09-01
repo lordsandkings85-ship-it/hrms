@@ -34,6 +34,18 @@ function zonedDateTime(timeZone: string, y: number, m: number, d: number, h: num
   return new Date(guess.getTime() - tzOffsetMs(timeZone, guess));
 }
 
+function toZonedDate(timeZone: string, input?: string | Date | null): Date | undefined {
+  if (!input) return undefined;
+  if (input instanceof Date) return input;
+  // Naive ISO string like "2026-09-01T10:25:00" (or with seconds) — interpret as company wall-clock time
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(input);
+  if (m) {
+    return zonedDateTime(timeZone, +m[1], +m[2], +m[3], +m[4], +m[5], +(m[6] || 0));
+  }
+  const dt = new Date(input);
+  return isNaN(dt.getTime()) ? undefined : dt;
+}
+
 function zonedWallClock(timeZone: string, date: Date) {
   const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -536,21 +548,28 @@ async listPendingRegularizations(companyId: string) {
     });
   }
 
-  async requestRegularization(companyId: string, logId: string, employeeId: string, requestedCheckIn?: Date, requestedCheckOut?: Date, reason: string = '', type: string = 'regularization') {
+  async requestRegularization(companyId: string, logId: string, employeeId: string, requestedCheckIn?: string | Date | null, requestedCheckOut?: string | Date | null, reason: string = '', type: string = 'regularization') {
     const log = await this.prisma.attendanceLog.findUnique({ where: { id: logId } });
     if (!log) throw new NotFoundException('Attendance log not found');
     if (log.employeeId !== employeeId) throw new ForbiddenException('Attendance log does not belong to this employee');
     const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
     if (!employee) throw new ForbiddenException('Employee does not belong to this company');
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { timezone: true } });
+    const tz = company?.timezone || 'UTC';
 
     // Rule 2 — full-day corrections are only allowed when the day was marked incomplete
     if (type === 'full_day' && log.attendanceStatus === 'FULL_DAY_PRESENT') {
       throw new BadRequestException('This day is already a full-day presence — no correction needed');
     }
 
-    // Note-only corrections (no explicit times) keep the log's original times
-    const inTime = requestedCheckIn || log.checkIn;
-    const outTime = requestedCheckOut || log.checkOut;
+    // Note-only corrections (no explicit times) keep the log's original times.
+    // Submitted wall-clock times are interpreted in the company timezone so they
+    // store the correct UTC instant (avoids the previous 5h30m IST→UTC shift).
+    // A blank/omitted out-time means "not checked out" (null), never the stale punch.
+    const requestedIn = toZonedDate(tz, requestedCheckIn);
+    const requestedOut = toZonedDate(tz, requestedCheckOut);
+    const inTime = requestedIn || log.checkIn;
+    const outTime = requestedOut ?? null;
 
     // 1. Create a request in the new RegularizationRequest table
     const req = await this.prisma.regularizationRequest.create({
@@ -650,6 +669,56 @@ async listPendingRegularizations(companyId: string) {
       return this.prisma.$transaction(tx);
     }
 
+    // Apply the resolved in/out, then recompute all derived fields so an approved
+    // correction renders correctly (worked/OT, late, incomplete vs FULL_DAY_PRESENT).
+    const newCheckIn = req.requestedCheckIn ?? req.attendanceLog?.checkIn ?? null;
+    const newCheckOut = req.requestedCheckOut ?? null; // null clears a mistaken punch
+    const ctx = await this.resolveShiftContext(companyId, req.employeeId, newCheckIn ?? new Date());
+    const policyMap = ctx ? ctx.policyMap : new Map<string, string>();
+    const otThreshold = ctx?.shift.shiftType?.overtimeThresholdMinutes
+      ?? Number(policyMap.get('custom.overtimeThresholdMinutes') ?? 480);
+
+    const data: any = {
+      checkIn: newCheckIn ?? undefined,
+      checkOut: newCheckOut,
+      regularizationStatus: 'approved',
+      status: 'present',
+    };
+
+    if (newCheckIn) {
+      data.requiredMinutes = ctx?.requiredMinutes ?? req.attendanceLog?.requiredMinutes ?? undefined;
+      if (ctx) {
+        const punch = newCheckIn.getTime();
+        const lateAfter = (ctx.coreStart ?? ctx.shiftStart).getTime() + ctx.graceMins * 60000;
+        data.lateMinutes = punch > lateAfter ? Math.max(0, Math.round((punch - lateAfter) / 60000)) : 0;
+        data.lateStatus = punch > lateAfter ? 'late' : 'on_time';
+        if (data.lateStatus === 'late') data.status = 'late';
+      }
+
+      if (newCheckOut) {
+        const worked = Math.max(0, Math.round((newCheckOut.getTime() - newCheckIn.getTime()) / 60000));
+        data.workedMinutes = worked;
+        data.overtimeMinutes = Math.max(0, worked - otThreshold);
+        let attr: string | null = req.attendanceLog?.attendanceStatus ?? null;
+        const required = data.requiredMinutes;
+        if (required && required > 0) {
+          const thresholdPct = Number(policyMap.get('custom.incompleteShiftThresholdPct') ?? 100);
+          const complete = worked * 100 >= required * thresholdPct;
+          attr = complete
+            ? 'FULL_DAY_PRESENT'
+            : policyMap.get('custom.incompleteShiftEnabled') !== 'false'
+              ? policyMap.get('custom.incompleteShiftStatus') ?? 'OFF_DAY_OR_INCOMPLETE'
+              : attr;
+        }
+        data.attendanceStatus = attr;
+      } else {
+        // Out-time blank → still checked in; keep the day open, never flag incomplete.
+        data.workedMinutes = null;
+        data.overtimeMinutes = 0;
+        data.attendanceStatus = null;
+      }
+    }
+
     return this.prisma.$transaction([
       this.prisma.regularizationRequest.update({
         where: { id: requestId },
@@ -657,12 +726,7 @@ async listPendingRegularizations(companyId: string) {
       }),
       this.prisma.attendanceLog.update({
         where: { id: req.attendanceLogId },
-        data: {
-          checkIn: req.requestedCheckIn ?? undefined,
-          checkOut: req.requestedCheckOut ?? undefined,
-          regularizationStatus: 'approved',
-          status: 'present',
-        },
+        data,
       }),
       this.prisma.attendanceAudit.create({
         data: {
@@ -674,7 +738,7 @@ async listPendingRegularizations(companyId: string) {
           toValue: req.requestedCheckOut ? undefined : null,
           actorId: approverId,
           actorRole: 'hr',
-          notes: `Time regularization approved (in ${req.requestedCheckIn?.toISOString() ?? '—'}, out ${req.requestedCheckOut?.toISOString() ?? '—'}).`,
+          notes: `Time regularization approved (in ${newCheckIn?.toISOString() ?? '—'}, out ${newCheckOut?.toISOString() ?? '—'}).`,
         },
       }),
     ]);

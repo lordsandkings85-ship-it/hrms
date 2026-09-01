@@ -4,14 +4,12 @@ import { RefreshCw, Search, Filter, Check, X, Clock } from 'lucide-react';
 import { attendanceApi } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { fmtTime12 } from '../../../utils/formatDate';
 
 const REQUEST_STATUS_OPTIONS = ['all', 'pending', 'approved', 'rejected'];
 
 function fmtTime(iso?: string | null) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '—';
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return fmtTime12(iso);
 }
 
 export default function CorrectionRequestApprovalPage() {

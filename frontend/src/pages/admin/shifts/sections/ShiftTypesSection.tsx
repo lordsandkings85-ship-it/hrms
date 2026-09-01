@@ -4,15 +4,9 @@ import { Plus, Loader2, Check, Pencil, Trash2, X, Zap, Clock } from 'lucide-reac
 import { shiftTypesApi } from '../../../../api/client';
 import { DataTable, Column } from '../../../../components/ui/DataTable';
 import { useToast } from '../../../../components/ui/ToastProvider';
+import { fmt24To12 } from '../../../../utils/formatDate';
 
-const formatTime12 = (time24: string) => {
-  if (!time24) return '';
-  const [h, m] = time24.split(':');
-  let hour = parseInt(h, 10);
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  hour = hour % 12 || 12;
-  return `${hour.toString().padStart(2, '0')}:${m} ${ampm}`;
-};
+const formatTime12 = fmt24To12;
 
 export default function ShiftTypesSection() {
   const { data: types, isLoading } = useQuery({ queryKey: ['admin-shift-types'], queryFn: shiftTypesApi.list });

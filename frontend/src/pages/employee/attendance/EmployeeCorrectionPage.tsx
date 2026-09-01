@@ -37,8 +37,8 @@ export default function EmployeeCorrectionPage() {
       }
       await attendanceApi.regularize(log.id, {
         employeeId: myEmpId,
-        requestedCheckIn: data.correctedCheckIn ? `${data.date}T${data.correctedCheckIn}:00` : log.checkIn,
-        requestedCheckOut: data.correctedCheckOut ? `${data.date}T${data.correctedCheckOut}:00` : log.checkOut,
+        requestedCheckIn: data.correctedCheckIn ? `${data.date}T${data.correctedCheckIn}:00+05:30` : log.checkIn,
+        requestedCheckOut: data.correctedCheckOut ? `${data.date}T${data.correctedCheckOut}:00+05:30` : null,
         reason: data.reason,
       });
       toastSuccess('Attendance correction request submitted for approval.');
