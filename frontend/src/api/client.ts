@@ -308,7 +308,12 @@ export const leaveApi = {
   approve: (id: string) => api<any>(`/leave/${id}/approve`, { method: 'POST' }),
   reject: (id: string) => api<any>(`/leave/${id}/reject`, { method: 'POST' }),
   cancel: (id: string) => api<any>(`/leave/${id}/cancel`, { method: 'POST' }),
-  listCancellationRequests: () => api<any[]>('/leave/cancellations/pending'),
+  listCancellationRequests: (status?: string) => {
+    const qs = new URLSearchParams();
+    if (status) qs.set('status', status);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return api<any[]>(`/leave/cancellations/pending${suffix}`);
+  },
   approveCancellation: (id: string) => api<any>(`/leave/cancellations/${id}/approve`, { method: 'POST' }),
   rejectCancellation: (id: string) => api<any>(`/leave/cancellations/${id}/reject`, { method: 'POST' }),
   listForEmployee: (employeeId: string) => api<any[]>(`/leave/employee/${employeeId}`),

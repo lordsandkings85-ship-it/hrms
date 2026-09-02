@@ -11,6 +11,7 @@ export function ApprovalQueue({
   onApprove,
   onReject,
   icon: Icon,
+  mapRow,
 }: {
   title: string;
   queryKey: string[];
@@ -18,6 +19,7 @@ export function ApprovalQueue({
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
   icon: React.ElementType;
+  mapRow?: (row: any) => any;
 }) {
   const { data, isLoading } = useQuery({ queryKey, queryFn });
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,7 +27,8 @@ export function ApprovalQueue({
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
 
-  const all = Array.isArray(data) ? data : (data?.data ?? []);
+  const raw = Array.isArray(data) ? data : (data?.data ?? []);
+  const all = (mapRow ? raw.map(mapRow) : raw) as any[];
   const pending = all.filter((r: any) => r.status === 'pending' || r.status === 'submitted');
   const approved = all.filter((r: any) => r.status === 'approved' || r.status === 'rejected');
 
@@ -55,16 +58,21 @@ export function ApprovalQueue({
     {
       key: 'actions',
       header: 'Actions',
-      render: (row) => (
-        <div className="flex items-center gap-2">
-          <button onClick={() => onApprove(row.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white border border-emerald-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all">
-            <Check size={12} /> Approve
-          </button>
-          <button onClick={() => onReject(row.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all">
-            <X size={12} /> Reject
-          </button>
-        </div>
-      ),
+      render: (row) => {
+        if (row.status !== 'pending' && row.status !== 'submitted') {
+          return <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Processed</span>;
+        }
+        return (
+          <div className="flex items-center gap-2">
+            <button onClick={() => onApprove(row.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white border border-emerald-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all">
+              <Check size={12} /> Approve
+            </button>
+            <button onClick={() => onReject(row.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all">
+              <X size={12} /> Reject
+            </button>
+          </div>
+        );
+      },
     },
   ];
 

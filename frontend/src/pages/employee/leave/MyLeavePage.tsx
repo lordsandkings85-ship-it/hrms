@@ -109,11 +109,12 @@ export default function MyLeavePage() {
   });
 
   const cancelLeaveMutation = useMutation({
-    mutationFn: leaveApi.cancel,
-    onSuccess: () => {
-      toastSuccess('Leave cancelled successfully!');
+    mutationFn: ({ id }: { id: string; isApproved: boolean }) => leaveApi.cancel(id),
+    onSuccess: (_data, vars) => {
+      toastSuccess(vars.isApproved ? 'Cancellation requested! Awaiting approval.' : 'Leave cancelled successfully!');
       queryClient.invalidateQueries({ queryKey: ['leave-history', myEmpId] });
       queryClient.invalidateQueries({ queryKey: ['leave-balances', myEmpId] });
+      queryClient.invalidateQueries({ queryKey: ['cancel-leave-approvals'] });
     },
     onError: (err: any) => toastError(err.message || 'Failed to cancel leave'),
   });
@@ -245,7 +246,8 @@ export default function MyLeavePage() {
                   const statusColors: Record<string, { badge: string, icon: React.ElementType }> = {
                     pending: { badge: 'bg-amber-500/10 text-amber-500 border-amber-500/20', icon: Clock },
                     approved: { badge: 'bg-green-500/10 text-green-400 border-green-500/20', icon: CheckCircle2 },
-                    rejected: { badge: 'bg-red-500/10 text-red-400 border-red-500/20', icon: XCircle }
+                    rejected: { badge: 'bg-red-500/10 text-red-400 border-red-500/20', icon: XCircle },
+                    cancelled: { badge: 'bg-rose-500/10 text-rose-400 border-rose-500/20', icon: XCircle }
                   };
                   const cfg = statusColors[row.status] || { badge: 'bg-slate-500/10 text-slate-400 border-slate-500/20', icon: Clock };
                   const Icon = cfg.icon;
@@ -274,13 +276,31 @@ export default function MyLeavePage() {
                           <button
                             onClick={() => {
                               if (window.confirm('Are you sure you want to cancel this leave application?')) {
-                                cancelLeaveMutation.mutate(row.id);
+                                cancelLeaveMutation.mutate({ id: row.id, isApproved: false });
                               }
                             }}
                             disabled={cancelLeaveMutation.isPending}
                             className="text-xs text-rose-500 hover:text-rose-600 font-bold transition-colors disabled:opacity-50"
                           >
                             Cancel
+                          </button>
+                        )}
+                        {row.status === 'approved' && row.cancellationPending && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border bg-amber-500/10 text-amber-500 border-amber-500/20">
+                            <Clock size={11} /> Cancellation Pending
+                          </span>
+                        )}
+                        {row.status === 'approved' && !row.cancellationPending && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Request cancellation of this approved leave? HR approval is required.')) {
+                                cancelLeaveMutation.mutate({ id: row.id, isApproved: true });
+                              }
+                            }}
+                            disabled={cancelLeaveMutation.isPending}
+                            className="text-xs text-indigo-500 hover:text-indigo-600 font-bold transition-colors disabled:opacity-50"
+                          >
+                            Request Cancellation
                           </button>
                         )}
                       </div>

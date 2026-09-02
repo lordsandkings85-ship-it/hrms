@@ -116,8 +116,8 @@ export class LeaveController {
 
   @Get('cancellations/pending')
   @Permissions({ module: 'leave', action: 'view' })
-  listCancellations(@CurrentUser() user: AuthUser) {
-    return this.leaveService.listCancellations(user.companyId);
+  listCancellations(@CurrentUser() user: AuthUser, @Query('status') status?: string) {
+    return this.leaveService.listCancellations(user.companyId, status);
   }
 
   @Post('cancellations/:id/approve')

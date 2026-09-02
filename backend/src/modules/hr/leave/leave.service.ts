@@ -318,9 +318,9 @@ async approve(id: string, companyId: string, approverId: string) {
     });
   }
 
-  async listCancellations(companyId: string) {
-    return this.prisma.leaveCancellationRequest.findMany({
-      where: { companyId },
+  async listCancellations(companyId: string, status?: string) {
+    const rows = await this.prisma.leaveCancellationRequest.findMany({
+      where: { companyId, ...(status ? { status } : {}) },
       include: {
         leaveRequest: { include: { leaveType: true } },
         employee: {
@@ -330,6 +330,16 @@ async approve(id: string, companyId: string, approverId: string) {
       },
       orderBy: { createdAt: 'desc' },
     });
+    // Flatten leave fields so UI queues can render without digging into nested relations.
+    return rows.map((r) => ({
+      ...r,
+      leaveType: r.leaveRequest?.leaveType?.name ?? null,
+      startDate: r.leaveRequest?.startDate ?? null,
+      endDate: r.leaveRequest?.endDate ?? null,
+      isHalfDay: r.leaveRequest?.isHalfDay ?? false,
+      days: r.leaveRequest ? isHalfDayCount(r.leaveRequest.startDate, r.leaveRequest.endDate, r.leaveRequest.isHalfDay) : 0,
+      leaveReason: r.leaveRequest?.reason ?? null,
+    }));
   }
 
   async approveCancellation(id: string, companyId: string, approverId: string) {
@@ -458,9 +468,16 @@ async listForEmployee(employeeId: string, companyId: string) {
     if (!employee) throw new NotFoundException('Employee not found in this company');
     return this.prisma.leaveRequest.findMany({
       where: { employeeId },
-      include: { leaveType: true },
+      include: {
+        leaveType: true,
+        cancellations: {
+          where: { status: 'pending' },
+          select: { id: true, status: true, createdAt: true },
+          take: 1,
+        },
+      },
       orderBy: { createdAt: 'desc' },
-    });
+    }).then((rows) => rows.map((r) => ({ ...r, cancellationPending: r.cancellations?.[0] ?? null })));
   }
 
   async listPendingForCompany(companyId: string) {
