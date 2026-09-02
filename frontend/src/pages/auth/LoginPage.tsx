@@ -5,6 +5,9 @@ import { authApi } from '../../api/client';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Spinner } from '../../components/ui/Spinner';
 import workoraIcon from '../../assets/brand/workora-icon.png';
+import { version as APP_VERSION } from '../../../package.json';
+
+const VERSION = `v${APP_VERSION}`;
 
 const FEATURES = [
   { icon: Fingerprint, text: 'Geofenced GPS attendance', desc: 'Pinpoint accuracy for distributed teams' },
@@ -64,7 +67,7 @@ export default function LoginPage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#52b788] opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#2d6a4f]"></span>
               </span>
-              v2.0 Now Available
+              {VERSION} Now Available
             </div>
             <h2 className="font-display text-4xl xl:text-5xl font-bold text-white leading-[1.15] tracking-tight">
               Elevate your <br/>
@@ -155,6 +158,10 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
+
+        <p className="mt-8 text-[10px] font-semibold uppercase tracking-widest text-muted/50">
+          Workora HRMS · {VERSION}
+        </p>
       </div>
     </div>
   );
