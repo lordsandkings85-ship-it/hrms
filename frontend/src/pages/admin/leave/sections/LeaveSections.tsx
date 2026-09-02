@@ -26,7 +26,10 @@ const REQUEST_STATUSES = ['all', 'pending', 'approved', 'rejected', 'cancelled']
 
 export function LeaveRequestsSection() {
   const [status, setStatus] = useState('pending');
-  const { data, isLoading } = useData('leave-all', () => leaveApi.listAll({ status: status === 'all' ? undefined : status }));
+  const { data, isLoading } = useQuery({
+    queryKey: ['leave-all', status],
+    queryFn: () => leaveApi.listAll({ status: status === 'all' ? undefined : status }),
+  });
   const queryClient = useQueryClient();
   const { success, error } = useToast();
   const approve = useMutation({

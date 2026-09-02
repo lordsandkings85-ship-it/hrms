@@ -149,8 +149,7 @@ export class EmployeesService {
 
     const decryptedItems = items.map(item => {
       const dec = decryptPiiFields(item);
-      // Strip PII if not system admin, not self, and not their manager
-      if (!isSystemAdmin && dec.id !== reqEmployeeId && dec.managerId !== reqEmployeeId) {
+      if (!isHR && dec.id !== reqEmployeeId && dec.managerId !== reqEmployeeId) {
         delete dec.pan;
         delete dec.aadhaar;
         delete dec.uan;
@@ -211,7 +210,7 @@ export class EmployeesService {
       throw new NotFoundException('Employee not found');
     }
 
-    if (!isSystemAdmin && dec.id !== reqEmployeeId && dec.managerId !== reqEmployeeId) {
+    if (!isHR && dec.id !== reqEmployeeId && dec.managerId !== reqEmployeeId) {
       delete dec.pan;
       delete dec.aadhaar;
       delete dec.uan;

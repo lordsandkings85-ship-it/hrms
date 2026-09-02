@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ShieldCheck, HardDrive, Cpu, Terminal, Building, Loader2, Database, CalendarDays, ListChecks, Search, Users } from 'lucide-react';
+import { ShieldCheck, HardDrive, Cpu, Terminal, Building, Loader2, Database, CalendarDays, CalendarCheck2, ListChecks, Search, Users } from 'lucide-react';
 import { superAdminApi } from '../../../api/client';
 import { fmtDate, fmtDateTime, fmtTime12 } from '../../../utils/formatDate';
 import { DataTable, Column } from '../../../components/ui/DataTable';
+import { StatusBadge } from '../../../components/ui/AdminSection';
 
 function toLocalDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -305,10 +306,63 @@ function AttendancePanel({ tenants }: { tenants: any[] }) {
   );
 }
 
+const LEAVE_REQUEST_STATUSES = ['all', 'pending', 'approved', 'rejected', 'cancelled'];
+
+function LeavePanel({ tenants }: { tenants: any[] }) {
+  const [tenantId, setTenantId] = useState('');
+  const [status, setStatus] = useState('pending');
+
+  useEffect(() => {
+    if (!tenantId && tenants.length > 0) setTenantId(tenants[0].id);
+  }, [tenants, tenantId]);
+
+  const { data: requests, isLoading } = useQuery({
+    queryKey: ['superadmin-leave', tenantId, status],
+    queryFn: () => superAdminApi.leaveList(tenantId, status === 'all' ? undefined : status),
+    enabled: !!tenantId,
+  });
+
+  const columns: Column<any>[] = [
+    { key: 'employee', header: 'Employee', render: (r: any) => (
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 font-bold text-xs flex items-center justify-center shrink-0">
+          {r.employee?.firstName?.[0] || 'E'}{r.employee?.lastName?.[0] || ''}
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-bold text-[var(--text-primary)] truncate">{r.employee?.firstName} {r.employee?.lastName}</div>
+          <div className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider font-mono">{r.employee?.employeeCode || '—'} · {r.employee?.department?.name || 'No dept'}</div>
+        </div>
+      </div>
+    )},
+    { key: 'type', header: 'Leave Type', render: (r: any) => <span className="text-[var(--text-muted)] text-xs">{r.leaveType?.name || r.leaveType || '—'}</span> },
+    { key: 'period', header: 'Period', render: (r: any) => <span className="text-xs">{fmtDate(r.startDate)} → {fmtDate(r.endDate)}</span> },
+    { key: 'days', header: 'Days', render: (r: any) => <span className="font-semibold">{r.days ?? r.totalDays ?? 1}</span> },
+    { key: 'status', header: 'Status', render: (r: any) => <StatusBadge status={r.status} /> },
+  ];
+
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <select value={tenantId} onChange={(e) => setTenantId(e.target.value)} className="px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm font-bold">
+          {(tenants || []).map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+        <div className="flex flex-wrap gap-2">
+          {LEAVE_REQUEST_STATUSES.map((s) => (
+            <button key={s} onClick={() => setStatus(s)} className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider border transition-colors ${status === s ? 'bg-indigo-500 text-white border-indigo-500' : 'border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+      <DataTable columns={columns} data={requests ?? []} loading={isLoading} keyField="id" emptyTitle="No leave requests" emptyMessage="No requests match the selected status." />
+    </div>
+  );
+}
+
 export default function SuperAdminPage() {
   const navigate = useNavigate();
   const { sub } = useParams<{ sub?: string }>();
-  const activeTab = sub === 'attendance' ? 'attendance' : 'overview';
+  const activeTab = sub === 'attendance' ? 'attendance' : sub === 'leave' ? 'leave' : 'overview';
 
   const { data: tenants, isLoading: isLoadingTenants } = useQuery({
     queryKey: ['superadmin-tenants'],
@@ -366,11 +420,17 @@ export default function SuperAdminPage() {
             className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors flex items-center gap-2 ${activeTab === 'attendance' ? 'bg-indigo-500 text-white border-indigo-500 shadow-sm' : 'bg-[var(--surface-alt)] border-[var(--border)] text-[var(--text-muted)] hover:text-indigo-500'}`}>
             <CalendarDays size={16} /> Attendance
           </button>
+          <button onClick={() => navigate('/super-admin/leave')}
+            className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors flex items-center gap-2 ${activeTab === 'leave' ? 'bg-indigo-500 text-white border-indigo-500 shadow-sm' : 'bg-[var(--surface-alt)] border-[var(--border)] text-[var(--text-muted)] hover:text-indigo-500'}`}>
+            <CalendarCheck2 size={16} /> Leave Request
+          </button>
         </div>
       </div>
 
       {activeTab === 'attendance' ? (
         <AttendancePanel tenants={Array.isArray(tenants) ? tenants : []} />
+      ) : activeTab === 'leave' ? (
+        <LeavePanel tenants={Array.isArray(tenants) ? tenants : []} />
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

@@ -817,6 +817,12 @@ export const superAdminApi = {
     if (month) qs.set('month', String(month));
     return api<any[]>(`/super-admin/attendance/monthly?${qs.toString()}`);
   },
+  leaveList: (companyId: string, status?: string) => {
+    const qs = new URLSearchParams();
+    qs.set('companyId', companyId);
+    if (status) qs.set('status', status);
+    return api<any[]>(`/super-admin/leave?${qs.toString()}`);
+  },
 };
 
 export const fnfApi = {
