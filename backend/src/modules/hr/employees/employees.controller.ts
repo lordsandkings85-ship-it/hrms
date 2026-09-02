@@ -39,8 +39,6 @@ export class EmployeesController {
     @Query('search') search?: string,
     @Query('departmentId') departmentId?: string,
     @Query('status') status?: string,
-    @Query('joiningDate') joiningDate?: string,
-    @Query('orderBy') orderBy?: string,
   ) {
     return this.employeesService.findAll(user.companyId, user.userId, {
       page: page ? Number(page) : undefined,
@@ -48,8 +46,6 @@ export class EmployeesController {
       search,
       departmentId,
       status,
-      joiningDate,
-      orderBy,
     });
   }
 

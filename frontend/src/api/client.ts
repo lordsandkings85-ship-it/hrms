@@ -212,13 +212,11 @@ export interface LoginStatus {
 }
 
 export const employeesApi = {
-  list: (params: { page?: number; pageSize?: number; search?: string; joiningDate?: string; orderBy?: string } = {}) => {
+  list: (params: { page?: number; pageSize?: number; search?: string } = {}) => {
     const qs = new URLSearchParams();
     if (params.page) qs.set('page', String(params.page));
     if (params.pageSize) qs.set('pageSize', String(params.pageSize));
     if (params.search) qs.set('search', params.search);
-    if (params.joiningDate) qs.set('joiningDate', params.joiningDate);
-    if (params.orderBy) qs.set('orderBy', params.orderBy);
     return api<{ items: Employee[]; total: number; page: number; totalPages: number }>(
       `/employees?${qs.toString()}`,
     );
@@ -800,6 +798,19 @@ export const superAdminApi = {
     const qs = new URLSearchParams();
     if (companyId) qs.set('companyId', companyId);
     return api<any[]>(`/super-admin/audit-logs?${qs.toString()}`);
+  },
+  attendanceDaily: (companyId: string, date?: string) => {
+    const qs = new URLSearchParams();
+    qs.set('companyId', companyId);
+    if (date) qs.set('date', date);
+    return api<any[]>(`/super-admin/attendance/daily?${qs.toString()}`);
+  },
+  attendanceMonthly: (companyId: string, year?: number, month?: number) => {
+    const qs = new URLSearchParams();
+    qs.set('companyId', companyId);
+    if (year) qs.set('year', String(year));
+    if (month) qs.set('month', String(month));
+    return api<any[]>(`/super-admin/attendance/monthly?${qs.toString()}`);
   },
 };
 

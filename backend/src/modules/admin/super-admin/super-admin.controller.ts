@@ -1,15 +1,37 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../../../common/guards/super-admin.guard';
 import { SuperAdminService } from './super-admin.service';
+import { AttendanceService } from '../../hr/attendance/attendance.service';
 
 @UseGuards(JwtAuthGuard, SuperAdminGuard)
 @Controller('super-admin')
 export class SuperAdminController {
-  constructor(private service: SuperAdminService) {}
+  constructor(
+    private service: SuperAdminService,
+    private attendance: AttendanceService,
+  ) {}
 
   @Get('tenants')
   listTenants() { return this.service.listTenants(); }
+
+  @Get('attendance/daily')
+  attendanceDaily(@Query('companyId') companyId: string, @Query('date') date?: string) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    return this.attendance.listForCompany(companyId, date);
+  }
+
+  @Get('attendance/monthly')
+  attendanceMonthly(
+    @Query('companyId') companyId: string,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    const y = year ? Number(year) : undefined;
+    const m = month ? Number(month) : undefined;
+    return this.attendance.listForCompanyMonth(companyId, y, m);
+  }
 
   @Get('health')
   health() { return this.service.systemHealth(); }
