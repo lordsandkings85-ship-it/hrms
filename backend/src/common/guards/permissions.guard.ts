@@ -107,6 +107,22 @@ export class PermissionsGuard implements CanActivate {
       ) {
         return true;
       }
+      // Self-service: an employee may cancel their OWN leave request. The route
+      // `:id` is a leave-request id (not an employee id), so validate ownership
+      // via the leave record. The leave service re-verifies ownership + company
+      // as defense in depth.
+      if (
+        userEmployeeId &&
+        method === 'POST' &&
+        params?.id &&
+        /\/leave\/[^/]+\/cancel$/.test(pathNoPrefix)
+      ) {
+        const leave = await this.prisma.leaveRequest.findUnique({
+          where: { id: params.id },
+          select: { employeeId: true },
+        });
+        if (leave?.employeeId === userEmployeeId) return true;
+      }
       if (userEmployeeId && params?.id && request.route?.path?.endsWith('payslip/:id')) {
         const payslip = await this.prisma.payslip.findUnique({
           where: { id: params.id },

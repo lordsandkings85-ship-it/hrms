@@ -5,8 +5,9 @@ function mockPrisma(opts: {
   employeeId?: string | null;
   role?: { name?: string; isSystem?: boolean } | null;
   grants?: Array<{ module: string; action: string }>;
+  leaveOwner?: string | null;
 } = {}) {
-  const { employeeId = 'emp-1', role = { isSystem: false }, grants = [] } = opts;
+  const { employeeId = 'emp-1', role = { isSystem: false }, grants = [], leaveOwner = null } = opts;
   return {
     user: {
       findUnique: jest.fn(async () => ({ employeeId })),
@@ -16,6 +17,9 @@ function mockPrisma(opts: {
     },
     permission: {
       findMany: jest.fn(async () => grants),
+    },
+    leaveRequest: {
+      findUnique: jest.fn(async () => (leaveOwner ? { employeeId: leaveOwner } : null)),
     },
   };
 }
@@ -234,6 +238,36 @@ describe('PermissionsGuard', () => {
         user: { userId: 'u-1', roleId: 'r-1' },
         body: { employeeId: 'emp-1', amount: 999 },
         route: { path: '/leave/balances/adjust' },
+        method: 'POST',
+      })),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('allows an employee to cancel their OWN leave without any role grants', async () => {
+    const guard = new PermissionsGuard(
+      { getAllAndOverride: () => [{ module: 'leave', action: 'edit' }] } as any,
+      mockPrisma({ employeeId: 'emp-1', role: { isSystem: false }, grants: [], leaveOwner: 'emp-1' }) as any,
+    );
+    await expect(
+      guard.canActivate(ctx({
+        user: { userId: 'u-1' },
+        params: { id: 'lr-1' },
+        route: { path: '/leave/:id/cancel' },
+        method: 'POST',
+      })),
+    ).resolves.toBe(true);
+  });
+
+  it('blocks cancelling another employee leave request', async () => {
+    const guard = new PermissionsGuard(
+      { getAllAndOverride: () => [{ module: 'leave', action: 'edit' }] } as any,
+      mockPrisma({ employeeId: 'emp-1', role: { isSystem: false }, grants: [], leaveOwner: 'emp-2' }) as any,
+    );
+    await expect(
+      guard.canActivate(ctx({
+        user: { userId: 'u-1' },
+        params: { id: 'lr-2' },
+        route: { path: '/leave/:id/cancel' },
         method: 'POST',
       })),
     ).rejects.toThrow(ForbiddenException);
