@@ -22,6 +22,9 @@ export class EmployeesService {
     const { password, workingDaysPerWeek, ctc, roleName, contactInfo, paymentInfo, adminInfo, personalInfo, familyMembers, emergencyContacts, experiences, immigrations, documentInfos, certifications, qualifications, ...employeeData } = dto;
     if (!(employeeData as any).pan && (personalInfo as any)?.panNo) (employeeData as any).pan = (personalInfo as any).panNo;
     if (!(employeeData as any).aadhaar && (adminInfo as any)?.aadhaarCardNo) (employeeData as any).aadhaar = (adminInfo as any).aadhaarCardNo;
+    if (!(employeeData as any).uan && (adminInfo as any)?.uan) (employeeData as any).uan = (adminInfo as any).uan;
+    if (!(employeeData as any).pfNumber && (adminInfo as any)?.pfNo) (employeeData as any).pfNumber = (adminInfo as any).pfNo;
+    if (!(employeeData as any).esic && (adminInfo as any)?.esiNo) (employeeData as any).esic = (adminInfo as any).esiNo;
     const encryptedData = encryptPiiFields(employeeData as any);
 
     let assignedRoleId: string | null = null;
@@ -238,6 +241,9 @@ export class EmployeesService {
     const { password, workingDaysPerWeek, ctc, roleName, experience, contactInfo, paymentInfo, adminInfo, personalInfo, familyMembers, emergencyContacts, experiences, immigrations, documentInfos, certifications, qualifications, ...employeeData } = dto;
     if (!(employeeData as any).pan && (personalInfo as any)?.panNo) (employeeData as any).pan = (personalInfo as any).panNo;
     if (!(employeeData as any).aadhaar && (adminInfo as any)?.aadhaarCardNo) (employeeData as any).aadhaar = (adminInfo as any).aadhaarCardNo;
+    if (!(employeeData as any).uan && (adminInfo as any)?.uan) (employeeData as any).uan = (adminInfo as any).uan;
+    if (!(employeeData as any).pfNumber && (adminInfo as any)?.pfNo) (employeeData as any).pfNumber = (adminInfo as any).pfNo;
+    if (!(employeeData as any).esic && (adminInfo as any)?.esiNo) (employeeData as any).esic = (adminInfo as any).esiNo;
     const encryptedData = encryptPiiFields(employeeData as any);
 
     const employee = await this.prisma.$transaction(async (tx) => {
