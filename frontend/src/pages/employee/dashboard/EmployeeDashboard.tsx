@@ -1,7 +1,7 @@
 import { useAuthStore } from '../../../store/useAuthStore';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { payrollApi, payrollApiExt, attendanceApiExt, leaveApi, dashboardApi, attendanceApi, announcementsApi } from '../../../api/client';
+import { payrollApi, payrollApiExt, attendanceApiExt, leaveApi, dashboardApi, dashboardSummaryKey, attendanceApi, announcementsApi } from '../../../api/client';
 import { Fingerprint, Calendar, Download, Shield, ArrowRight, TrendingUp, Megaphone, Bell, Clock, User, Banknote, CalendarDays, Receipt, Headphones, Target, ChevronRight, UserMinus, AlertTriangle } from 'lucide-react';
 import { Spinner } from '../../../components/ui/Spinner';
 import { generatePayslipPDF } from '../../../utils/payslipPDF';
@@ -73,7 +73,7 @@ export default function EmployeeDashboard() {
    });
 
    const { data: dashboardData } = useQuery({
-      queryKey: ['dashboard-summary'],
+      queryKey: dashboardSummaryKey(user?.id),
       queryFn: dashboardApi.summary,
       enabled: !!emp,
    });

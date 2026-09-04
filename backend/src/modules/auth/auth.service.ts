@@ -5,6 +5,7 @@ import { authenticator } from 'otplib';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SeederService } from '../../prisma/seeder.service';
 import { decrypt, decryptEmployeeNested, decryptPiiFields, encrypt } from '../../utils/crypto.util';
+import { isApprover } from '../../common/approver';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
@@ -171,8 +172,23 @@ export class AuthService {
     });
     if (!user) throw new UnauthorizedException('User not found');
     const { passwordHash, mfaSecret, ...safeUser } = user;
+
+    // Strict approver principal for company-wide HR approval alerts.
+    let canApproveApproval = !!user.isSuperAdmin || !!user.role?.isSystem;
+    if (!canApproveApproval && user.roleId) {
+      const grants = await this.prisma.permission.findMany({
+        where: { roleId: user.roleId },
+        select: { module: true, action: true },
+      });
+      canApproveApproval = isApprover(
+        { isSuperAdmin: !!user.isSuperAdmin, roleIsSystem: !!user.role?.isSystem },
+        grants,
+      );
+    }
+
     return {
       ...safeUser,
+      canApproveApproval,
       employee: user.employee ? decryptEmployeeNested(decryptPiiFields(user.employee)) : user.employee,
     };
   }

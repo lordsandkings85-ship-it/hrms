@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { dashboardApi, employeesApi } from '../../../api/client';
+import { dashboardApi, dashboardSummaryKey, employeesApi } from '../../../api/client';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { Spinner } from '../../../components/ui/Spinner';
 import {
@@ -23,7 +23,7 @@ export default function AdminDashboard() {
   const deptName = emp?.department?.name || '—';
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dashboard-summary'],
+    queryKey: dashboardSummaryKey(user?.id),
     queryFn: dashboardApi.summary,
   });
 

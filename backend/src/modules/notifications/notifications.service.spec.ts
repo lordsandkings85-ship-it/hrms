@@ -6,7 +6,7 @@ function mockPrisma(opts: {
   managerId?: string | null;
   roleName?: string | null;
   roleIsSystem?: boolean;
-  grantCount?: number;
+  grants?: Array<{ module: string; action: string }>;
   notifications?: any[];
   record?: any | null;
 } = {}) {
@@ -15,7 +15,7 @@ function mockPrisma(opts: {
     managerId = null,
     roleName = null,
     roleIsSystem = false,
-    grantCount = 0,
+    grants = [],
     notifications = [],
     record = null,
   } = opts;
@@ -30,7 +30,7 @@ function mockPrisma(opts: {
       findUnique: jest.fn(async () => ({ id: employeeId, managerId })),
     },
     permission: {
-      count: jest.fn(async () => grantCount),
+      findMany: jest.fn(async () => grants),
     },
     notification: {
       create: jest.fn(async (args: any) => ({ id: 'n-new', ...args.data })),
@@ -64,7 +64,7 @@ const user = {
 
 describe('NotificationsService authorization isolation', () => {
   it('employee sees only personal + company-wide notifications (not HR/ADMIN ones)', async () => {
-    const { prisma, audit } = mockPrisma({ roleName: 'Employee', grantCount: 0 });
+    const { prisma, audit } = mockPrisma({ roleName: 'Employee', grants: [] });
     const svc = new NotificationsService(prisma as any);
 
     await svc.getMine(user);
@@ -80,8 +80,36 @@ describe('NotificationsService authorization isolation', () => {
     expect(or.some((c) => c.audience === 'PERSONAL')).toBe(true);
   });
 
-  it('HR role (with permission grants) additionally sees HR-audience notifications', async () => {
-    const { prisma, audit } = mockPrisma({ roleName: 'HR Manager', grantCount: 12 });
+  it('a role with only a NON-approval permission grant does NOT see HR-audience notifications', async () => {
+    // e.g. an employee role holding a stray project:view grant.
+    const { prisma, audit } = mockPrisma({
+      roleName: 'Employee',
+      grants: [{ module: 'projects', action: 'view' }],
+    });
+    const svc = new NotificationsService(prisma as any);
+
+    await svc.getMine(user);
+
+    const or = audit.where?.OR as any[];
+    expect(or.some((c) => c.audience === 'HR')).toBe(false);
+    expect(or.some((c) => c.audience === 'ADMIN')).toBe(false);
+  });
+
+  it('a matching role NAME (e.g. "Office Manager") with no approval grant does NOT see HR-audience notifications', async () => {
+    const { prisma, audit } = mockPrisma({ roleName: 'Office Manager', grants: [] });
+    const svc = new NotificationsService(prisma as any);
+
+    await svc.getMine(user);
+
+    const or = audit.where?.OR as any[];
+    expect(or.some((c) => c.audience === 'HR')).toBe(false);
+  });
+
+  it('a role holding leave:approve sees HR-audience notifications', async () => {
+    const { prisma, audit } = mockPrisma({
+      roleName: 'HR Manager',
+      grants: [{ module: 'leave', action: 'approve' }],
+    });
     const svc = new NotificationsService(prisma as any);
 
     await svc.getMine(user);
@@ -89,6 +117,19 @@ describe('NotificationsService authorization isolation', () => {
     const or = audit.where?.OR as any[];
     expect(or.some((c) => c.audience === 'HR')).toBe(true);
     expect(or.some((c) => c.audience === 'ADMIN')).toBe(false);
+  });
+
+  it('a role holding attendance:approve sees HR-audience notifications', async () => {
+    const { prisma, audit } = mockPrisma({
+      roleName: 'Attendance Approver',
+      grants: [{ module: 'attendance', action: 'approve' }],
+    });
+    const svc = new NotificationsService(prisma as any);
+
+    await svc.getMine(user);
+
+    const or = audit.where?.OR as any[];
+    expect(or.some((c) => c.audience === 'HR')).toBe(true);
   });
 
   it('admin/system role sees HR, ADMIN and SYSTEM audiences', async () => {

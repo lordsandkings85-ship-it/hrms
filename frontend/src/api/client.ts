@@ -136,6 +136,14 @@ export const dashboardApi = {
   summary: () => api<DashboardSummary>('/dashboard/summary'),
 };
 
+/**
+ * User-specific dashboard summary query key. The summary payload is
+ * role/approver-dependent, so the key MUST be scoped by userId to prevent an
+ * HR/Admin payload (with company-wide approval alerts) being served to an
+ * employee from the shared React Query cache.
+ */
+export const dashboardSummaryKey = (userId?: string) => ['dashboard-summary', userId ?? 'anon'];
+
 export interface Notification {
   id: string;
   companyId: string;

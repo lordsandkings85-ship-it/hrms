@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { isApprover } from '../../../common/approver';
 
 @Injectable()
 export class DashboardService {
@@ -10,10 +11,27 @@ export class DashboardService {
   ) {}
 
 async getSummary(companyId: string, user?: any) {
-    const isPrivileged =
-      user?.isSuperAdmin ||
-      (user?.roleId &&
-        (await this.prisma.permission.count({ where: { roleId: user.roleId } })) > 0);
+    // Strict approver principal: company-wide HR/approval alerts (pending
+    // regularization, pending leave approvals, job openings) are only shown to
+    // system/super admins and roles with an explicit leave/attendance approval
+    // permission. A role with an unrelated grant, or a manager-ish title, is
+    // NOT privileged.
+    let isPrivileged = !!user?.isSuperAdmin;
+    if (!isPrivileged && user?.roleId) {
+      const role = await this.prisma.role.findUnique({
+        where: { id: user.roleId },
+        select: { isSystem: true },
+      });
+      if (role?.isSystem) {
+        isPrivileged = true;
+      } else {
+        const grants = await this.prisma.permission.findMany({
+          where: { roleId: user.roleId },
+          select: { module: true, action: true },
+        });
+        isPrivileged = isApprover({ isSuperAdmin: false, roleIsSystem: false }, grants);
+      }
+    }
     const today = new Date();
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);

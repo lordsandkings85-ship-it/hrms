@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { dashboardApi, leaveApi, shiftsApi } from '../../../api/client';
+import { dashboardApi, dashboardSummaryKey, leaveApi, shiftsApi } from '../../../api/client';
 import { useAuthStore } from '../../../store/useAuthStore';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -54,7 +54,7 @@ export default function HrDashboard() {
   const approveMutation = useMutation({
     mutationFn: leaveApi.approve,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: dashboardSummaryKey(user?.id) });
       queryClient.invalidateQueries({ queryKey: ['leave-history'] });
       queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
       queryClient.invalidateQueries({ queryKey: ['leave-balances-dash'] });
@@ -64,7 +64,7 @@ export default function HrDashboard() {
   const rejectMutation = useMutation({
     mutationFn: leaveApi.reject,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: dashboardSummaryKey(user?.id) });
       queryClient.invalidateQueries({ queryKey: ['leave-history'] });
       queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
       queryClient.invalidateQueries({ queryKey: ['leave-balances-dash'] });
@@ -72,7 +72,7 @@ export default function HrDashboard() {
   });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-summary'],
+    queryKey: dashboardSummaryKey(user?.id),
     queryFn: dashboardApi.summary,
     refetchInterval: 300000 // Refresh every 5 mins
   });

@@ -17,8 +17,11 @@ export default function DashboardPage() {
     return <AdminDashboard />;
   }
 
-  // HR Manager / Line Manager -> HrDashboard
-  if (roleName.includes('hr') || roleName.includes('human resource') || roleName.includes('manager')) {
+  // Genuine approvers (explicit leave/attendance approve permission) -> HrDashboard.
+  // Determined server-side and surfaced via /auth/me as canApproveApproval —
+  // NOT by role-name matching, so e.g. an "Office Manager" without approval
+  // rights sees the employee dashboard, not the HR one.
+  if (user.canApproveApproval) {
     return <HrDashboard />;
   }
 

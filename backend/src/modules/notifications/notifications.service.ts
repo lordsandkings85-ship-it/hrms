@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { isApprover } from '../../common/approver';
 
 export interface NotificationContext {
   userId: string;
@@ -59,17 +60,22 @@ export class NotificationsService {
         select: { managerId: true },
       });
       managerId = emp?.managerId ?? null;
-    }    const roleName = dbUser?.role?.name ?? null;
+    }
+    const roleName = dbUser?.role?.name ?? null;
     const roleIsSystem = !!dbUser?.role?.isSystem;
     const isAdmin = !!user.isSuperAdmin || roleIsSystem;
 
+    // Strict approver principal: only system/super admin or a role holding an
+    // explicit leave/attendance approve permission. "Any permission grant" and
+    // role-name matching intentionally do NOT grant HR visibility.
     let isHR = isAdmin;
     if (user.roleId && !isAdmin) {
-      const grantCount = await this.prisma.permission.count({ where: { roleId: user.roleId } });
-      if (grantCount > 0) isHR = true;
+      const grants = await this.prisma.permission.findMany({
+        where: { roleId: user.roleId },
+        select: { module: true, action: true },
+      });
+      isHR = isApprover({ isSuperAdmin: !!user.isSuperAdmin, roleIsSystem }, grants);
     }
-    const name = (roleName ?? '').toLowerCase();
-    if (/hr|human resource|manager|admin|supervisor/.test(name)) isHR = true;
 
     return { employeeId, managerId, roleName, roleIsSystem, isHR, isAdmin };
   }

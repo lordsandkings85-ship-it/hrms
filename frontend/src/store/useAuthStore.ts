@@ -6,6 +6,7 @@ export interface UserProfile {
   companyId: string;
   email: string;
   isSuperAdmin: boolean;
+  canApproveApproval?: boolean;
   roleId?: string;
   role?: {
     id: string;
