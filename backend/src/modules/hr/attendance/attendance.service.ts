@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 
 /** Haversine formula — returns distance in metres between two GPS points */
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -64,7 +65,10 @@ function zonedWallClock(timeZone: string, date: Date) {
 
 @Injectable()
 export class AttendanceService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   /** Resolve the current shift assignment (respecting effectiveFrom/effectiveTo) for an employee on a given date */
   private async resolveShiftContext(companyId: string, employeeId: string, date: Date) {
@@ -729,6 +733,21 @@ async listPendingRegularizations(companyId: string) {
       where: { id: logId },
       data: { regularizationStatus: 'pending', regularizationNote: reason },
     });
+
+    try {
+      const name = `${employee.firstName ?? ''} ${employee.lastName ?? ''}`.trim() || 'An employee';
+      await this.notifications.notifyApprover({
+        companyId,
+        type: 'REGULARIZATION',
+        title: `${name} submitted an attendance regularization request`,
+        message: reason || 'Attendance regularization is awaiting review.',
+        referenceType: 'REGULARIZATION_REQUEST',
+        referenceId: req.id,
+        requesterEmployeeId: employee.id,
+      });
+    } catch {
+      // Best-effort
+    }
 
     return req;
   }

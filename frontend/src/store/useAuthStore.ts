@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { queryClient } from '../api/queryClient';
 
 export interface UserProfile {
   id: string;
@@ -48,6 +49,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    queryClient.clear();
     set({ user: null });
   },
 }));

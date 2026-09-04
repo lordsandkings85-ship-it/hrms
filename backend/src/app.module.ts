@@ -35,6 +35,7 @@ import { ExitModule } from './modules/employee/exit/exit.module';
 import { HelpdeskModule } from './modules/employee/helpdesk/helpdesk.module';
 import { EmployeeServicesModule } from './modules/employee/employee-services/employee-services.module';
 import { TimeModule } from './modules/time/time.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { TimeModule } from './modules/time/time.module';
     HelpdeskModule,
     EmployeeServicesModule,
     TimeModule,
+    NotificationsModule,
   ],
   providers: [
     {

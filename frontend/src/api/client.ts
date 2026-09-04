@@ -136,6 +136,40 @@ export const dashboardApi = {
   summary: () => api<DashboardSummary>('/dashboard/summary'),
 };
 
+export interface Notification {
+  id: string;
+  companyId: string;
+  type: string;
+  title: string;
+  message?: string | null;
+  priority: string;
+  isRead: boolean;
+  readAt?: string | null;
+  audience: string;
+  referenceType?: string | null;
+  referenceId?: string | null;
+  createdAt: string;
+}
+
+export const notificationApi = {
+  getMine: (opts: { unreadOnly?: boolean; limit?: number } = {}) => {
+    const params = new URLSearchParams();
+    if (opts.unreadOnly) params.set('unreadOnly', 'true');
+    if (opts.limit) params.set('limit', String(opts.limit));
+    const qs = params.toString();
+    return api<Notification[]>(`/notifications${qs ? `?${qs}` : ''}`);
+  },
+  getUnreadCount: () => api<{ count: number }>('/notifications/unread-count'),
+  markRead: (id: string) =>
+    api(`/notifications/${id}/read`, { method: 'POST' }),
+  markUnread: (id: string) =>
+    api(`/notifications/${id}/unread`, { method: 'POST' }),
+  markAllRead: () =>
+    api('/notifications/read-all', { method: 'POST' }),
+  delete: (id: string) =>
+    api(`/notifications/${id}`, { method: 'POST' }),
+};
+
 export interface Employee {
   id: string;
   employeeCode: string;

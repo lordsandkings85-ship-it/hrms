@@ -2,6 +2,7 @@
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import React from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useServerTime } from '../../hooks/useServerTime';
 import {
   LayoutDashboard, Users, Fingerprint, CalendarDays, Banknote, Briefcase,
@@ -12,7 +13,7 @@ import {
   User, Calendar, Target, CheckSquare, RefreshCw, Info
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
-import { dashboardApi } from '../../api/client';
+import { notificationApi, type Notification } from '../../api/client';
 import { useTheme, type ThemeMode } from '../../components/ui/ThemeProvider';
 import CommandPalette from '../../components/ui/CommandPalette';
 import TitleBar, { isElectron } from '../../components/ui/TitleBar';
@@ -775,25 +776,59 @@ export default function Layout() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [bellOpen, setBellOpen] = useState(false);
-  const [notifications, setNotifications] = useState<{ id: string; title: string; type: string }[] | null>(null);
+  const queryClient = useQueryClient();
+  const userId = user?.id;
 
-  const toggleBell = async () => {
-    setBellOpen(open => {
-      const next = !open;
-      if (next && notifications === null) {
-        dashboardApi.summary()
-          .then(d => setNotifications(d.notifications || []))
-          .catch(() => setNotifications([]));
-      }
-      return next;
-    });
+  // User-specific query keys to prevent cross-user cache leakage.
+  const notificationsQueryKey = ['notifications', 'mine', userId];
+  const unreadCountKey = ['notifications', 'unread-count', userId];
+
+  const { data: notifications = null } = useQuery<Notification[]>({
+    queryKey: notificationsQueryKey,
+    queryFn: () => notificationApi.getMine({ limit: 30 }),
+    enabled: bellOpen && !!userId,
+    staleTime: 30_000,
+  });
+
+  const { data: unreadData } = useQuery<{ count: number }>({
+    queryKey: unreadCountKey,
+    queryFn: () => notificationApi.getUnreadCount(),
+    enabled: !!userId,
+    refetchInterval: 30_000,
+  });
+  const unreadCount = unreadData?.count ?? 0;
+
+  const invalidateNotificationQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['notifications', 'mine', userId] });
+    queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count', userId] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
   };
 
-  const openNotification = (notif: { id: string; title: string; type: string }) => {
+  const markReadMutation = useMutation({
+    mutationFn: (id: string) => notificationApi.markRead(id),
+    onSuccess: invalidateNotificationQueries,
+  });
+  const markAllReadMutation = useMutation({
+    mutationFn: () => notificationApi.markAllRead(),
+    onSuccess: invalidateNotificationQueries,
+  });
+
+  const toggleBell = () => {
+    setBellOpen(open => !open);
+  };
+
+  const openNotification = (notif: Notification) => {
     setBellOpen(false);
-    if (notif.id.startsWith('leave-')) navigate('/leave');
-    else if (notif.id.startsWith('reg-alert')) navigate('/attendance/regularization');
+    if (!notif.isRead) markReadMutation.mutate(notif.id);
+    if (notif.referenceType === 'LEAVE_REQUEST') navigate('/leave');
+    else if (notif.referenceType === 'REGULARIZATION_REQUEST' || notif.type === 'REGULARIZATION') navigate('/attendance/regularization');
     else if (notif.id.startsWith('jobs-info')) navigate('/recruitment');
+    else if (notif.type === 'LEAVE') navigate('/leave');
+    else navigate('/dashboard');
+  };
+
+  const openAllRead = () => {
+    markAllReadMutation.mutate();
   };
 
   const handleGo = () => {
@@ -1112,8 +1147,8 @@ export default function Layout() {
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = ''; (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; }}
             >
               <Bell size={16} />
-              {notifications && notifications.length > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center" style={{ background: 'var(--danger)', color: '#fff' }}>{notifications.length}</span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center" style={{ background: 'var(--danger)', color: '#fff' }}>{unreadCount > 99 ? '99+' : unreadCount}</span>
               )}
             </button>
             {bellOpen && (
@@ -1123,10 +1158,19 @@ export default function Layout() {
                   className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-1rem))] max-h-96 overflow-auto rounded-xl border z-50 shadow-xl"
                   style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: 'var(--shadow-lg, 0 10px 40px rgba(0,0,0,0.15))' }}
                 >
-                  <div className="px-3 py-2 text-xs font-semibold border-b" style={{ borderColor: 'var(--border)' }}>
-                    Notifications
+                  <div className="px-3 py-2 text-xs font-semibold border-b flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
+                    <span>Notifications</span>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={openAllRead}
+                        className="text-[10px] font-medium hover:underline"
+                        style={{ color: 'var(--action-primary)' }}
+                      >
+                        Mark all read
+                      </button>
+                    )}
                   </div>
-                  {notifications === null ? (
+                  {!notifications ? (
                     <div className="px-3 py-6 text-center text-xs" style={{ color: 'var(--text-muted)' }}>Loading…</div>
                   ) : notifications.length === 0 ? (
                     <div className="px-3 py-6 text-center text-xs" style={{ color: 'var(--text-muted)' }}>You're all caught up</div>
@@ -1140,12 +1184,24 @@ export default function Layout() {
                       >
                         <span
                           className="w-2 h-2 rounded-full mt-1 shrink-0"
-                          style={{ background: n.type === 'urgent' ? 'var(--danger)' : n.type === 'warning' ? 'var(--warning, #f59e0b)' : 'var(--action-primary)' }}
+                          style={{ background: !n.isRead ? 'var(--action-primary)' : 'transparent', border: '1px solid var(--border)', flexShrink: 0 }}
                         />
-                        <span style={{ color: 'var(--text-primary)' }}>{n.title}</span>
+                        <span className="min-w-0">
+                          <span style={{ color: 'var(--text-primary)', fontWeight: n.isRead ? 400 : 600 }}>{n.title}</span>
+                          {n.message && (
+                            <span className="block truncate" style={{ color: 'var(--text-muted)' }}>{n.message}</span>
+                          )}
+                        </span>
                       </button>
                     ))
                   )}
+                  <button
+                    onClick={() => { setBellOpen(false); navigate('/notifications'); }}
+                    className="w-full text-left px-3 py-2 text-xs font-semibold border-t hover:bg-[var(--surface-hover)]"
+                    style={{ borderColor: 'var(--border)', color: 'var(--action-primary)' }}
+                  >
+                    View all notifications
+                  </button>
                 </div>
               </>
             )}

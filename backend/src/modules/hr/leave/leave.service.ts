@@ -1,10 +1,14 @@
 
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 
 @Injectable()
 export class LeaveService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   listTypes(companyId: string) {
     return this.prisma.leaveType.findMany({ where: { companyId } });
@@ -80,10 +84,11 @@ async apply(
           this.updateMonthlyBalanceTx(tx, companyId, employeeId, leaveTypeId, year, month, { pending: days }),
         { timeout: 60000, maxWait: 20000 },
       );
+      void this.notifyLeaveApplied(companyId, employee, type.name, start, new Date(endDate), request.id);
       return request;
     }
 
-    return this.prisma.leaveRequest.create({
+    const created = await this.prisma.leaveRequest.create({
       data: {
         employeeId,
         leaveTypeId,
@@ -93,6 +98,35 @@ async apply(
         reason,
       },
     });
+    void this.notifyLeaveApplied(companyId, employee, type.name, new Date(startDate), new Date(endDate), created.id);
+    return created;
+  }
+
+  private async notifyLeaveApplied(
+    companyId: string,
+    employee: { id: string; firstName?: string; lastName?: string },
+    leaveTypeName: string,
+    startDate: Date,
+    endDate: Date,
+    requestId: string,
+  ) {
+    try {
+      const name = `${employee.firstName ?? ''} ${employee.lastName ?? ''}`.trim() || 'An employee';
+      const range = startDate.toDateString() === endDate.toDateString()
+        ? startDate.toDateString()
+        : `${startDate.toDateString()} – ${endDate.toDateString()}`;
+      await this.notifications.notifyApprover({
+        companyId,
+        type: 'LEAVE',
+        title: `${name} requested ${leaveTypeName} leave (${range})`,
+        message: `Leave request is awaiting approval.`,
+        referenceType: 'LEAVE_REQUEST',
+        referenceId: requestId,
+        requesterEmployeeId: employee.id,
+      });
+    } catch {
+      // Best-effort; never fail the leave apply because of a notification.
+    }
   }
 
 async approve(id: string, companyId: string, approverId: string) {
@@ -230,7 +264,32 @@ async approve(id: string, companyId: string, approverId: string) {
         return { id, status: 'approved' };
       },
       { timeout: 60000, maxWait: 20000 },
-    );
+    ).then(async (res) => {
+      await this.notifyEmployeeLeaveDecision(companyId, req, id, 'approved');
+      return res;
+    });
+  }
+
+  private async notifyEmployeeLeaveDecision(
+    companyId: string,
+    req: { employee: { id: string; firstName?: string; lastName?: string } },
+    requestId: string,
+    decision: 'approved' | 'rejected',
+  ) {
+    try {
+      const name = `${req.employee.firstName ?? ''} ${req.employee.lastName ?? ''}`.trim() || 'Your request';
+      await this.notifications.notifyEmployee({
+        companyId,
+        type: 'LEAVE',
+        title: `Your leave request was ${decision}`,
+        message: name,
+        referenceType: 'LEAVE_REQUEST',
+        referenceId: requestId,
+        employeeId: req.employee.id,
+      });
+    } catch {
+      // Best-effort
+    }
   }
 
   async reject(id: string, companyId: string, approverId: string) {
@@ -260,7 +319,10 @@ async approve(id: string, companyId: string, approverId: string) {
         return { id, status: 'rejected' };
       },
       { timeout: 60000, maxWait: 20000 },
-    );
+    ).then(async (res) => {
+      await this.notifyEmployeeLeaveDecision(companyId, req, id, 'rejected');
+      return res;
+    });
   }
 
   /**

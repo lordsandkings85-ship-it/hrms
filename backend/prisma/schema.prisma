@@ -23,6 +23,30 @@ model Announcement {
   @@index([companyId])
 }
 
+model Notification {
+  id                  String    @id @default(uuid())
+  companyId           String
+  recipientUserId     String?
+  recipientEmployeeId String?
+  roleId              String?
+  type                String
+  title               String
+  message             String?
+  referenceType       String?
+  referenceId         String?
+  priority            String    @default("normal")
+  isRead              Boolean   @default(false)
+  readAt              DateTime?
+  audience            String    @default("PERSONAL")
+  createdAt           DateTime  @default(now())
+
+  @@index([companyId])
+  @@index([recipientUserId])
+  @@index([isRead, createdAt])
+
+  @@map("Notification")
+}
+
 model Asset {
   id            String            @id @default(uuid())
   companyId     String

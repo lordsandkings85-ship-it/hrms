@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 
 @Injectable()
 export class DashboardService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
 async getSummary(companyId: string, user?: any) {
     const isPrivileged =
@@ -356,40 +360,53 @@ const activeEmployees = await this.prisma.employee.findMany({
       }));
     }
 
-    // --- REAL Notifications & Alerts ---
-    const pendingLeaves = await this.prisma.leaveRequest.findMany({
-      where: { employee: { companyId }, status: 'pending' },
-      include: { employee: true, leaveType: true },
-      orderBy: { createdAt: 'desc' },
-      take: 5
-    });
+    // --- Authorized Notifications & Alerts ---
+    // Server-side scoping: every user only ever receives notifications that are
+    // addressed to them personally, to their role, to their manager relationship,
+    // to HR (theirs is an HR role), or as company-wide announcements. Employees
+    // never see company-wide approval feeds.
+    const myNotifications = user?.userId
+      ? await this.notifications.getMine(
+          { userId: user.userId, companyId, email: user?.email ?? '', roleId: user?.roleId, isSuperAdmin: user?.isSuperAdmin },
+          { limit: 30 },
+        )
+      : [];
 
-    const pendingRegularizationsCount = await this.prisma.regularizationRequest.count({
-      where: { employee: { companyId }, status: 'pending' }
-    });
+    const notifications: { id: string; title: string; message?: string; type: 'urgent' | 'warning' | 'info' }[] =
+      myNotifications.map((n) => ({
+        id: n.id,
+        title: n.title,
+        message: n.message ?? undefined,
+        type:
+          n.priority === 'urgent'
+            ? 'urgent'
+            : n.priority === 'warning' || n.priority === 'high'
+              ? 'warning'
+              : 'info',
+      }));
 
-    const notifications: { id: string; title: string; type: 'urgent' | 'warning' | 'info' }[] = [
-      ...pendingLeaves.map(pl => ({
-        id: `leave-${pl.id}`,
-        title: `Leave Request: ${pl.employee.firstName} ${pl.employee.lastName || ''} requested ${pl.leaveType.name}`,
-        type: 'urgent' as const
-      }))
-    ];
-
-    if (pendingRegularizationsCount > 0) {
-      notifications.push({
-        id: 'reg-alert',
-        title: `${pendingRegularizationsCount} Attendance Regularization Request(s) Pending Review`,
-        type: 'warning'
-      });
-    }
-
-    if (openPositions > 0) {
-      notifications.push({
-        id: 'jobs-info',
-        title: `${openPositions} Job Opening(s) Currently Active for Recruitment`,
-        type: 'info'
-      });
+    if (isPrivileged) {
+      if (pendingRegularizationCount > 0) {
+        notifications.push({
+          id: 'reg-alert',
+          title: `${pendingRegularizationCount} Attendance Regularization Request(s) Pending Review`,
+          type: 'warning',
+        });
+      }
+      if (pendingLeaveApprovals > 0) {
+        notifications.push({
+          id: 'leave-approval-alert',
+          title: `${pendingLeaveApprovals} Leave Request(s) Pending Approval`,
+          type: 'urgent',
+        });
+      }
+      if (openPositions > 0) {
+        notifications.push({
+          id: 'jobs-info',
+          title: `${openPositions} Job Opening(s) Currently Active for Recruitment`,
+          type: 'info',
+        });
+      }
     }
 
 const summary = {
@@ -416,13 +433,20 @@ const summary = {
       recruitmentPipeline,
       recentActivities,
       notifications,
-      pendingLeaveRequests: pendingLeaves.map(pl => ({
-        id: pl.id,
-        employeeName: `${pl.employee.firstName} ${pl.employee.lastName || ''}`.trim(),
-        leaveType: pl.leaveType.name,
-        startDate: pl.startDate,
-        endDate: pl.endDate
-      })),
+      pendingLeaveRequests: isPrivileged
+        ? (await this.prisma.leaveRequest.findMany({
+            where: { employee: { companyId }, status: 'pending' },
+            include: { employee: true, leaveType: true },
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+          })).map((pl) => ({
+            id: pl.id,
+            employeeName: `${pl.employee.firstName} ${pl.employee.lastName || ''}`.trim(),
+            leaveType: pl.leaveType.name,
+            startDate: pl.startDate,
+            endDate: pl.endDate,
+          }))
+        : [],
       milestones: {
         newJoiners: newJoiners.slice(0, 5),
         anniversaries: anniversaries.slice(0, 5)

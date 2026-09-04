@@ -17,6 +17,8 @@ const TimesheetsPage      = lazy(() => import('./pages/employee/attendance/Times
 const AnnouncementsPage   = lazy(() => import('./pages/employee/announcements/AnnouncementsPage'));
 const TrainingPage        = lazy(() => import('./pages/employee/performance/TrainingPage'));
 
+const NotificationsPage   = lazy(() => import('./pages/employee/notifications/NotificationsPage'));
+
 // ── Tax Pages ─────────────────────────────────────────────────────
 const TaxMasterPage          = lazy(() => import('./pages/hr/tax/TaxMasterPage'));
 const TaxDeclarationsPage    = lazy(() => import('./pages/hr/tax/TaxDeclarationsPage'));
@@ -208,6 +210,7 @@ export default function App() {
         {[
           // ── Core ──────────────────────────────────────────────────────
           { path: 'dashboard',           El: DashboardPage },
+          { path: 'notifications',       El: NotificationsPage },
 
           // ── Employees (Admin) ─────────────────────────────────────────
           { path: 'employees',                   El: EmployeesPage },

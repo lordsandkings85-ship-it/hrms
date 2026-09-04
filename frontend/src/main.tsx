@@ -1,28 +1,19 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import { ThemeProvider } from './components/ui/ThemeProvider';
 import { ToastProvider } from './components/ui/ToastProvider';
 import { syncServerTime } from './utils/serverTime';
+import { queryClient } from './api/queryClient';
 import './index.css';
 
 if (typeof window !== 'undefined' && window.electronAPI) {
   document.body.classList.add('electron');
 }
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      staleTime: 15_000,
-      refetchOnWindowFocus: true,
-      refetchOnReconnect: true,
-      refetchOnMount: 'always',
-    },
-  },
-});
+export { queryClient };
 
 syncServerTime().then(() => {
   ReactDOM.createRoot(document.getElementById('root')!).render(
