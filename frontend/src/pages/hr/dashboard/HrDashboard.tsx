@@ -444,6 +444,7 @@ export default function HrDashboard() {
                     <div key={d.name} className="flex items-center gap-1.5 text-[10px] font-semibold text-[var(--text-muted)] bg-[var(--surface-alt)] px-2 py-0.5 rounded border border-[var(--border)]">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}></div>
                       {d.name}
+                      <span className="text-[var(--text-primary)] font-bold">{d.count ?? 0}</span>
                     </div>
                   ))}
                 </div>

@@ -180,18 +180,22 @@ where: {
     // Generate distinct colors for departments
     const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#14B8A6', '#F43F5E', '#6366F1'];
     
-    const departmentMix = deptStats
+const departmentMix = deptStats
       .map((stat, i) => {
+        const count = stat._count.id;
         const name = stat.departmentId ? (deptMap.get(stat.departmentId) || 'Department') : 'General';
-        const pct = totalEmployees > 0 ? Math.round((stat._count.id / totalEmployees) * 100) : 0;
+        // value = raw active headcount so pie slices are exactly proportional to
+        // the number of employees (no rounding loss for small departments) and
+        // tooltips/legends surface the true per-department count.
         return {
           name,
-          value: pct > 0 ? pct : 100,
-          count: stat._count.id,
+          value: count,
+          count,
+          pct: totalEmployees > 0 ? Math.round((count / totalEmployees) * 100) : 0,
           color: COLORS[i % COLORS.length]
         };
       })
-      .sort((a, b) => b.value - a.value);
+      .sort((a, b) => b.count - a.count);
 
     // --- NEW: Headcount Trend (last 6 months) ---
     const headcountTrend: { month: string; headcount: number }[] = [];

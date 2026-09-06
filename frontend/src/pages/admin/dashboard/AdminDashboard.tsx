@@ -216,6 +216,15 @@ export default function AdminDashboard() {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
+              <div className="mt-3 flex flex-wrap gap-2 justify-center">
+                {(data?.departmentMix || []).slice(0, 5).map((d: any, i: number) => (
+                  <div key={d.name} className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color || CHART_COLORS[i % CHART_COLORS.length] }}></div>
+                    {d.name}
+                    <span className="text-slate-800 dark:text-slate-200 font-bold">{d.count ?? 0}</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Monthly Payroll Cost */}
