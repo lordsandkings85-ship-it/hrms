@@ -1,13 +1,29 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ShieldAlert, Search, Filter, Check, X, Clock, MapPin, RefreshCw } from 'lucide-react';
+import { ShieldAlert, Search, Filter, Check, X, Clock, RefreshCw, User } from 'lucide-react';
 import { attendanceApi } from '../../../api/client';
 import { useToast } from '../../../components/ui/ToastProvider';
-import { fmtTime12 } from '../../../utils/formatDate';
+import { fmtTime12, fmtDateFull } from '../../../utils/formatDate';
+
+const TABS = [
+  { key: 'pending', label: 'Pending' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'rejected', label: 'Rejected' },
+  { key: 'all', label: 'All' },
+] as const;
+
+type TabKey = (typeof TABS)[number]['key'];
 
 const LOG_STATUS_OPTIONS = ['all', 'full_day', 'regularization'];
 
+const STATUS_BADGE: Record<string, string> = {
+  pending: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+  approved: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+  rejected: 'bg-red-500/10 text-red-500 border-red-500/20',
+};
+
 export default function RegularizationApprovalPage() {
+  const [tab, setTab] = useState<TabKey>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [filterOpen, setFilterOpen] = useState(false);
@@ -15,20 +31,26 @@ export default function RegularizationApprovalPage() {
   const { success: toastSuccess, error: toastError } = useToast();
 
   const { data: requests, isLoading } = useQuery({
-    queryKey: ['regularization-pending'],
-    queryFn: () => attendanceApi.listPendingRegularizations(),
+    queryKey: ['regularization', tab],
+    queryFn: () =>
+      tab === 'pending' ? attendanceApi.listPendingRegularizations() : attendanceApi.listRegularizations(tab === 'all' ? 'all' : tab),
     refetchInterval: 30000,
   });
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['regularization'] });
+    queryClient.invalidateQueries({ queryKey: ['regularization-pending'] });
+    queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
+    queryClient.invalidateQueries({ queryKey: ['attendance-today'] });
+    queryClient.invalidateQueries({ queryKey: ['attendance-summary'] });
+    queryClient.invalidateQueries({ queryKey: ['attendance-summary-dash'] });
+  };
 
   const approveMutation = useMutation({
     mutationFn: (requestId: string) => attendanceApi.approveRegularization(requestId),
     onSuccess: () => {
       toastSuccess('Regularization request approved');
-      queryClient.invalidateQueries({ queryKey: ['regularization-pending'] });
-      queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
-      queryClient.invalidateQueries({ queryKey: ['attendance-today'] });
-      queryClient.invalidateQueries({ queryKey: ['attendance-summary'] });
-      queryClient.invalidateQueries({ queryKey: ['attendance-summary-dash'] });
+      invalidate();
     },
     onError: (err: any) => toastError(err.message || 'Failed to approve request'),
   });
@@ -37,35 +59,20 @@ export default function RegularizationApprovalPage() {
     mutationFn: (requestId: string) => attendanceApi.rejectRegularization(requestId),
     onSuccess: () => {
       toastSuccess('Regularization request rejected');
-      queryClient.invalidateQueries({ queryKey: ['regularization-pending'] });
-      queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
-      queryClient.invalidateQueries({ queryKey: ['attendance-today'] });
-      queryClient.invalidateQueries({ queryKey: ['attendance-summary'] });
-      queryClient.invalidateQueries({ queryKey: ['attendance-summary-dash'] });
+      invalidate();
     },
     onError: (err: any) => toastError(err.message || 'Failed to reject request'),
   });
 
   const filtered = (requests || []).filter((r: any) => {
-    const name = `${r.employee?.firstName || ''} ${r.employee?.lastName || ''}`.toLowerCase();
-    const matchName = name.includes(searchTerm.toLowerCase());
+    const fullName = `${r.employee?.firstName || ''} ${r.employee?.lastName || ''}`.toLowerCase();
+    const matchName = fullName.includes(searchTerm.toLowerCase());
     const matchStatus = statusFilter === 'all' || (r.type || 'regularization') === statusFilter;
     return matchName && matchStatus;
   });
 
-  const statusBadge = (status: string) => {
-    const map: Record<string, string> = {
-      present: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-      late: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-      absent: 'bg-red-500/10 text-red-500 border-red-500/20',
-      half_day: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-      on_leave: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20',
-      OFF_DAY_OR_INCOMPLETE: 'bg-red-500/10 text-red-500 border-red-500/20',
-      FULL_DAY_PRESENT: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-      WEEKLY_OFF: 'bg-violet-500/10 text-violet-500 border-violet-500/20',
-    };
-    return map[status] || 'bg-[var(--surface-alt)] text-[var(--text-muted)] border-[var(--border)]';
-  };
+  const statusBadge = (status: string) =>
+    STATUS_BADGE[status] || 'bg-[var(--surface-alt)] text-[var(--text-muted)] border-[var(--border)]';
 
   const typeBadge = (type: string) =>
     type === 'full_day'
@@ -83,14 +90,31 @@ export default function RegularizationApprovalPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Regularization Approval</h1>
-            <p className="text-sm text-[var(--text-muted)] mt-1 font-medium">Review and act on pending attendance correction requests.</p>
+            <p className="text-sm text-[var(--text-muted)] mt-1 font-medium">Review, act on, and track attendance regularization requests.</p>
           </div>
         </div>
         <div className="relative z-10 flex items-center gap-3">
-          <div className="px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-500 text-xs font-bold">
-            {filtered.length} Pending
+          <div className={`px-4 py-2 border ${tab === 'pending' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-[var(--surface-alt)] border-[var(--border)] text-[var(--text-muted)]'} rounded-xl text-xs font-bold`}>
+            {filtered.length} {tab === 'pending' ? 'Pending' : tab}
           </div>
         </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {TABS.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${
+              tab === t.key
+                ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-600/20'
+                : 'bg-[var(--surface)] border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {/* Table */}
@@ -98,7 +122,7 @@ export default function RegularizationApprovalPage() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6 pb-4 border-b border-[var(--border)]">
           <h3 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
             <RefreshCw size={18} className="text-blue-500" />
-            Pending Correction Requests
+            {tab === 'pending' ? 'Pending Correction Requests' : `${tab[0].toUpperCase()}${tab.slice(1)} Correction Requests`}
           </h3>
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -140,7 +164,7 @@ export default function RegularizationApprovalPage() {
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 gap-3 text-[var(--text-muted)]">
             <ShieldAlert size={36} className="opacity-30" />
-            <p className="text-sm font-medium">No pending regularization requests</p>
+            <p className="text-sm font-medium">No {tab} regularization requests</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -160,11 +184,11 @@ export default function RegularizationApprovalPage() {
                     <th>Employee</th>
                     <th>Date</th>
                     <th>Type</th>
-                    <th>Current Log</th>
-                    <th>Requested Times</th>
+                    <th>Requested</th>
                     <th>Reason</th>
-                    <th>Geofence</th>
-                    <th>Actions</th>
+                    <th>Status</th>
+                    <th>Resolved By</th>
+                    <th>{tab === 'pending' ? 'Actions' : ''}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -192,8 +216,8 @@ export default function RegularizationApprovalPage() {
                         <div className="text-sm font-semibold text-[var(--text-primary)]">
                           {req.attendanceLog?.date ? new Date(req.attendanceLog.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
                         </div>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold uppercase tracking-wider ${statusBadge(req.attendanceLog?.attendanceStatus || req.attendanceLog?.status)}`}>
-                          {(req.attendanceLog?.attendanceStatus || req.attendanceLog?.status || '—').replace('_', ' ')}
+                        <span className="text-[10px] text-[var(--text-muted)]">
+                          {req.createdAt ? `Requested ${fmtDateFull(req.createdAt)}` : ''}
                         </span>
                       </td>
 
@@ -204,22 +228,6 @@ export default function RegularizationApprovalPage() {
                         </span>
                       </td>
 
-                      {/* Current Log Times */}
-                      <td>
-                        <div className="text-[11px] font-medium text-[var(--text-muted)] space-y-0.5">
-                          <div className="flex items-center gap-1.5">
-                            <Clock size={10} className="text-emerald-500" />
-                            <span className="text-[var(--text-primary)]">In:</span>
-                            {req.attendanceLog?.checkIn ? fmtTime12(req.attendanceLog.checkIn) : 'Missed'}
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <Clock size={10} className="text-red-400" />
-                            <span className="text-[var(--text-primary)]">Out:</span>
-                            {req.attendanceLog?.checkOut ? fmtTime12(req.attendanceLog.checkOut) : 'Pending'}
-                          </div>
-                        </div>
-                      </td>
-
                       {/* Requested Times */}
                       <td>
                         {req.type === 'full_day' ? (
@@ -228,8 +236,19 @@ export default function RegularizationApprovalPage() {
                           </div>
                         ) : (
                           <div className="text-[11px] font-medium text-amber-500 space-y-0.5">
-                            <div>In: {req.requestedCheckIn ? fmtTime12(req.requestedCheckIn) : '—'}</div>
-                            <div>Out: {req.requestedCheckOut ? fmtTime12(req.requestedCheckOut) : '—'}</div>
+                            <div className="flex items-center gap-1.5">
+                              <Clock size={10} className="text-emerald-500" />
+                              <span className="text-[var(--text-muted)]">In:</span>
+                              {req.requestedCheckIn ? fmtTime12(req.requestedCheckIn) : '—'}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Clock size={10} className="text-red-400" />
+                              <span className="text-[var(--text-muted)]">Out:</span>
+                              {req.requestedCheckOut ? fmtTime12(req.requestedCheckOut) : '—'}
+                            </div>
+                            {req.resolutionNote && (
+                              <div className="text-[10px] text-[var(--text-muted)] pt-1">{req.resolutionNote}</div>
+                            )}
                           </div>
                         )}
                       </td>
@@ -239,41 +258,47 @@ export default function RegularizationApprovalPage() {
                         <p className="text-xs text-[var(--text-muted)] max-w-[160px] truncate" title={req.reason}>{req.reason}</p>
                       </td>
 
-                      {/* Geofence */}
+                      {/* Status */}
                       <td>
-                        {req.attendanceLog?.isWithinGeofence === true && (
-                          <div className="flex items-center gap-1.5 text-emerald-500 text-[11px] font-bold">
-                            <MapPin size={12} /> In-Zone
+                        <span className={`inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg border font-bold uppercase tracking-wider ${statusBadge(req.status)}`}>
+                          {req.status === 'approved' && <Check size={11} />}
+                          {req.status === 'rejected' && <X size={11} />}
+                          {req.status || 'pending'}
+                        </span>
+                      </td>
+
+                      {/* Resolved By */}
+                      <td>
+                        {req.approverName ? (
+                          <div className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-primary)]">
+                            <User size={11} className="text-[var(--text-muted)]" />
+                            {req.approverName}
                           </div>
-                        )}
-                        {req.attendanceLog?.isWithinGeofence === false && (
-                          <div className="flex items-center gap-1.5 text-amber-500 text-[11px] font-bold">
-                            <MapPin size={12} /> Out-Zone
-                          </div>
-                        )}
-                        {req.attendanceLog?.isWithinGeofence === null && (
-                          <span className="text-[11px] text-[var(--text-muted)]">N/A</span>
+                        ) : (
+                          <span className="text-[11px] text-[var(--text-muted)]">—</span>
                         )}
                       </td>
 
-                      {/* Actions */}
+                      {/* Actions (pending only) */}
                       <td>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => approveMutation.mutate(req.id)}
-                            disabled={approveMutation.isPending}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white border border-emerald-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all disabled:opacity-50"
-                          >
-                            <Check size={12} /> Approve
-                          </button>
-                          <button
-                            onClick={() => rejectMutation.mutate(req.id)}
-                            disabled={rejectMutation.isPending}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all disabled:opacity-50"
-                          >
-                            <X size={12} /> Reject
-                          </button>
-                        </div>
+                        {req.status === 'pending' ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => approveMutation.mutate(req.id)}
+                              disabled={approveMutation.isPending}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white border border-emerald-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all disabled:opacity-50"
+                            >
+                              <Check size={12} /> Approve
+                            </button>
+                            <button
+                              onClick={() => rejectMutation.mutate(req.id)}
+                              disabled={rejectMutation.isPending}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all disabled:opacity-50"
+                            >
+                              <X size={12} /> Reject
+                            </button>
+                          </div>
+                        ) : null}
                       </td>
                     </tr>
                   ))}

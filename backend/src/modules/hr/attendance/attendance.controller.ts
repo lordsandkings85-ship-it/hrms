@@ -99,6 +99,15 @@ export class AttendanceController {
     return this.attendanceService.listPendingRegularizations(user.companyId);
   }
 
+  @Get('regularize')
+  @Permissions({ module: 'attendance', action: 'view' })
+  listRegularizations(
+    @CurrentUser() user: AuthUser,
+    @Query('status') status?: string,
+  ) {
+    return this.attendanceService.listRegularizations(user.companyId, status);
+  }
+
   @Post('regularize/:logId')
   @Permissions({ module: 'attendance', action: 'create' })
   requestRegularization(

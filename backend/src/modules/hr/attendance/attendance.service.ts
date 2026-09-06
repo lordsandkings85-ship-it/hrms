@@ -692,6 +692,57 @@ async listPendingRegularizations(companyId: string) {
     });
   }
 
+  /**
+   * List regularization requests for HR/approvers, optionally filtered by status
+   * (pending | approved | rejected | all). Includes approver display names resolved
+   * from the approver's linked employee profile.
+   */
+  async listRegularizations(companyId: string, status?: string) {
+    const where: any = { employee: { companyId } };
+    if (status && status !== 'all' && ['pending', 'approved', 'rejected'].includes(status)) {
+      where.status = status;
+    }
+    const requests = await this.prisma.regularizationRequest.findMany({
+      where,
+      include: {
+        employee: {
+          select: {
+            id: true, firstName: true, lastName: true, employeeCode: true,
+            department: { select: { name: true } },
+          },
+        },
+        attendanceLog: {
+          select: { id: true, date: true, checkIn: true, checkOut: true, status: true, attendanceStatus: true, isWithinGeofence: true },
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+
+    // Resolve approver display names (approverId = userId) from linked employees.
+    const approverIds = [...new Set(requests.map(r => r.approverId).filter(Boolean))] as string[];
+    let approverMap: Record<string, string> = {};
+    if (approverIds.length > 0) {
+      const approvers = await this.prisma.user.findMany({
+        where: { id: { in: approverIds } },
+        select: {
+          id: true,
+          email: true,
+          employee: { select: { firstName: true, lastName: true } },
+        },
+      });
+      approverMap = Object.fromEntries(
+        approvers.map(a => [a.id, a.employee
+          ? `${a.employee.firstName} ${a.employee.lastName || ''}`.trim()
+          : a.email]),
+      );
+    }
+
+    return requests.map(r => ({
+      ...r,
+      approverName: r.approverId ? (approverMap[r.approverId] ?? null) : null,
+    }));
+  }
+
   async requestRegularization(companyId: string, logId: string, employeeId: string, requestedCheckIn?: string | Date | null, requestedCheckOut?: string | Date | null, reason: string = '', type: string = 'regularization') {
     const log = await this.prisma.attendanceLog.findUnique({ where: { id: logId } });
     if (!log) throw new NotFoundException('Attendance log not found');

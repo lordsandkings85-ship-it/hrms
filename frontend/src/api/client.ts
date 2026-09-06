@@ -329,6 +329,8 @@ listToday: (date?: string) => {
   },
   listPendingRegularizations: () =>
     api<any[]>('/attendance/regularize/pending'),
+  listRegularizations: (status?: 'pending' | 'approved' | 'rejected' | 'all') =>
+    api<any[]>(`/attendance/regularize${status && status !== 'all' ? `?status=${status}` : ''}`),
   regularize: (logId: string, data: { employeeId: string; requestedCheckIn?: string | null; requestedCheckOut?: string | null; reason: string; type?: string }) =>
     api<any>(`/attendance/regularize/${logId}`, { method: 'POST', body: JSON.stringify(data) }),
   approveRegularization: (requestId: string) =>
