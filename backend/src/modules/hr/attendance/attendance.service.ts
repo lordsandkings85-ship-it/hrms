@@ -184,13 +184,32 @@ export class AttendanceService {
       }
     }
 
-    // Prevent duplicate check-in: if a log already exists for today, return it
+    // Prevent duplicate check-in: if a check-in already exists for today, return it.
+    // An auto-marked absent row (status 'absent', no check-in) is upgraded to a real
+    // check-in so a late punch is never swallowed by the nightly absent marking.
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
     const existingLog = await this.prisma.attendanceLog.findFirst({
       where: { employeeId, date: { gte: startOfDay, lt: endOfDay } },
     });
     if (existingLog) {
-      return existingLog;
+      if (existingLog.checkIn) {
+        return existingLog;
+      }
+      return this.prisma.attendanceLog.update({
+        where: { id: existingLog.id },
+        data: {
+          checkIn: new Date(),
+          method,
+          latitude: lat,
+          longitude: lng,
+          isWithinGeofence,
+          status,
+          lateMinutes,
+          lateStatus,
+          attendanceStatus: weeklyOff ? 'WEEKLY_OFF' : null,
+          isWeeklyOff: weeklyOff,
+        },
+      });
     }
 
     return this.prisma.attendanceLog.create({
@@ -516,8 +535,12 @@ export class AttendanceService {
     });
   }
 
-  async listAbsent(companyId: string, date?: string) {
-    const day = date ? new Date(date) : new Date();
+  /** Shared core for listAbsent + markAbsentForDate. Resolves the active employees who
+   *  should count as absent for a date: no check-in log that day, not on an approved
+   *  full/half-day leave, a working day (per workingDaysPerWeek), and not a company
+   *  holiday or weekly-off/second-Saturday. Employees already carrying an auto-marked
+   *  absent row still qualify (they have no check-in) so they remain visible. */
+  private async computeAbsentForDate(companyId: string, day: Date) {
     const startOfDay = new Date(day.getFullYear(), day.getMonth(), day.getDate());
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
     const dow = day.getDay();
@@ -525,7 +548,7 @@ export class AttendanceService {
     const [checkedLogs, employees, approvedLeaves, holidays, policies, assignments] = await Promise.all([
       this.prisma.attendanceLog.findMany({
         where: { employee: { companyId }, date: { gte: startOfDay, lt: endOfDay } },
-        select: { employeeId: true },
+        select: { employeeId: true, checkIn: true },
       }),
       this.prisma.employee.findMany({
         where: { companyId, status: 'active', isSystem: false },
@@ -549,50 +572,138 @@ export class AttendanceService {
           effectiveFrom: { lte: startOfDay },
           OR: [{ effectiveTo: null }, { effectiveTo: { gte: startOfDay } }],
         },
-        include: { shift: { select: { startTime: true, endTime: true } } },
+        include: { shift: { select: { id: true, startTime: true, endTime: true } } },
       }),
     ]);
 
-    const checkedIn = new Set(checkedLogs.map(l => l.employeeId));
-    const fullDayLeaveIds = new Set(approvedLeaves.filter(l => !l.isHalfDay).map(l => l.employeeId));
-    const halfDayLeaveIds = new Set(approvedLeaves.filter(l => l.isHalfDay).map(l => l.employeeId));
+    const checkedIn = new Set(checkedLogs.filter((l) => l.checkIn != null).map((l) => l.employeeId));
+    const fullDayLeaveIds = new Set(approvedLeaves.filter((l) => !l.isHalfDay).map((l) => l.employeeId));
+    const halfDayLeaveIds = new Set(approvedLeaves.filter((l) => l.isHalfDay).map((l) => l.employeeId));
     const isHoliday = holidays.length > 0;
-    const secondSatEnabled = new Map(policies.map(p => [p.key, p.value])).get('custom.secondSaturdayOff') === 'true';
+    const secondSatEnabled = new Map(policies.map((p) => [p.key, p.value])).get('custom.secondSaturdayOff') === 'true';
     const isSecondSat = this.isSecondSaturday(day);
 
-    const shiftByEmployee = new Map<string, { startTime: string; endTime: string }>();
+    const shiftByEmployee = new Map<string, { id: string; startTime: string; endTime: string }>();
     for (const a of assignments) {
       if (!shiftByEmployee.has(a.employeeId)) {
-        shiftByEmployee.set(a.employeeId, { startTime: a.shift.startTime, endTime: a.shift.endTime });
+        shiftByEmployee.set(a.employeeId, { id: a.shift.id, startTime: a.shift.startTime, endTime: a.shift.endTime });
       }
     }
 
-    const absentEmployees = employees.filter((e) => {
-      if (checkedIn.has(e.id)) return false;
-      if (fullDayLeaveIds.has(e.id)) return false;
-      if (halfDayLeaveIds.has(e.id)) return false;
-      const workDays = e.workingDaysPerWeek ?? 5;
-      const isWorkingDay =
-        workDays === 7 ? true : workDays === 6 ? dow >= 1 && dow <= 6 : dow >= 1 && dow <= 5;
-      if (!isWorkingDay) return false;
-      if (isHoliday) return false;
-      if (secondSatEnabled && workDays === 6 && isSecondSat) return false;
-      return true;
-    }).map((e) => ({
-      id: e.id,
-      name: `${e.firstName} ${e.lastName || ''}`.trim(),
-      employeeCode: e.employeeCode,
-      department: e.department?.name ?? null,
-      shiftStart: shiftByEmployee.get(e.id)?.startTime ?? null,
-      shiftEnd: shiftByEmployee.get(e.id)?.endTime ?? null,
-    }));
+    const absentEmployees = employees
+      .filter((e) => {
+        if (checkedIn.has(e.id)) return false;
+        if (fullDayLeaveIds.has(e.id)) return false;
+        if (halfDayLeaveIds.has(e.id)) return false;
+        const workDays = e.workingDaysPerWeek ?? 5;
+        const isWorkingDay =
+          workDays === 7 ? true : workDays === 6 ? dow >= 1 && dow <= 6 : dow >= 1 && dow <= 5;
+        if (!isWorkingDay) return false;
+        if (isHoliday) return false;
+        if (secondSatEnabled && workDays === 6 && isSecondSat) return false;
+        return true;
+      })
+      .map((e) => ({
+        id: e.id,
+        firstName: e.firstName,
+        lastName: e.lastName,
+        employeeCode: e.employeeCode,
+        department: e.department?.name ?? null,
+        workingDaysPerWeek: e.workingDaysPerWeek ?? 5,
+        shiftId: shiftByEmployee.get(e.id)?.id ?? null,
+        shiftStart: shiftByEmployee.get(e.id)?.startTime ?? null,
+        shiftEnd: shiftByEmployee.get(e.id)?.endTime ?? null,
+      }));
+
+    return { startOfDay, endOfDay, absentEmployees, fullDayLeaveIds, halfDayLeaveIds };
+  }
+
+  /** Persist an absent AttendanceLog row (check-in/check-out null) for every active
+   *  employee who has NO log at all for the date but should have been working.
+   *  Idempotent: employees with any existing log that day are skipped. Each new row
+   *  also writes an AttendanceAudit entry (action AUTO_ABSENT) for traceability. */
+  async markAbsentForDate(
+    companyId: string,
+    date: Date,
+    options?: { notes?: string | null; actorRole?: string | null },
+  ) {
+    const { startOfDay, endOfDay, absentEmployees } = await this.computeAbsentForDate(companyId, date);
+    if (absentEmployees.length === 0) {
+      return { date: startOfDay, marked: 0, skipped: 0 };
+    }
+
+    const existingLogs = await this.prisma.attendanceLog.findMany({
+      where: {
+        employee: { companyId },
+        employeeId: { in: absentEmployees.map((e) => e.id) },
+        date: { gte: startOfDay, lt: endOfDay },
+      },
+      select: { employeeId: true },
+    });
+    const alreadyLogged = new Set(existingLogs.map((l) => l.employeeId));
+
+    const notes = options?.notes ?? 'Auto-marked absent — no check-in';
+    const actorRole = options?.actorRole ?? 'SYSTEM';
+
+    const toMark = absentEmployees.filter((e) => !alreadyLogged.has(e.id));
+    const skipped = absentEmployees.length - toMark.length;
+    let marked = 0;
+    if (toMark.length > 0) {
+      await this.prisma.$transaction(async (tx) => {
+        for (const e of toMark) {
+          const log = await tx.attendanceLog.create({
+            data: {
+              employeeId: e.id,
+              date: startOfDay,
+              status: 'absent',
+              checkIn: null,
+              checkOut: null,
+              method: null,
+              shiftId: e.shiftId,
+              shiftStart: e.shiftStart,
+              shiftEnd: e.shiftEnd,
+              workedMinutes: 0,
+              lateMinutes: 0,
+              lateStatus: null,
+            },
+          });
+          await tx.attendanceAudit.create({
+            data: {
+              companyId,
+              employeeId: e.id,
+              attendanceLogId: log.id,
+              action: 'AUTO_ABSENT',
+              actorId: null,
+              actorRole,
+              notes,
+            },
+          });
+          marked++;
+        }
+      });
+    }
+
+    return { date: startOfDay, marked, skipped };
+  }
+
+  async listAbsent(companyId: string, date?: string) {
+    const day = date ? new Date(date) : new Date();
+    const { startOfDay, absentEmployees, fullDayLeaveIds, halfDayLeaveIds } =
+      await this.computeAbsentForDate(companyId, day);
 
     return {
       date: startOfDay.toISOString(),
       count: absentEmployees.length,
       onLeaveToday: fullDayLeaveIds.size,
       halfDayToday: halfDayLeaveIds.size,
-      employees: absentEmployees,
+      employees: absentEmployees.map((e) => ({
+        id: e.id,
+        name: `${e.firstName} ${e.lastName || ''}`.trim(),
+        employeeCode: e.employeeCode,
+        department: e.department ?? null,
+        shiftStart: e.shiftStart ?? null,
+        shiftEnd: e.shiftEnd ?? null,
+      })),
     };
   }
 
