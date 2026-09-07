@@ -96,6 +96,23 @@ export class EmployeesService {
     return generatedPassword ? { ...employee, generatedPassword } : employee;
   }
 
+  /**
+   * Mirrors compliance values from the nested adminInfo (EmployeeAdminInfo) onto
+   * the top-level employee columns when the top-level value is missing. This
+   * makes legacy entries entered via the HR edit form (adminInfo.uan/pfNo/esiNo)
+   * visible to consumers of Employee.uan/pfNumber/esic.
+   */
+  private applyAdminComplianceFallback<T extends { adminInfo?: any }>(emp: T): T {
+    const ai = (emp as any).adminInfo;
+    if (ai) {
+      const top = emp as any;
+      if ((!top.uan || !String(top.uan).trim()) && ai.uan) top.uan = ai.uan;
+      if ((!top.pfNumber || !String(top.pfNumber).trim()) && ai.pfNo) top.pfNumber = ai.pfNo;
+      if ((!top.esic || !String(top.esic).trim()) && ai.esiNo) top.esic = ai.esiNo;
+    }
+    return emp;
+  }
+
   async findAll(
     companyId: string,
     userId: string,
@@ -139,6 +156,7 @@ export class EmployeesService {
           designation: true,
           branch: true,
           manager: true,
+          adminInfo: true,
           shiftAssignment: { include: { shift: true }, orderBy: { effectiveFrom: 'desc' } },
         },
         orderBy: { createdAt: 'desc' },
@@ -152,12 +170,14 @@ export class EmployeesService {
 
     const decryptedItems = items.map(item => {
       const dec = decryptPiiFields(item);
+      this.applyAdminComplianceFallback(dec);
       if (!isHR && dec.id !== reqEmployeeId && dec.managerId !== reqEmployeeId) {
         delete dec.pan;
         delete dec.aadhaar;
         delete dec.uan;
         delete dec.pfNumber;
         delete dec.esic;
+        delete dec.adminInfo;
         delete dec.bankAccountNumber;
         delete dec.bankIfsc;
         delete dec.passport;
@@ -203,6 +223,7 @@ export class EmployeesService {
     });
     if (!employee) throw new NotFoundException('Employee not found');
     const dec = decryptEmployeeNested(decryptPiiFields(employee));
+    this.applyAdminComplianceFallback(dec);
 
     const userObj = await this.prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
     const isSystemAdmin = userObj?.role?.isSystem;
@@ -339,9 +360,16 @@ export class EmployeesService {
     const existing = await this.prisma.employee.findFirst({ where: { id: user.employeeId, companyId } });
     if (!existing) throw new NotFoundException('Employee not found');
 
+    const data: Record<string, string> = {};
+    for (const field of ['uan', 'pfNumber', 'esic', 'pan', 'aadhaar'] as const) {
+      const value = dto[field];
+      if (typeof value === 'string' && value.trim() !== '') data[field] = value.trim();
+    }
+    if (Object.keys(data).length === 0) return decryptPiiFields(existing);
+
     const employee = await this.prisma.employee.update({
       where: { id: user.employeeId },
-      data: encryptPiiFields(dto as any),
+      data: encryptPiiFields(data),
     });
     return decryptPiiFields(employee);
   }

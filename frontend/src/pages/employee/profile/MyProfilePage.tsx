@@ -1,8 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { employeesApi } from '../../../api/client';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { Spinner } from '../../../components/ui/Spinner';
 import { PageHeader } from '../../../components/ui/PageHeader';
+import { useToast } from '../../../components/ui/ToastProvider';
 import { 
   User, Briefcase, Mail, Phone, Calendar, ShieldCheck, 
   MapPin, Landmark, Users, Award, FileText, Info, Building, Edit3
@@ -17,6 +18,39 @@ export default function MyProfilePage() {
   const empId = user?.employee?.id;
   const [activeTab, setActiveTab] = useState<'overview' | 'personal' | 'contact' | 'statutory'>('overview');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const { success: toastSuccess, error: toastError } = useToast();
+  const [isEditCompliance, setIsEditCompliance] = useState(false);
+  const [complianceDraft, setComplianceDraft] = useState<{ uan: string; pfNumber: string; esic: string; pan: string; aadhaar: string }>({
+    uan: '', pfNumber: '', esic: '', pan: '', aadhaar: '',
+  });
+
+  const complianceMutation = useMutation({
+    mutationFn: () => employeesApi.updateMyCompliance({
+      uan: complianceDraft.uan,
+      pfNumber: complianceDraft.pfNumber,
+      esic: complianceDraft.esic,
+      pan: complianceDraft.pan,
+      aadhaar: complianceDraft.aadhaar,
+    }),
+    onSuccess: () => {
+      toastSuccess('Compliance details saved');
+      setIsEditCompliance(false);
+      queryClient.invalidateQueries({ queryKey: ['my-profile', empId] });
+    },
+    onError: (e: any) => toastError(e.message || 'Failed to save compliance details'),
+  });
+
+  const startEditCompliance = () => {
+    setComplianceDraft({
+      uan: emp?.uan || emp?.adminInfo?.uan || '',
+      pfNumber: emp?.pfNumber || emp?.adminInfo?.pfNo || '',
+      esic: emp?.esic || emp?.adminInfo?.esiNo || '',
+      pan: emp?.pan || '',
+      aadhaar: emp?.aadhaar || '',
+    });
+    setIsEditCompliance(true);
+  };
 
   const { data: emp, isLoading } = useQuery({
     queryKey: ['my-profile', empId],
@@ -426,32 +460,80 @@ export default function MyProfilePage() {
 
             {/* Statutory Compliance IDs */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-xs space-y-4">
-              <h3 className="text-xs font-bold text-slate-850 dark:text-slate-100 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800/80 pb-3 uppercase tracking-wider">
-                <ShieldCheck size={15} className="text-indigo-600 dark:text-indigo-400" />
-                <span>Statutory & Compliance</span>
-              </h3>
-              <div className="grid grid-cols-2 gap-5">
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Universal Account No (UAN)</span>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 font-mono">{emp.uan || '—'}</p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">PF Number</span>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 font-mono">{emp.pfNumber || '—'}</p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">ESIC Number</span>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 font-mono">{emp.esic || '—'}</p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">PAN Card No</span>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 font-mono">{emp.pan || '—'}</p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Aadhaar Card No</span>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 font-mono">{emp.aadhaar || '—'}</p>
-                </div>
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3">
+                <h3 className="text-xs font-bold text-slate-850 dark:text-slate-100 flex items-center gap-2 uppercase tracking-wider">
+                  <ShieldCheck size={15} className="text-indigo-600 dark:text-indigo-400" />
+                  <span>Statutory & Compliance</span>
+                </h3>
+                {!isEditCompliance && (
+                  <button
+                    onClick={startEditCompliance}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors"
+                  >
+                    <Edit3 size={12} />
+                    Edit
+                  </button>
+                )}
               </div>
+              {isEditCompliance ? (
+                <div className="space-y-3">
+                  {([
+                    ['uan', 'Universal Account No (UAN)'],
+                    ['pfNumber', 'PF Number'],
+                    ['esic', 'ESIC Number'],
+                    ['pan', 'PAN Card No'],
+                    ['aadhaar', 'Aadhaar Card No'],
+                  ] as const).map(([key, label]) => (
+                    <div key={key}>
+                      <label className="block text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1">{label}</label>
+                      <input
+                        type="text"
+                        value={complianceDraft[key]}
+                        onChange={(e) => setComplianceDraft((d) => ({ ...d, [key]: e.target.value }))}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500/60 transition-colors"
+                      />
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => setIsEditCompliance(false)}
+                      className="px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => complianceMutation.mutate()}
+                      disabled={complianceMutation.isPending}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors text-xs font-bold disabled:opacity-50"
+                    >
+                      {complianceMutation.isPending ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Universal Account No (UAN)</span>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 font-mono">{emp.uan || emp.adminInfo?.uan || '—'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">PF Number</span>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 font-mono">{emp.pfNumber || emp.adminInfo?.pfNo || '—'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">ESIC Number</span>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 font-mono">{emp.esic || emp.adminInfo?.esiNo || '—'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">PAN Card No</span>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 font-mono">{emp.pan || '—'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Aadhaar Card No</span>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 font-mono">{emp.aadhaar || '—'}</p>
+                  </div>
+                </div>
+              )}
             </div>
 
           </div>
