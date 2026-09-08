@@ -16,7 +16,7 @@ export class AttendanceController {
     @CurrentUser() user: AuthUser,
     @Body() body: { employeeId: string; method: string; lat?: number; lng?: number },
   ) {
-    return this.attendanceService.checkIn(user.companyId, body.employeeId, body.method, body.lat, body.lng);
+    return this.attendanceService.checkIn(user.companyId, body.employeeId, body.method, body.lat, body.lng, user.userId);
   }
 
   @Post('check-out/:logId')
@@ -30,7 +30,7 @@ export class AttendanceController {
     @CurrentUser() user: AuthUser,
     @Body() body: { employeeId: string; date: string; time: string; type: 'IN' | 'OUT'; reason?: string },
   ) {
-    return this.attendanceService.manualPunch(user.companyId, body.employeeId, body.date, body.time, body.type, body.reason);
+    return this.attendanceService.manualPunch(user.companyId, body.employeeId, body.date, body.time, body.type, body.reason, user.userId);
   }
 
   @Get('employee/:employeeId')
@@ -41,25 +41,25 @@ export class AttendanceController {
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    return this.attendanceService.listForEmployee(user.companyId, employeeId, from, to);
+    return this.attendanceService.listForEmployee(user.companyId, employeeId, from, to, user.userId);
   }
 
   @Get('today')
   @Permissions({ module: 'attendance', action: 'view' })
   listToday(@CurrentUser() user: AuthUser, @Query('date') date?: string) {
-    return this.attendanceService.listForCompany(user.companyId, date);
+    return this.attendanceService.listForCompany(user.companyId, date, user.userId);
   }
 
   @Get('absent')
   @Permissions({ module: 'attendance', action: 'view' })
   listAbsent(@CurrentUser() user: AuthUser, @Query('date') date?: string) {
-    return this.attendanceService.listAbsent(user.companyId, date);
+    return this.attendanceService.listAbsent(user.companyId, date, user.userId);
   }
 
   @Get('today/status/:employeeId')
   @Permissions({ module: 'attendance', action: 'view' })
   todayStatus(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string) {
-    return this.attendanceService.getTodayStatus(user.companyId, employeeId);
+    return this.attendanceService.getTodayStatus(user.companyId, employeeId, user.userId);
   }
 
   @Get('monthly')
@@ -73,6 +73,7 @@ export class AttendanceController {
       user.companyId,
       year ? Number(year) : undefined,
       month ? Number(month) : undefined,
+      user.userId,
     );
   }
 
@@ -90,13 +91,14 @@ export class AttendanceController {
       employeeId,
       year ? Number(year) : now.getFullYear(),
       month ? Number(month) : now.getMonth() + 1,
+      user.userId,
     );
   }
 
   @Get('regularize/pending')
   @Permissions({ module: 'attendance', action: 'view' })
   listPendingRegularizations(@CurrentUser() user: AuthUser) {
-    return this.attendanceService.listPendingRegularizations(user.companyId);
+    return this.attendanceService.listPendingRegularizations(user.companyId, user.userId);
   }
 
   @Get('regularize')
@@ -105,24 +107,25 @@ export class AttendanceController {
     @CurrentUser() user: AuthUser,
     @Query('status') status?: string,
   ) {
-    return this.attendanceService.listRegularizations(user.companyId, status);
+    return this.attendanceService.listRegularizations(user.companyId, status, user.userId);
   }
 
   @Post('regularize/:logId')
   @Permissions({ module: 'attendance', action: 'create' })
   requestRegularization(
     @CurrentUser() user: AuthUser,
-    @Param('logId') logId: string, 
-    @Body() body: { employeeId: string; requestedCheckIn?: string; requestedCheckOut?: string; reason?: string; note?: string; type?: string }
+    @Param('logId') logId: string,
+    @Body() body: { employeeId: string; requestedCheckIn?: string; requestedCheckOut?: string; reason?: string; note?: string; type?: string },
   ) {
     return this.attendanceService.requestRegularization(
       user.companyId,
-      logId, 
-      body.employeeId, 
+      logId,
+      body.employeeId,
       body.requestedCheckIn,
       body.requestedCheckOut,
       body.reason || body.note || '',
-      body.type || 'regularization'
+      body.type || 'regularization',
+      user.userId,
     );
   }
 
@@ -163,4 +166,3 @@ export class AttendanceController {
     return this.attendanceService.getGeofence(user.companyId);
   }
 }
-

@@ -12,6 +12,7 @@ import {
   encryptNestedPii,
   decryptEmployeeNested,
 } from '../../../utils/crypto.util';
+import { isGroupWideUser } from '../../../utils/group-access.util';
 
 @Injectable()
 export class EmployeesService {
@@ -116,26 +117,29 @@ export class EmployeesService {
   async findAll(
     companyId: string,
     userId: string,
-    opts: { page?: number; pageSize?: number; search?: string; departmentId?: string; status?: string },
+    opts: { page?: number; pageSize?: number; search?: string; departmentId?: string; status?: string; companyId?: string },
   ) {
     const page = opts.page && opts.page > 0 ? opts.page : 1;
     const pageSize = opts.pageSize && opts.pageSize > 0 ? Math.min(opts.pageSize, 100) : 50;
 
+    const groupWide = await isGroupWideUser(this.prisma, userId);
     const userObj = await this.prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
     const isSystemAdmin = userObj?.role?.isSystem;
-    const isHR = userObj?.isSuperAdmin || isSystemAdmin || userObj?.role?.name === 'HR Admin';
+    const isHR = userObj?.isSuperAdmin || isSystemAdmin || userObj?.role?.name === 'HR Admin' || groupWide;
+
+    const targetCompanyId = opts.companyId || (groupWide ? undefined : companyId);
 
     const where = {
-      companyId,
+      ...(targetCompanyId ? { companyId: targetCompanyId } : {}),
       user: {
         isNot: {
           role: {
-            isSystem: true
-          }
-        }
+            isSystem: true,
+          },
+        },
       },
       isSystem: false,
-      ...(opts.status ? { status: opts.status } : {}),
+      ...(opts.status && opts.status !== 'All' ? { status: opts.status } : {}),
       ...(opts.departmentId ? { departmentId: opts.departmentId } : {}),
       ...(opts.search
         ? {
@@ -143,6 +147,7 @@ export class EmployeesService {
               { firstName: { contains: opts.search } },
               { lastName: { contains: opts.search } },
               { employeeCode: { contains: opts.search } },
+              { email: { contains: opts.search } },
             ],
           }
         : {}),
@@ -152,6 +157,7 @@ export class EmployeesService {
       this.prisma.employee.findMany({
         where,
         include: {
+          company: { select: { id: true, name: true, displayName: true } },
           department: true,
           designation: true,
           branch: true,
@@ -190,9 +196,11 @@ export class EmployeesService {
   }
 
   async findOne(companyId: string, userId: string, id: string) {
+    const groupWide = await isGroupWideUser(this.prisma, userId);
     const employee = await this.prisma.employee.findFirst({
-      where: { id, companyId },
+      where: groupWide ? { id } : { id, companyId },
       include: {
+        company: { select: { id: true, name: true, displayName: true } },
         department: true,
         designation: true,
         branch: true,
@@ -227,7 +235,7 @@ export class EmployeesService {
 
     const userObj = await this.prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
     const isSystemAdmin = userObj?.role?.isSystem;
-    const isHR = userObj?.isSuperAdmin || isSystemAdmin || userObj?.role?.name === 'HR Admin';
+    const isHR = userObj?.isSuperAdmin || isSystemAdmin || userObj?.role?.name === 'HR Admin' || groupWide;
     const reqEmployeeId = userObj?.employeeId;
 
     if (dec.employeeCode === 'HR-001' && !isHR) {
@@ -256,7 +264,11 @@ export class EmployeesService {
   }
 
   async update(companyId: string, userId: string, id: string, dto: UpdateEmployeeDto) {
-    const exists = await this.prisma.employee.findFirst({ where: { id, companyId }, select: { id: true } });
+    const groupWide = await isGroupWideUser(this.prisma, userId);
+    const exists = await this.prisma.employee.findFirst({
+      where: groupWide ? { id } : { id, companyId },
+      select: { id: true, companyId: true }
+    });
     if (!exists) throw new NotFoundException('Employee not found');
 
     const { password, workingDaysPerWeek, ctc, roleName, experience, contactInfo, paymentInfo, adminInfo, personalInfo, familyMembers, emergencyContacts, experiences, immigrations, documentInfos, certifications, qualifications, ...employeeData } = dto;
@@ -303,12 +315,12 @@ export class EmployeesService {
       return updated;
     }, { timeout: 30000 });
 
-    await this.audit(companyId, userId, 'update', id);
+    await this.audit(exists.companyId || companyId, userId, 'update', id);
     return decryptEmployeeNested(decryptPiiFields(employee));
   }
 
   async archive(companyId: string, userId: string, id: string) {
-    await this.findOne(companyId, userId, id);
+    const emp = await this.findOne(companyId, userId, id);
     const [employee] = await this.prisma.$transaction([
       this.prisma.employee.update({
         where: { id },
@@ -319,12 +331,12 @@ export class EmployeesService {
         data: { revoked: true },
       }),
     ]);
-    await this.audit(companyId, userId, 'archive', id);
+    await this.audit(emp.companyId || companyId, userId, 'archive', id);
     return employee;
   }
 
   async terminate(companyId: string, userId: string, id: string) {
-    await this.findOne(companyId, userId, id);
+    const emp = await this.findOne(companyId, userId, id);
     const [employee] = await this.prisma.$transaction([
       this.prisma.employee.update({
         where: { id },
@@ -335,12 +347,12 @@ export class EmployeesService {
         data: { revoked: true },
       }),
     ]);
-    await this.audit(companyId, userId, 'terminate', id);
+    await this.audit(emp.companyId || companyId, userId, 'terminate', id);
     return employee;
   }
 
   async remove(companyId: string, userId: string, id: string) {
-    await this.findOne(companyId, userId, id);
+    const emp = await this.findOne(companyId, userId, id);
     
     await this.prisma.$transaction([
       this.prisma.employee.updateMany({ where: { managerId: id }, data: { managerId: null } }),
@@ -349,7 +361,7 @@ export class EmployeesService {
       this.prisma.employee.delete({ where: { id } }),
     ]);
 
-    await this.audit(companyId, userId, 'delete', id);
+    await this.audit(emp.companyId || companyId, userId, 'delete', id);
     return { success: true };
   }
 
@@ -377,9 +389,11 @@ export class EmployeesService {
   async bulkUpdateCompliance(
     companyId: string,
     items: { employeeId: string; uan?: string; pfNumber?: string; esic?: string; pan?: string; aadhaar?: string }[],
+    userId?: string,
   ) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const employees = await this.prisma.employee.findMany({
-      where: { id: { in: items.map(i => i.employeeId) }, companyId },
+      where: groupWide ? { id: { in: items.map(i => i.employeeId) } } : { id: { in: items.map(i => i.employeeId) }, companyId },
       select: { id: true },
     });
     const validIds = new Set(employees.map(e => e.id));
@@ -408,11 +422,13 @@ export class EmployeesService {
   async importManagers(
     companyId: string,
     items: { employeeCode: string; managerCode?: string; companyEmail?: string }[],
+    userId?: string,
   ) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const codes = items.map(i => i.employeeCode).filter(Boolean);
     const managerCodes = items.map(i => i.managerCode || '').filter(Boolean);
     const employees = await this.prisma.employee.findMany({
-      where: { companyId, employeeCode: { in: [...codes, ...managerCodes] } },
+      where: groupWide ? { employeeCode: { in: [...codes, ...managerCodes] } } : { companyId, employeeCode: { in: [...codes, ...managerCodes] } },
       select: { id: true, employeeCode: true },
     });
     const byCode = new Map(employees.map(e => [e.employeeCode, e.id]));
@@ -442,15 +458,17 @@ export class EmployeesService {
     return { result };
   }
 
-  async getLoginStatuses(companyId: string) {
+  async getLoginStatuses(companyId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const employees = await this.prisma.employee.findMany({
-      where: { companyId },
+      where: groupWide ? { isSystem: false } : { companyId, isSystem: false },
       select: {
         id: true,
         employeeCode: true,
         firstName: true,
         lastName: true,
         email: true,
+        company: { select: { name: true, displayName: true } },
         user: {
           select: {
             id: true,
@@ -468,6 +486,7 @@ export class EmployeesService {
       employeeId: emp.id,
       employeeCode: emp.employeeCode,
       employeeName: `${emp.firstName} ${emp.lastName}`.trim(),
+      companyName: emp.company?.displayName || emp.company?.name || null,
       email: emp.email,
       hasLogin: !!emp.user,
       isActive: !!emp.user,
@@ -479,8 +498,9 @@ export class EmployeesService {
   }
 
   async createLoginForEmployee(companyId: string, userId: string, employeeId: string, dto: CreateLoginDto) {
+    const groupWide = await isGroupWideUser(this.prisma, userId);
     const employee = await this.prisma.employee.findFirst({
-      where: { id: employeeId, companyId },
+      where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
       include: { user: true },
     });
     if (!employee) throw new NotFoundException('Employee not found');
@@ -490,13 +510,14 @@ export class EmployeesService {
     const password = dto.password || employee.employeeCode.toLowerCase();
     const passwordHash = await bcrypt.hash(password, 12);
 
+    const targetCompanyId = employee.companyId || companyId;
     const employeeRole = await this.prisma.role.findFirst({
-      where: { companyId, name: 'Employee' },
+      where: { companyId: targetCompanyId, name: 'Employee' },
     });
 
     await this.prisma.user.create({
       data: {
-        companyId,
+        companyId: targetCompanyId,
         email: employee.email,
         passwordHash,
         employeeId: employee.id,
@@ -504,7 +525,7 @@ export class EmployeesService {
       },
     });
 
-    await this.audit(companyId, userId, 'LOGIN_CREATED', employee.id);
+    await this.audit(targetCompanyId, userId, 'LOGIN_CREATED', employee.id);
 
     return {
       success: true,
@@ -515,8 +536,9 @@ export class EmployeesService {
   }
 
   async toggleLoginStatus(companyId: string, userId: string, employeeId: string, dto: ToggleLoginDto) {
+    const groupWide = await isGroupWideUser(this.prisma, userId);
     const employee = await this.prisma.employee.findFirst({
-      where: { id: employeeId, companyId },
+      where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
       include: { user: true },
     });
     if (!employee) throw new NotFoundException('Employee not found');
@@ -537,7 +559,7 @@ export class EmployeesService {
       });
     }
 
-    await this.audit(companyId, userId, dto.active ? 'LOGIN_ACTIVATED' : 'LOGIN_DEACTIVATED', employee.id);
+    await this.audit(employee.companyId || companyId, userId, dto.active ? 'LOGIN_ACTIVATED' : 'LOGIN_DEACTIVATED', employee.id);
 
     return {
       success: true,
@@ -547,8 +569,9 @@ export class EmployeesService {
   }
 
   async resetEmployeePassword(companyId: string, userId: string, employeeId: string, dto: ResetPasswordDto) {
+    const groupWide = await isGroupWideUser(this.prisma, userId);
     const employee = await this.prisma.employee.findFirst({
-      where: { id: employeeId, companyId },
+      where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
       include: { user: true },
     });
     if (!employee) throw new NotFoundException('Employee not found');
@@ -575,7 +598,7 @@ export class EmployeesService {
       }
     }
 
-    await this.audit(companyId, userId, 'PASSWORD_RESET', employee.id);
+    await this.audit(employee.companyId || companyId, userId, 'PASSWORD_RESET', employee.id);
 
     return {
       success: true,
@@ -585,9 +608,10 @@ export class EmployeesService {
     };
   }
 
-  async sendCredentials(companyId: string, employeeIds: string[]) {
+  async sendCredentials(companyId: string, employeeIds: string[], userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const employees = await this.prisma.employee.findMany({
-      where: { id: { in: employeeIds }, companyId },
+      where: groupWide ? { id: { in: employeeIds } } : { id: { in: employeeIds }, companyId },
       include: { user: true },
     });
     const sent: string[] = [];

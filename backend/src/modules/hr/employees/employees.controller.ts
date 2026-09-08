@@ -39,6 +39,7 @@ export class EmployeesController {
     @Query('search') search?: string,
     @Query('departmentId') departmentId?: string,
     @Query('status') status?: string,
+    @Query('companyId') companyId?: string,
   ) {
     return this.employeesService.findAll(user.companyId, user.userId, {
       page: page ? Number(page) : undefined,
@@ -46,6 +47,7 @@ export class EmployeesController {
       search,
       departmentId,
       status,
+      companyId,
     });
   }
 
@@ -60,7 +62,7 @@ export class EmployeesController {
     @CurrentUser() user: AuthUser,
     @Body() body: { items: { employeeId: string; uan?: string; pfNumber?: string; esic?: string; pan?: string; aadhaar?: string }[] },
   ) {
-    return this.employeesService.bulkUpdateCompliance(user.companyId, body.items || []);
+    return this.employeesService.bulkUpdateCompliance(user.companyId, body.items || [], user.userId);
   }
 
   @Post('import-managers')
@@ -69,25 +71,25 @@ export class EmployeesController {
     @CurrentUser() user: AuthUser,
     @Body() body: { items: { employeeCode: string; managerCode?: string; companyEmail?: string }[] },
   ) {
-    return this.employeesService.importManagers(user.companyId, body.items || []);
+    return this.employeesService.importManagers(user.companyId, body.items || [], user.userId);
   }
 
   @Post('send-credentials')
   @Permissions({ module: 'employees', action: 'edit' })
   sendCredentials(@CurrentUser() user: AuthUser, @Body() body: { employeeIds: string[] }) {
-    return this.employeesService.sendCredentials(user.companyId, body.employeeIds || []);
+    return this.employeesService.sendCredentials(user.companyId, body.employeeIds || [], user.userId);
   }
 
   @Get('login-status')
   @UseGuards(SuperAdminGuard)
   loginStatuses(@CurrentUser() user: AuthUser) {
-    return this.employeesService.getLoginStatuses(user.companyId);
+    return this.employeesService.getLoginStatuses(user.companyId, user.userId);
   }
 
   @Post('login-status')
   @UseGuards(SuperAdminGuard)
   loginStatusesPost(@CurrentUser() user: AuthUser) {
-    return this.employeesService.getLoginStatuses(user.companyId);
+    return this.employeesService.getLoginStatuses(user.companyId, user.userId);
   }
 
   @Get(':id')

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { isGroupWideUser } from '../../../utils/group-access.util';
 
 /** Haversine formula — returns distance in metres between two GPS points */
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -133,14 +134,16 @@ export class AttendanceService {
     return date.getDay() === 6 && date.getDate() >= 8 && date.getDate() <= 14;
   }
 
-  async checkIn(companyId: string, employeeId: string, method: string, lat?: number, lng?: number) {
+  async checkIn(companyId: string, employeeId: string, method: string, lat?: number, lng?: number, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const employee = await this.prisma.employee.findUnique({
       where: { id: employeeId },
       include: { company: true },
     });
     if (!employee) throw new NotFoundException('Employee not found');
-    if (employee.companyId !== companyId) throw new ForbiddenException('Employee does not belong to this company');
+    if (!groupWide && employee.companyId !== companyId) throw new ForbiddenException('Employee does not belong to this company');
 
+    const targetCompanyId = employee.companyId || companyId;
     const today = new Date();
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
@@ -154,7 +157,7 @@ export class AttendanceService {
     }
 
     // Determine if late — compare to assigned shift start time + grace
-    const ctx = await this.resolveShiftContext(companyId, employeeId, today);
+    const ctx = await this.resolveShiftContext(targetCompanyId, employeeId, today);
 
     let status = 'present';
     let lateMinutes = 0;
@@ -235,17 +238,19 @@ export class AttendanceService {
   }
 
   async checkOut(companyId: string, logId: string, userId: string) {
+    const groupWide = await isGroupWideUser(this.prisma, userId);
     const log = await this.prisma.attendanceLog.findUnique({ where: { id: logId }, include: { employee: true } });
     if (!log) throw new NotFoundException('Attendance log not found');
-    if (log.employee.companyId !== companyId) throw new ForbiddenException('Attendance log does not belong to this company');
+    if (!groupWide && log.employee.companyId !== companyId) throw new ForbiddenException('Attendance log does not belong to this company');
 
+    const targetCompanyId = log.employee.companyId || companyId;
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (user?.employeeId && user.employeeId !== log.employeeId) {
       throw new ForbiddenException('Cannot check out for another employee');
     }
 
     // Read policy map + OT threshold
-    const ctx = await this.resolveShiftContext(companyId, log.employeeId, new Date());
+    const ctx = await this.resolveShiftContext(targetCompanyId, log.employeeId, new Date());
     const policyMap = ctx ? ctx.policyMap : new Map<string, string>();
     const otThreshold = ctx?.shift.shiftType?.overtimeThresholdMinutes
       ?? Number(policyMap.get('custom.overtimeThresholdMinutes') ?? 480);
@@ -283,7 +288,7 @@ export class AttendanceService {
       tx.push(
         this.prisma.compOffBalance.create({
           data: {
-            companyId,
+            companyId: targetCompanyId,
             employeeId: log.employeeId,
             attendanceLogId: logId,
             sourceType: 'SECOND_SATURDAY',
@@ -294,7 +299,7 @@ export class AttendanceService {
         }),
         this.prisma.attendanceAudit.create({
           data: {
-            companyId,
+            companyId: targetCompanyId,
             employeeId: log.employeeId,
             attendanceLogId: logId,
             action: 'COMP_OFF_CREDIT',
@@ -315,15 +320,17 @@ export class AttendanceService {
   }
 
   /** Rule 1 — live shift status + remaining hours computed from authoritative server time */
-  async getTodayStatus(companyId: string, employeeId: string) {
+  async getTodayStatus(companyId: string, employeeId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const employee = await this.prisma.employee.findFirst({
-      where: { id: employeeId, companyId },
-      select: { id: true, workingDaysPerWeek: true },
+      where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
+      select: { id: true, workingDaysPerWeek: true, companyId: true },
     });
     if (!employee) throw new NotFoundException('Employee not found');
 
     const now = new Date();
-    const ctx = await this.resolveShiftContext(companyId, employeeId, now);
+    const targetCompanyId = employee.companyId || companyId;
+    const ctx = await this.resolveShiftContext(targetCompanyId, employeeId, now);
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
     const log = await this.prisma.attendanceLog.findFirst({
@@ -385,11 +392,15 @@ export class AttendanceService {
   }
 
   /** Manual punch (HR or self-service) — creates/updates a log for a specific date */
-  async manualPunch(companyId: string, employeeId: string, date: string, time: string, type: 'IN' | 'OUT', reason?: string) {
-    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+  async manualPunch(companyId: string, employeeId: string, date: string, time: string, type: 'IN' | 'OUT', reason?: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const employee = await this.prisma.employee.findFirst({
+      where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
+    });
     if (!employee) throw new NotFoundException('Employee not found');
 
-    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { timezone: true } });
+    const targetCompanyId = employee.companyId || companyId;
+    const company = await this.prisma.company.findUnique({ where: { id: targetCompanyId }, select: { timezone: true } });
     const tz = company?.timezone || 'UTC';
 
     const day = new Date(`${date}T00:00:00Z`);
@@ -452,8 +463,9 @@ export class AttendanceService {
     });
   }
 
-  async listForEmployee(companyId: string, employeeId: string, from?: string, to?: string) {
-    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+  async listForEmployee(companyId: string, employeeId: string, from?: string, to?: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const employee = await this.prisma.employee.findFirst({ where: groupWide ? { id: employeeId } : { id: employeeId, companyId } });
     if (!employee) throw new NotFoundException('Employee not found');
     return this.prisma.attendanceLog.findMany({
       where: {
@@ -464,19 +476,24 @@ export class AttendanceService {
     });
   }
 
-  async listForCompany(companyId: string, date?: string) {
+  async listForCompany(companyId: string, date?: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const day = date ? new Date(date) : new Date();
     const startOfDay = new Date(day.getFullYear(), day.getMonth(), day.getDate());
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
     const [logs, halfDayLeaves] = await Promise.all([
       this.prisma.attendanceLog.findMany({
-        where: { employee: { companyId }, date: { gte: startOfDay, lt: endOfDay } },
+        where: {
+          ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId, isSystem: false } }),
+          date: { gte: startOfDay, lt: endOfDay },
+        },
         include: {
           employee: {
             select: {
               firstName: true, lastName: true, employeeCode: true,
               department: { select: { name: true } },
+              company: { select: { name: true, displayName: true } },
             },
           },
         },
@@ -486,7 +503,7 @@ export class AttendanceService {
         where: {
           status: 'approved',
           isHalfDay: true,
-          employee: { companyId, isSystem: false },
+          ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId, isSystem: false } }),
           startDate: { lte: endOfDay },
           endDate: { gte: startOfDay },
         },
@@ -495,13 +512,14 @@ export class AttendanceService {
             select: {
               firstName: true, lastName: true, employeeCode: true,
               department: { select: { name: true } },
+              company: { select: { name: true, displayName: true } },
             },
           },
         },
       }),
     ]);
 
-        const loggedEmployeeIds = new Set(logs.map((l) => l.employeeId));
+    const loggedEmployeeIds = new Set(logs.map((l) => l.employeeId));
     const halfDayEmployeeIds = new Set(halfDayLeaves.map((l) => l.employeeId));
 
     const OVERRIDE_INCOMPLETE = new Set([
@@ -548,35 +566,55 @@ export class AttendanceService {
    *  full/half-day leave, a working day (per workingDaysPerWeek), and not a company
    *  holiday or weekly-off/second-Saturday. Employees already carrying an auto-marked
    *  absent row still qualify (they have no check-in) so they remain visible. */
-  private async computeAbsentForDate(companyId: string, day: Date) {
+  private async computeAbsentForDate(companyId: string, day: Date, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const startOfDay = new Date(day.getFullYear(), day.getMonth(), day.getDate());
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
     const dow = day.getDay();
 
     const [checkedLogs, employees, approvedLeaves, holidays, policies, assignments] = await Promise.all([
       this.prisma.attendanceLog.findMany({
-        where: { employee: { companyId }, date: { gte: startOfDay, lt: endOfDay } },
+        where: {
+          ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId, isSystem: false } }),
+          date: { gte: startOfDay, lt: endOfDay },
+        },
         select: { employeeId: true, checkIn: true },
       }),
       this.prisma.employee.findMany({
-        where: { companyId, status: 'active', isSystem: false },
+        where: {
+          ...(groupWide ? {} : { companyId }),
+          status: 'active',
+          isSystem: false,
+        },
         select: {
           id: true, firstName: true, lastName: true, employeeCode: true, workingDaysPerWeek: true,
+          company: { select: { name: true, displayName: true } },
           department: { select: { name: true } },
         },
       }),
       this.prisma.leaveRequest.findMany({
-        where: { status: 'approved', employee: { companyId }, startDate: { lte: endOfDay }, endDate: { gte: startOfDay } },
+        where: {
+          status: 'approved',
+          ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId, isSystem: false } }),
+          startDate: { lte: endOfDay },
+          endDate: { gte: startOfDay },
+        },
         select: { employeeId: true, isHalfDay: true },
       }),
       this.prisma.holiday.findMany({
-        where: { companyId, date: { gte: startOfDay, lt: endOfDay } },
+        where: {
+          ...(groupWide ? {} : { companyId }),
+          date: { gte: startOfDay, lt: endOfDay },
+        },
         select: { id: true },
       }),
-      this.prisma.attendancePolicy.findMany({ where: { companyId }, select: { key: true, value: true } }),
+      this.prisma.attendancePolicy.findMany({
+        where: groupWide ? {} : { companyId },
+        select: { key: true, value: true },
+      }),
       this.prisma.shiftAssignment.findMany({
         where: {
-          employee: { companyId },
+          ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId, isSystem: false } }),
           effectiveFrom: { lte: startOfDay },
           OR: [{ effectiveTo: null }, { effectiveTo: { gte: startOfDay } }],
         },
@@ -616,6 +654,7 @@ export class AttendanceService {
         firstName: e.firstName,
         lastName: e.lastName,
         employeeCode: e.employeeCode,
+        companyName: e.company?.displayName || e.company?.name || null,
         department: e.department?.name ?? null,
         workingDaysPerWeek: e.workingDaysPerWeek ?? 5,
         shiftId: shiftByEmployee.get(e.id)?.id ?? null,
@@ -726,10 +765,10 @@ export class AttendanceService {
     return { date: startOfDay, marked };
   }
 
-  async listAbsent(companyId: string, date?: string) {
+  async listAbsent(companyId: string, date?: string, userId?: string) {
     const day = date ? new Date(date) : new Date();
     const { startOfDay, absentEmployees, fullDayLeaveIds, halfDayLeaveIds } =
-      await this.computeAbsentForDate(companyId, day);
+      await this.computeAbsentForDate(companyId, day, userId);
 
     return {
       date: startOfDay.toISOString(),
@@ -740,6 +779,7 @@ export class AttendanceService {
         id: e.id,
         name: `${e.firstName} ${e.lastName || ''}`.trim(),
         employeeCode: e.employeeCode,
+        companyName: e.companyName ?? null,
         department: e.department ?? null,
         shiftStart: e.shiftStart ?? null,
         shiftEnd: e.shiftEnd ?? null,
@@ -747,7 +787,8 @@ export class AttendanceService {
     };
   }
 
-  async listForCompanyMonth(companyId: string, year?: number, month?: number) {
+  async listForCompanyMonth(companyId: string, year?: number, month?: number, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const now = new Date();
     const y = year ?? now.getFullYear();
     const m = month ?? now.getMonth() + 1;
@@ -755,12 +796,16 @@ export class AttendanceService {
     const end = new Date(y, m, 1);
 
     return this.prisma.attendanceLog.findMany({
-      where: { employee: { companyId }, date: { gte: start, lt: end } },
+      where: {
+        ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId, isSystem: false } }),
+        date: { gte: start, lt: end },
+      },
       include: {
         employee: {
           select: {
             firstName: true, lastName: true, employeeCode: true,
             department: { select: { name: true } },
+            company: { select: { name: true, displayName: true } },
           },
         },
       },
@@ -768,10 +813,11 @@ export class AttendanceService {
     });
   }
 
-  async getMonthlySummary(companyId: string, employeeId: string, year: number, month: number) {
+  async getMonthlySummary(companyId: string, employeeId: string, year: number, month: number, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const employee = await this.prisma.employee.findFirst({
-      where: { id: employeeId, companyId },
-      select: { workingDaysPerWeek: true },
+      where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
+      select: { workingDaysPerWeek: true, companyId: true },
     });
     if (!employee) throw new NotFoundException('Employee not found');
     const start = new Date(year, month - 1, 1);
@@ -781,6 +827,7 @@ export class AttendanceService {
     });
 
     const workingDaysPerWeek = employee.workingDaysPerWeek ?? 5;
+    const targetCompanyId = employee.companyId || companyId;
 
     // Group logs by date to avoid double counting multiple check-ins per day
     const uniqueDays = new Map<number, any>();
@@ -803,7 +850,7 @@ export class AttendanceService {
 
     // Fetch company holidays for the month and exclude those on working days
     const holidays = await this.prisma.holiday.findMany({
-      where: { companyId, date: { gte: start, lt: end } },
+      where: { companyId: targetCompanyId, date: { gte: start, lt: end } },
     });
     const holidayCount = holidays.filter(h => {
       const dow = h.date.getDay();
@@ -827,17 +874,24 @@ export class AttendanceService {
     return { present, late, halfDay, onLeave, absent, holidays: holidayCount, totalOvertimeMins, totalDays: workingDaysInMonth - holidayCount, logs };
   }
 
-async listPendingRegularizations(companyId: string) {
+  async listPendingRegularizations(companyId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     return this.prisma.regularizationRequest.findMany({
-      where: { status: 'pending', employee: { companyId } },
+      where: {
+        status: 'pending',
+        ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId, isSystem: false } }),
+      },
       include: {
         employee: {
-          select: { id: true, firstName: true, lastName: true, employeeCode: true,
-            department: { select: { name: true } } }
+          select: {
+            id: true, firstName: true, lastName: true, employeeCode: true,
+            department: { select: { name: true } },
+            company: { select: { name: true, displayName: true } },
+          },
         },
         attendanceLog: {
-          select: { id: true, date: true, checkIn: true, checkOut: true, status: true, attendanceStatus: true, isWithinGeofence: true }
-        }
+          select: { id: true, date: true, checkIn: true, checkOut: true, status: true, attendanceStatus: true, isWithinGeofence: true },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -848,8 +902,11 @@ async listPendingRegularizations(companyId: string) {
    * (pending | approved | rejected | all). Includes approver display names resolved
    * from the approver's linked employee profile.
    */
-  async listRegularizations(companyId: string, status?: string) {
-    const where: any = { employee: { companyId } };
+  async listRegularizations(companyId: string, status?: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const where: any = {
+      ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId, isSystem: false } }),
+    };
     if (status && status !== 'all' && ['pending', 'approved', 'rejected'].includes(status)) {
       where.status = status;
     }
@@ -860,6 +917,7 @@ async listPendingRegularizations(companyId: string) {
           select: {
             id: true, firstName: true, lastName: true, employeeCode: true,
             department: { select: { name: true } },
+            company: { select: { name: true, displayName: true } },
           },
         },
         attendanceLog: {
@@ -894,13 +952,17 @@ async listPendingRegularizations(companyId: string) {
     }));
   }
 
-  async requestRegularization(companyId: string, logId: string, employeeId: string, requestedCheckIn?: string | Date | null, requestedCheckOut?: string | Date | null, reason: string = '', type: string = 'regularization') {
+  async requestRegularization(companyId: string, logId: string, employeeId: string, requestedCheckIn?: string | Date | null, requestedCheckOut?: string | Date | null, reason: string = '', type: string = 'regularization', userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const log = await this.prisma.attendanceLog.findUnique({ where: { id: logId } });
     if (!log) throw new NotFoundException('Attendance log not found');
     if (log.employeeId !== employeeId) throw new ForbiddenException('Attendance log does not belong to this employee');
-    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+    const employee = await this.prisma.employee.findFirst({
+      where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
+    });
     if (!employee) throw new ForbiddenException('Employee does not belong to this company');
-    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { timezone: true } });
+    const targetCompanyId = employee.companyId || companyId;
+    const company = await this.prisma.company.findUnique({ where: { id: targetCompanyId }, select: { timezone: true } });
     const tz = company?.timezone || 'UTC';
 
     // Rule 2 — full-day corrections are only allowed when the day was marked incomplete
@@ -942,7 +1004,6 @@ async listPendingRegularizations(companyId: string) {
         companyId,
         type: 'REGULARIZATION',
         title: `${name} submitted an attendance regularization request`,
-        message: reason || 'Attendance regularization is awaiting review.',
         referenceType: 'REGULARIZATION_REQUEST',
         referenceId: req.id,
         requesterEmployeeId: employee.id,
@@ -955,12 +1016,15 @@ async listPendingRegularizations(companyId: string) {
   }
 
   async approveRegularization(requestId: string, companyId: string, approverId: string, resolutionNote?: string) {
+    const groupWide = await isGroupWideUser(this.prisma, approverId);
     const req = await this.prisma.regularizationRequest.findUnique({
       where: { id: requestId },
       include: { employee: true, attendanceLog: true },
     });
     if (!req) throw new NotFoundException('Regularization request not found');
-    if (req.employee.companyId !== companyId) throw new ForbiddenException('Request does not belong to this company');
+    if (!groupWide && req.employee.companyId !== companyId) throw new ForbiddenException('Request does not belong to this company');
+
+    const targetCompanyId = req.employee.companyId || companyId;
 
     if (req.type === 'full_day') {
       // Rule 2 — preserve original punches, record correction in audit trail, set final status
@@ -983,7 +1047,7 @@ async listPendingRegularizations(companyId: string) {
         }),
         this.prisma.attendanceAudit.create({
           data: {
-            companyId,
+            companyId: targetCompanyId,
             employeeId: req.employeeId,
             attendanceLogId: req.attendanceLogId,
             action: 'REGULARIZATION_APPROVED',
@@ -997,13 +1061,13 @@ async listPendingRegularizations(companyId: string) {
       ];
 
       // Rule 3 — a corrected second-Saturday log (worked, punches incomplete) also earns the Comp Off credit
-      const creditAmount = Number((await this.getPolicyMap(companyId)).get('custom.secondSaturdayCompOffCredit') ?? 1);
+      const creditAmount = Number((await this.getPolicyMap(targetCompanyId)).get('custom.secondSaturdayCompOffCredit') ?? 1);
       if (log?.isWeeklyOff && !log.compOffCredited && creditAmount > 0) {
         logUpdateData.compOffCredited = true;
         tx.push(
           this.prisma.compOffBalance.create({
             data: {
-              companyId,
+              companyId: targetCompanyId,
               employeeId: req.employeeId,
               attendanceLogId: req.attendanceLogId,
               sourceType: 'SECOND_SATURDAY',
@@ -1014,7 +1078,7 @@ async listPendingRegularizations(companyId: string) {
           }),
           this.prisma.attendanceAudit.create({
             data: {
-              companyId,
+              companyId: targetCompanyId,
               employeeId: req.employeeId,
               attendanceLogId: req.attendanceLogId,
               action: 'COMP_OFF_CREDIT',
@@ -1042,7 +1106,7 @@ async listPendingRegularizations(companyId: string) {
     if (newCheckOut && newCheckOut.getTime() > Date.now() + 6 * 60 * 1000) {
       throw new BadRequestException('Correction check-out cannot be in the future');
     }
-    const ctx = await this.resolveShiftContext(companyId, req.employeeId, newCheckIn ?? new Date());
+    const ctx = await this.resolveShiftContext(targetCompanyId, req.employeeId, newCheckIn ?? new Date());
     const policyMap = ctx ? ctx.policyMap : new Map<string, string>();
     const otThreshold = ctx?.shift.shiftType?.overtimeThresholdMinutes
       ?? Number(policyMap.get('custom.overtimeThresholdMinutes') ?? 480);
@@ -1068,18 +1132,19 @@ async listPendingRegularizations(companyId: string) {
         const worked = Math.max(0, Math.round((newCheckOut.getTime() - newCheckIn.getTime()) / 60000));
         data.workedMinutes = worked;
         data.overtimeMinutes = Math.max(0, worked - otThreshold);
-        let attr: string | null = req.attendanceLog?.attendanceStatus ?? null;
-        const required = data.requiredMinutes;
+        let attendanceStatus: string | null = req.attendanceLog?.attendanceStatus ?? null;
+        const required = data.requiredMinutes ?? req.attendanceLog?.requiredMinutes;
+        const incompleteEnabled = policyMap.get('custom.incompleteShiftEnabled') !== 'false';
         if (required && required > 0) {
           const thresholdPct = Number(policyMap.get('custom.incompleteShiftThresholdPct') ?? 100);
           const complete = worked * 100 >= required * thresholdPct;
-          attr = complete
-            ? 'FULL_DAY_PRESENT'
-            : policyMap.get('custom.incompleteShiftEnabled') !== 'false'
-              ? policyMap.get('custom.incompleteShiftStatus') ?? 'OFF_DAY_OR_INCOMPLETE'
-              : attr;
+          if (complete) {
+            attendanceStatus = 'FULL_DAY_PRESENT';
+          } else if (incompleteEnabled) {
+            attendanceStatus = policyMap.get('custom.incompleteShiftStatus') ?? 'OFF_DAY_OR_INCOMPLETE';
+          }
         }
-        data.attendanceStatus = attr;
+        data.attendanceStatus = attendanceStatus;
       } else {
         // Out-time blank → still checked in; keep the day open, never flag incomplete.
         data.workedMinutes = null;
@@ -1099,7 +1164,7 @@ async listPendingRegularizations(companyId: string) {
       }),
       this.prisma.attendanceAudit.create({
         data: {
-          companyId,
+          companyId: targetCompanyId,
           employeeId: req.employeeId,
           attendanceLogId: req.attendanceLogId,
           action: 'REGULARIZATION_APPROVED',
@@ -1114,12 +1179,15 @@ async listPendingRegularizations(companyId: string) {
   }
 
   async rejectRegularization(requestId: string, companyId: string, approverId: string) {
+    const groupWide = await isGroupWideUser(this.prisma, approverId);
     const req = await this.prisma.regularizationRequest.findUnique({
       where: { id: requestId },
       include: { employee: true },
     });
     if (!req) throw new NotFoundException('Regularization request not found');
-    if (req.employee.companyId !== companyId) throw new ForbiddenException('Request does not belong to this company');
+    if (!groupWide && req.employee.companyId !== companyId) throw new ForbiddenException('Request does not belong to this company');
+
+    const targetCompanyId = req.employee.companyId || companyId;
 
     return this.prisma.$transaction([
       this.prisma.regularizationRequest.update({
@@ -1132,7 +1200,7 @@ async listPendingRegularizations(companyId: string) {
       }),
       this.prisma.attendanceAudit.create({
         data: {
-          companyId,
+          companyId: targetCompanyId,
           employeeId: req.employeeId,
           attendanceLogId: req.attendanceLogId,
           action: 'REGULARIZATION_REJECTED',
