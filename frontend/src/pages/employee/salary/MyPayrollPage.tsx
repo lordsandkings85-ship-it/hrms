@@ -61,7 +61,7 @@ export default function MyPayrollPage() {
     await generatePayslipPDF({
       payslip: full,
       employee: full.employee || user?.employee,
-      company: { name: user?.company?.name || 'Company' },
+      company: full.employee?.company || user?.company,
     });
   };
 

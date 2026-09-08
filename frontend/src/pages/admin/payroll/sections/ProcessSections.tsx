@@ -396,7 +396,7 @@ export function SendPayslipsSection() {
         const blob = await generatePayslipPDF({
           payslip: full,
           employee: full.employee,
-          company: { name: user?.company?.name || 'Company' },
+          company: full.employee?.company || user?.company,
         }, { save: false });
         const empCode = full.employee?.employeeCode || 'employee';
         const m = full.payrollCycle?.month ?? cycle.month ?? 1;

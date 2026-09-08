@@ -16,7 +16,7 @@ async function downloadPayslip(payslip: any) {
   await generatePayslipPDF({
     payslip: fullPayslip,
     employee: fullPayslip.employee,
-    company: { name: user?.company?.name || 'Company' },
+    company: fullPayslip.employee?.company || user?.company,
   });
 }
 

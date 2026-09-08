@@ -156,9 +156,10 @@ const employees = await this.prisma.employee.findMany({
     const companySnapshot = await this.prisma.company.findFirst({
       where: { id: companyId },
       select: {
-        id: true, name: true, legalName: true, displayName: true,
+        id: true, name: true, legalName: true, displayName: true, logoUrl: true,
         gstNumber: true, panNumber: true, tanNumber: true, cinNumber: true,
         address: true, city: true, state: true, pincode: true, country: true,
+        phone: true, email: true, website: true,
       },
     });
 
@@ -331,7 +332,27 @@ let payslipCount = 0;
             paymentInfo: true, bankAccountNumber: true, bankIfsc: true,
             department: { select: { name: true } },
             designation: { select: { title: true } },
-            company: { select: { name: true, displayName: true } },
+            company: {
+              select: {
+                id: true,
+                name: true,
+                legalName: true,
+                displayName: true,
+                logoUrl: true,
+                address: true,
+                city: true,
+                state: true,
+                country: true,
+                pincode: true,
+                gstNumber: true,
+                panNumber: true,
+                cinNumber: true,
+                tanNumber: true,
+                phone: true,
+                email: true,
+                website: true,
+              },
+            },
           },
         },
       },

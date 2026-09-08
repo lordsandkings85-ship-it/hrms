@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, Check, Building2 } from 'lucide-react';
+import { Loader2, Check, Building2, Upload, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { companiesApi, authApi, Company } from '../../api/client';
 import { useToast } from '../ui/ToastProvider';
@@ -15,7 +15,7 @@ const companySchema = z.object({
   name: z.string().min(2, 'Company name is required'),
   displayName: z.string().optional(),
   legalName: z.string().optional(),
-  logoUrl: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+  logoUrl: z.string().optional().or(z.literal('')),
   status: z.string().optional(),
   address: z.string().optional(),
   city: z.string().optional(),
@@ -111,6 +111,8 @@ export function CompanyFormModal({
     register,
     reset,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(companySchema),
@@ -242,7 +244,58 @@ export function CompanyFormModal({
               <Field label="Company Name" required register={register} name="name" error={errors.name} placeholder="e.g. Acme Foods Pvt Ltd" />
               <Field label="Legal Name" register={register} name="legalName" error={errors.legalName} placeholder="Registered legal name" />
               <Field label="Display Name" register={register} name="displayName" error={errors.displayName} placeholder="Name shown in the UI" />
-              <Field label="Brand Logo URL" register={register} name="logoUrl" error={errors.logoUrl} placeholder="https://..." />
+              
+              {/* Brand Logo Upload + Input */}
+              <div className="space-y-1.5 md:col-span-2 bg-paperDim dark:bg-surface-hover/50 p-3.5 rounded-xl border border-line">
+                <div className="flex items-center justify-between">
+                  <label className={labelCls}>Company Brand Logo</label>
+                  {watch('logoUrl') && (
+                    <button
+                      type="button"
+                      onClick={() => setValue('logoUrl', '', { shouldDirty: true })}
+                      className="text-[11px] text-rose-500 hover:underline flex items-center gap-1 font-bold"
+                    >
+                      <Trash2 size={11} /> Clear
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-900 border border-line flex items-center justify-center shrink-0 overflow-hidden p-1">
+                    {watch('logoUrl') ? (
+                      <img src={watch('logoUrl')} alt="" className="w-full h-full object-contain" />
+                    ) : (
+                      <ImageIcon size={18} className="text-muted" />
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <label className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors flex items-center gap-1.5">
+                        <Upload size={12} /> Upload File
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              setValue('logoUrl', reader.result as string, { shouldDirty: true });
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </label>
+                      <input
+                        {...register('logoUrl')}
+                        className="flex-1 px-3 py-1.5 rounded-lg text-xs border border-line bg-white dark:bg-slate-900 text-ink dark:text-white focus:outline-none focus:border-purple-500 font-mono"
+                        placeholder="Or paste image URL (https://...)"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {mode === 'edit' && (
                 <div className="space-y-1.5">
                   <label className={labelCls}>Status</label>

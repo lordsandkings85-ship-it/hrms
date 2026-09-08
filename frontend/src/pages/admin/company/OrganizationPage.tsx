@@ -5,7 +5,7 @@ import {
   Building2, Award, Plus, Trash2, MapPin, Users, Layers, Loader2, Download,
   Check, Settings, Pencil, X, Crown, Sprout, Building, Home, Search,
   UserPlus, ArrowRightLeft, ShieldCheck, Sparkles, Mail, Phone, Globe,
-  Briefcase, CheckCircle2, UserCheck, AlertCircle, ArrowUpRight
+  Briefcase, CheckCircle2, UserCheck, AlertCircle, ArrowUpRight, Upload, Image as ImageIcon
 } from 'lucide-react';
 import { organizationApi, settingsApi, orgMastersApi, companiesApi, Company } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
@@ -164,7 +164,7 @@ const GROUP_ENTITIES = [
 
 const profileSchema = z.object({
   name: z.string().min(2, 'Company name is required'),
-  logoUrl: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+  logoUrl: z.string().optional().or(z.literal('')),
   timezone: z.string().min(1, 'Timezone is required'),
   currency: z.string().min(1, 'Currency is required'),
   address: z.string().optional(),
@@ -848,10 +848,14 @@ export default function OrganizationPage() {
                     </div>
                   )}
 
-                  {/* Icon Emblem */}
+                  {/* Icon / Brand Logo Emblem */}
                   <div className="flex flex-col items-center pt-2">
-                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${entity.theme.iconBg} transition-transform duration-300 ${isSelected ? 'scale-110' : ''}`}>
-                      <IconComponent size={28} />
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${entity.companyData?.logoUrl ? 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-md p-1.5' : entity.theme.iconBg} transition-transform duration-300 ${isSelected ? 'scale-110' : ''} overflow-hidden`}>
+                      {entity.companyData?.logoUrl ? (
+                        <img src={entity.companyData.logoUrl} alt={entity.defaultName} className="w-full h-full object-contain" />
+                      ) : (
+                        <IconComponent size={28} />
+                      )}
                     </div>
 
                     {/* Company Title */}
@@ -914,11 +918,15 @@ export default function OrganizationPage() {
             {/* Header of the Selected Company Workspace */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-[var(--border)]">
               <div className="flex items-center gap-4">
-                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${activeEntity.theme.iconBg}`}>
-                  {(() => {
-                    const ActiveIcon = activeEntity.icon;
-                    return <ActiveIcon size={30} />;
-                  })()}
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${activeEntity.companyData?.logoUrl ? 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-md p-1.5' : activeEntity.theme.iconBg} overflow-hidden`}>
+                  {activeEntity.companyData?.logoUrl ? (
+                    <img src={activeEntity.companyData.logoUrl} alt={activeEntity.defaultName} className="w-full h-full object-contain" />
+                  ) : (
+                    (() => {
+                      const ActiveIcon = activeEntity.icon;
+                      return <ActiveIcon size={30} />;
+                    })()
+                  )}
                 </div>
                 <div>
                   <div className="flex items-center gap-2.5">
@@ -966,6 +974,82 @@ export default function OrganizationPage() {
             {companyWorkspaceTab === 'details' && (
               <form onSubmit={profileForm.handleSubmit((d) => updateCompanyMutation.mutate(d))} className="space-y-8">
                 
+                {/* 0. Brand Logo Uploader Section */}
+                <div className="bg-[var(--surface-alt)] border border-[var(--border)] rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center gap-6 shadow-xs">
+                  {/* Live Logo Preview Box */}
+                  <div className="relative w-24 h-24 rounded-2xl bg-white dark:bg-slate-900 border-2 border-dashed border-[var(--border)] flex items-center justify-center p-2 shadow-inner shrink-0 overflow-hidden">
+                    {profileForm.watch('logoUrl') ? (
+                      <img
+                        src={profileForm.watch('logoUrl')}
+                        alt="Company Logo Preview"
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-[var(--text-muted)] text-center p-1">
+                        <ImageIcon size={24} className="mb-1 text-slate-400" />
+                        <span className="text-[9px] font-bold uppercase tracking-wider">No Logo</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-3">
+                    <div>
+                      <h5 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                        Company Logo & Branding
+                        {profileForm.watch('logoUrl') && (
+                          <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            Logo Configured
+                          </span>
+                        )}
+                      </h5>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                        Upload your official logo (PNG, JPG, SVG, WebP) or paste an image URL. This logo will automatically reflect on official <strong>Monthly Payslips</strong>, reports, and dashboards.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      {/* Upload from file button */}
+                      <label className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-2 shadow-sm">
+                        <Upload size={14} /> Upload Logo File
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              const result = reader.result as string;
+                              profileForm.setValue('logoUrl', result, { shouldDirty: true, shouldValidate: true });
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </label>
+
+                      {profileForm.watch('logoUrl') && (
+                        <button
+                          type="button"
+                          onClick={() => profileForm.setValue('logoUrl', '', { shouldDirty: true, shouldValidate: true })}
+                          className="px-3.5 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+                        >
+                          <Trash2 size={13} /> Remove Logo
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 max-w-xl pt-1">
+                      <span className="text-[11px] font-semibold text-[var(--text-muted)] whitespace-nowrap">Or Image URL:</span>
+                      <input
+                        {...profileForm.register('logoUrl')}
+                        className="w-full px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-xs focus:outline-none focus:border-purple-500 font-mono"
+                        placeholder="https://example.com/logo.png"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {/* 1. Basic Details */}
                 <div>
                   <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-4 flex items-center gap-2">
@@ -999,10 +1083,6 @@ export default function OrganizationPage() {
                         <option value="Partnership">Partnership</option>
                         <option value="Trust">Trust</option>
                       </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Logo URL</label>
-                      <input {...profileForm.register('logoUrl')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="https://..." />
                     </div>
                   </div>
                 </div>

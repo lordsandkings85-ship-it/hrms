@@ -410,8 +410,8 @@ export default function EmployeeDashboard() {
                             const full = await payrollApiExt.getPayslipDetail(latestPayslip.id);
                             await generatePayslipPDF({
                               payslip: full,
-                              employee: full.employee,
-                              company: { name: user?.company?.name || 'Company' },
+                              employee: full.employee || user?.employee,
+                              company: full.employee?.company || user?.company,
                             });
                          }}
                         className="btn-ghost text-xs gap-1.5"

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings, Shield, Plus, Building2, Check, Loader2 } from 'lucide-react';
+import { Settings, Shield, Plus, Building2, Check, Loader2, Upload, Trash2 } from 'lucide-react';
 import { settingsApi } from '../../../api/client';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { useForm, Controller } from 'react-hook-form';
@@ -18,7 +18,7 @@ const ALL_ACTIONS = ['view', 'create', 'edit', 'delete', 'approve', 'export'];
 
 const profileSchema = z.object({
   name: z.string().min(2, 'Company name is required'),
-  logoUrl: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+  logoUrl: z.string().optional().or(z.literal('')),
   timezone: z.string().min(1, 'Timezone is required'),
   currency: z.string().min(1, 'Currency is required'),
   address: z.string().optional(),
@@ -195,8 +195,42 @@ export default function SettingsPage() {
                           {profileForm.formState.errors.name && <p className="text-xs text-rose-500">{profileForm.formState.errors.name.message}</p>}
                         </div>
                         <div className="space-y-2">
-                          <label className="text-xs font-bold text-[var(--text-primary)]">Brand Logo URL</label>
-                          <input {...profileForm.register('logoUrl')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-sky-500" placeholder="https://..." />
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-[var(--text-primary)]">Brand Logo</label>
+                            {profileForm.watch('logoUrl') && (
+                              <button
+                                type="button"
+                                onClick={() => profileForm.setValue('logoUrl', '', { shouldDirty: true })}
+                                className="text-[11px] text-rose-500 hover:underline flex items-center gap-1 font-bold"
+                              >
+                                <Trash2 size={11} /> Clear
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors flex items-center gap-1.5 shrink-0 shadow-xs">
+                              <Upload size={13} /> Upload File
+                              <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const reader = new FileReader();
+                                  reader.onload = () => {
+                                    profileForm.setValue('logoUrl', reader.result as string, { shouldDirty: true });
+                                  };
+                                  reader.readAsDataURL(file);
+                                }}
+                              />
+                            </label>
+                            <input
+                              {...profileForm.register('logoUrl')}
+                              className="w-full px-3.5 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-xs focus:outline-none focus:border-sky-500 font-mono"
+                              placeholder="Or paste URL (https://...)"
+                            />
+                          </div>
                           {profileForm.formState.errors.logoUrl && <p className="text-xs text-rose-500">{profileForm.formState.errors.logoUrl.message}</p>}
                         </div>
                         <div className="space-y-2">
