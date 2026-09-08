@@ -192,6 +192,7 @@ export class CompaniesService {
   async listAccessible(userId: string, primaryCompanyId: string) {
     if (await this.isGroupWide(userId)) {
       return this.prisma.company.findMany({
+        where: { status: { not: 'group_parent' } },
         include: { _count: { select: { employees: true } } },
         orderBy: { createdAt: 'asc' },
       });
@@ -202,7 +203,7 @@ export class CompaniesService {
     });
     const ids = Array.from(new Set([primaryCompanyId, ...memberships.map((m) => m.companyId)]));
     return this.prisma.company.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, status: { not: 'group_parent' } },
       include: { _count: { select: { employees: true } } },
       orderBy: { createdAt: 'asc' },
     });

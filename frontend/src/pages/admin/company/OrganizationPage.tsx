@@ -327,7 +327,13 @@ export default function OrganizationPage() {
     });
 
     const standardCompanyIds = new Set(standardEntities.map((e) => e.companyId).filter(Boolean));
-    const extraCompanies = companies.filter((c) => !standardCompanyIds.has(c.id));
+    const extraCompanies = companies.filter(
+      (c) =>
+        !standardCompanyIds.has(c.id) &&
+        c.status !== 'group_parent' &&
+        c.name.toLowerCase().trim() !== 'lords and kings' &&
+        (c.displayName || '').toLowerCase().trim() !== 'lords and kings (group)'
+    );
 
     const extraEntities = extraCompanies.map((c, index) => {
       const themeConfig = EXTRA_THEMES[index % EXTRA_THEMES.length];

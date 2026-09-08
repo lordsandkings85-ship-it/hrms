@@ -200,7 +200,10 @@ describe('CompaniesService', () => {
 
       expect(result).toEqual(companies);
       expect(prisma.company.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ orderBy: { createdAt: 'asc' } }),
+        expect.objectContaining({
+          where: { status: { not: 'group_parent' } },
+          orderBy: { createdAt: 'asc' },
+        }),
       );
       expect(prisma.userCompany.findMany).not.toHaveBeenCalled();
     });
@@ -216,7 +219,7 @@ describe('CompaniesService', () => {
 
       expect(result).toEqual([{ id: 'c-1' }, { id: 'c-2' }]);
       expect(prisma.company.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: { in: ['c-1', 'c-2'] } } }),
+        expect.objectContaining({ where: { id: { in: ['c-1', 'c-2'] }, status: { not: 'group_parent' } } }),
       );
     });
   });
