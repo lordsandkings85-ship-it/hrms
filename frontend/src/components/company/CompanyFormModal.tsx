@@ -8,7 +8,7 @@ import { Modal } from '../ui/Modal';
 import { companiesApi, authApi, Company } from '../../api/client';
 import { useToast } from '../ui/ToastProvider';
 import { useAuthStore } from '../../store/useAuthStore';
-import { compressImage } from '../../utils/imageCompressor';
+import { compressImage, compressDataUrl } from '../../utils/imageCompressor';
 
 export const GROUP_NAME = 'Lords And Kings Group';
 
@@ -126,10 +126,19 @@ export function CompanyFormModal({
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      if (mode === 'edit' && company) {
-        return companiesApi.update(company.id, values as Partial<Company>);
+      let logoUrl = values.logoUrl;
+      if (logoUrl && logoUrl.startsWith('data:image/')) {
+        try {
+          logoUrl = await compressDataUrl(logoUrl, 400, 0.82);
+        } catch {
+          // fallback
+        }
       }
-      return companiesApi.create(values as Partial<Company> & { name: string });
+      const payload = { ...values, logoUrl };
+      if (mode === 'edit' && company) {
+        return companiesApi.update(company.id, payload as Partial<Company>);
+      }
+      return companiesApi.create(payload as Partial<Company> & { name: string });
     },
     onError: (e: any) => {
       setSubmitting(false);

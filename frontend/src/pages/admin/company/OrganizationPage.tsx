@@ -15,7 +15,7 @@ import * as z from 'zod';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { Modal } from '../../../components/ui/Modal';
 import { CompanyFormModal } from '../../../components/company/CompanyFormModal';
-import { compressImage } from '../../../utils/imageCompressor';
+import { compressImage, compressDataUrl } from '../../../utils/imageCompressor';
 
 const DEFAULT_DESIGNATIONS = [
   'Accounts Manager', 'Operations Associate', 'IT Associate', 'Accounts Associate',
@@ -483,21 +483,28 @@ export default function OrganizationPage() {
   // Mutations
   const updateCompanyMutation = useMutation({
     mutationFn: async (data: z.infer<typeof profileSchema>) => {
-      if (!activeCompanyId) {
-        return companiesApi.create({
-          ...data,
-          name: data.name,
-          financialYearStart: data.financialYearStart ? parseInt(data.financialYearStart) : undefined,
-          financialYearEnd: data.financialYearEnd ? parseInt(data.financialYearEnd) : undefined,
-          payrollEffectiveFrom: data.payrollEffectiveFrom ? parseInt(data.payrollEffectiveFrom) : undefined,
-        });
+      let logoUrl = data.logoUrl;
+      if (logoUrl && logoUrl.startsWith('data:image/')) {
+        try {
+          logoUrl = await compressDataUrl(logoUrl, 400, 0.82);
+        } catch {
+          // fallback
+        }
       }
-      return companiesApi.update(activeCompanyId, {
+      const payload = {
         ...data,
+        logoUrl,
         financialYearStart: data.financialYearStart ? parseInt(data.financialYearStart) : undefined,
         financialYearEnd: data.financialYearEnd ? parseInt(data.financialYearEnd) : undefined,
         payrollEffectiveFrom: data.payrollEffectiveFrom ? parseInt(data.payrollEffectiveFrom) : undefined,
-      });
+      };
+      if (!activeCompanyId) {
+        return companiesApi.create({
+          ...payload,
+          name: data.name,
+        });
+      }
+      return companiesApi.update(activeCompanyId, payload);
     },
     onSuccess: () => {
       toastSuccess(`${activeEntity?.defaultName || 'Company'} details updated successfully`);

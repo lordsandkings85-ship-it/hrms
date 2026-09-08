@@ -7,7 +7,7 @@ import { useToast } from '../../../components/ui/ToastProvider';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { compressImage } from '../../../utils/imageCompressor';
+import { compressImage, compressDataUrl } from '../../../utils/imageCompressor';
 
 const ALL_MODULES = [
   'dashboard', 'employees', 'attendance', 'leave', 'payroll', 'recruitment',
@@ -99,23 +99,33 @@ export default function SettingsPage() {
   }, [profile, profileForm]);
 
   const updateProfileMutation = useMutation({
-    mutationFn: (data: ProfileData) => settingsApi.updateProfile({
-      name: data.name,
-      logoUrl: data.logoUrl || null,
-      timezone: data.timezone,
-      currency: data.currency,
-      address: data.address || null,
-      phone: data.phone || null,
-      email: data.email || null,
-      website: data.website || null,
-      gstNumber: data.gstNumber || null,
-      panNumber: data.panNumber || null,
-      industry: data.industry || null,
-      companyType: data.companyType || null,
-      financialYearStart: data.financialYearStart ? parseInt(data.financialYearStart) : null,
-      financialYearEnd: data.financialYearEnd ? parseInt(data.financialYearEnd) : null,
-      payrollEffectiveFrom: data.payrollEffectiveFrom ? parseInt(data.payrollEffectiveFrom) : null,
-    }),
+    mutationFn: async (data: ProfileData) => {
+      let logoUrl = data.logoUrl;
+      if (logoUrl && logoUrl.startsWith('data:image/')) {
+        try {
+          logoUrl = await compressDataUrl(logoUrl, 400, 0.82);
+        } catch {
+          // fallback
+        }
+      }
+      return settingsApi.updateProfile({
+        name: data.name,
+        logoUrl: logoUrl || null,
+        timezone: data.timezone,
+        currency: data.currency,
+        address: data.address || null,
+        phone: data.phone || null,
+        email: data.email || null,
+        website: data.website || null,
+        gstNumber: data.gstNumber || null,
+        panNumber: data.panNumber || null,
+        industry: data.industry || null,
+        companyType: data.companyType || null,
+        financialYearStart: data.financialYearStart ? parseInt(data.financialYearStart) : null,
+        financialYearEnd: data.financialYearEnd ? parseInt(data.financialYearEnd) : null,
+        payrollEffectiveFrom: data.payrollEffectiveFrom ? parseInt(data.payrollEffectiveFrom) : null,
+      });
+    },
     onSuccess: () => {
       toastSuccess('Company profile updated successfully.');
       queryClient.invalidateQueries({ queryKey: ['settings-profile'] });

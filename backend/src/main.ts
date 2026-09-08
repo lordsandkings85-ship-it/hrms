@@ -18,11 +18,11 @@ function assertRequiredEnv(envs: string[]): void {
 async function bootstrap() {
   assertRequiredEnv(['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'ENCRYPTION_KEY']);
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
 
   // Increase payload size limit to support image/logo uploads
-  app.use(json({ limit: '25mb' }));
-  app.use(urlencoded({ extended: true, limit: '25mb' }));
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ extended: true, limit: '50mb' }));
 
   // Trust the first hop so client IPs (used by the throttler) are correct behind
   // reverse proxies (Render/Railway/Nginx). Keep at 1 proxy hop.
