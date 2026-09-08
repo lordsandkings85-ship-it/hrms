@@ -61,7 +61,8 @@ async function bootstrap() {
       'Authorization',
       'Accept',
       'Origin',
-      'X-Requested-With'
+      'X-Requested-With',
+      'X-Company-Id'
     ]
   });
 
