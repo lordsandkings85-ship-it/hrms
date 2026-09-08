@@ -879,7 +879,7 @@ export class AttendanceService {
     return this.prisma.regularizationRequest.findMany({
       where: {
         status: 'pending',
-        ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId, isSystem: false } }),
+        ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId } }),
       },
       include: {
         employee: {
@@ -905,7 +905,7 @@ export class AttendanceService {
   async listRegularizations(companyId: string, status?: string, userId?: string) {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const where: any = {
-      ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId, isSystem: false } }),
+      ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId } }),
     };
     if (status && status !== 'all' && ['pending', 'approved', 'rejected'].includes(status)) {
       where.status = status;

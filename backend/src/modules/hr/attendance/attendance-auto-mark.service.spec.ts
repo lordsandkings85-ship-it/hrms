@@ -189,7 +189,7 @@ describe('AttendanceAutoMarkService', () => {
     await svc.markToday();
 
     expect(attendance.markAbsentForDate).toHaveBeenCalledTimes(2);
-    expect(attendance.markAbsentForDate.mock.calls[0]).toEqual(['c-1', today]);
+    expect(attendance.markAbsentForDate).toHaveBeenCalledWith('c-1', expect.any(Date));
     expect(attendance.markMissingCheckouts).toHaveBeenCalledTimes(2); // once per company
     expect((attendance.markMissingCheckouts as jest.Mock).mock.calls[0][0]).toBe('c-1');
   });

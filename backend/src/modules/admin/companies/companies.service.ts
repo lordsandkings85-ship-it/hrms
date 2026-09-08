@@ -190,12 +190,6 @@ export class CompaniesService {
    * the group; everyone else sees primary company plus explicit memberships.
    */
   async listAccessible(userId: string, primaryCompanyId: string) {
-    try {
-      await this.ensureGroupDefaults(userId);
-    } catch {
-      // Non-blocking if defaults already exist or error
-    }
-
     if (await this.isGroupWide(userId)) {
       return this.prisma.company.findMany({
         include: { _count: { select: { employees: true } } },
