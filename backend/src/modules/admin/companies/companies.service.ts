@@ -166,6 +166,12 @@ export class CompaniesService {
    * the group; everyone else sees primary company plus explicit memberships.
    */
   async listAccessible(userId: string, primaryCompanyId: string) {
+    try {
+      await this.ensureGroupDefaults(userId);
+    } catch {
+      // Non-blocking if defaults already exist or error
+    }
+
     if (await this.isGroupWide(userId)) {
       return this.prisma.company.findMany({
         include: { _count: { select: { employees: true } } },
@@ -182,6 +188,174 @@ export class CompaniesService {
       include: { _count: { select: { employees: true } } },
       orderBy: { createdAt: 'asc' },
     });
+  }
+
+  /**
+   * Pre-seed or ensure that the 4 standard Lords and Kings group companies
+   * exist in the database and give membership to the user.
+   */
+  async ensureGroupDefaults(userId: string) {
+    const DEFAULT_COMPANIES = [
+      {
+        name: 'Lordsandkings Enterprises',
+        displayName: 'Lordsandkings Enterprises',
+        legalName: 'Lordsandkings Enterprises',
+        industry: 'Trading & Services',
+        companyType: 'Proprietary',
+      },
+      {
+        name: 'Lordsandkings Agro',
+        displayName: 'Lordsandkings Agro',
+        legalName: 'Lordsandkings Agro',
+        industry: 'Agriculture & Food',
+        companyType: 'Private Limited',
+      },
+      {
+        name: 'Lordsandkings Enterprises Pvt Ltd',
+        displayName: 'Lordsandkings Enterprises Pvt Ltd',
+        legalName: 'Lordsandkings Enterprises Pvt Ltd',
+        industry: 'Business & Innovation',
+        companyType: 'Private Limited',
+      },
+      {
+        name: 'Lordsandkings Estates LLP',
+        displayName: 'Lordsandkings Estates LLP',
+        legalName: 'Lordsandkings Estates LLP',
+        industry: 'Real Estate & Development',
+        companyType: 'LLP',
+      },
+    ];
+
+    const groupUsers = await this.prisma.user.findMany({
+      where: {
+        OR: [
+          { isSuperAdmin: true },
+          { role: { is: { isSystem: true } } },
+          { role: { is: { permissions: { some: { module: 'organization' } } } } },
+        ],
+      },
+      select: { id: true },
+    });
+    const memberIds = Array.from(new Set([userId, ...groupUsers.map((u) => u.id)]));
+
+    for (const item of DEFAULT_COMPANIES) {
+      let existing = await this.prisma.company.findFirst({
+        where: {
+          OR: [
+            { name: { equals: item.name } },
+            { displayName: { equals: item.displayName } },
+          ],
+        },
+      });
+
+      if (!existing) {
+        existing = await this.prisma.company.create({
+          data: {
+            name: item.name,
+            displayName: item.displayName,
+            legalName: item.legalName,
+            industry: item.industry,
+            companyType: item.companyType,
+            timezone: 'Asia/Kolkata',
+            currency: 'INR',
+            status: 'active',
+          },
+        });
+      }
+
+      if (memberIds.length && existing) {
+        await this.prisma.userCompany.createMany({
+          data: memberIds.map((uid) => ({ userId: uid, companyId: existing!.id, isActive: true })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    return this.prisma.company.findMany({
+      include: { _count: { select: { employees: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /**
+   * List all employees assigned to a specific company.
+   */
+  async listCompanyEmployees(_userId: string, companyId: string) {
+    return this.prisma.employee.findMany({
+      where: { companyId },
+      include: {
+        department: true,
+        designation: true,
+        branch: true,
+      },
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+    });
+  }
+
+  /**
+   * List all employees across all group companies with their assigned company info.
+   */
+  async listAllGroupEmployees(_userId: string) {
+    return this.prisma.employee.findMany({
+      include: {
+        company: { select: { id: true, name: true, displayName: true } },
+        department: { select: { id: true, name: true } },
+        designation: { select: { id: true, title: true } },
+        branch: { select: { id: true, name: true } },
+      },
+      orderBy: [{ companyId: 'asc' }, { firstName: 'asc' }],
+    });
+  }
+
+  /**
+   * Batch assign or transfer employees to a target company.
+   */
+  async assignEmployees(
+    companyId: string,
+    userId: string,
+    dto: { employeeIds: string[]; reason?: string; effectiveFrom?: string },
+  ) {
+    const targetCompany = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!targetCompany) throw new NotFoundException('Target company not found');
+    if (!dto.employeeIds || !dto.employeeIds.length) {
+      throw new BadRequestException('Please select at least one employee to assign');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const empId of dto.employeeIds) {
+        await tx.employeeCompanyHistory.updateMany({
+          where: { employeeId: empId, effectiveTo: null },
+          data: { effectiveTo: new Date() },
+        });
+
+        await tx.employee.update({
+          where: { id: empId },
+          data: { companyId },
+        });
+
+        await tx.employeeCompanyHistory.create({
+          data: {
+            employeeId: empId,
+            companyId,
+            effectiveFrom: dto.effectiveFrom ? new Date(dto.effectiveFrom) : new Date(),
+            reason: dto.reason || 'Assigned via Company Profile Manager',
+            changedBy: userId,
+          },
+        });
+      }
+    });
+
+    await this.audit(companyId, userId, 'assign_employees', 'company', companyId, {
+      count: dto.employeeIds.length,
+      employeeIds: dto.employeeIds,
+    });
+
+    return {
+      success: true,
+      assignedCount: dto.employeeIds.length,
+      companyId,
+      companyName: targetCompany.displayName || targetCompany.name,
+    };
   }
 
   /**

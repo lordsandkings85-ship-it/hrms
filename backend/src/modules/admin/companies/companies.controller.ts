@@ -21,6 +21,36 @@ export class CompaniesController {
     return this.companiesService.listAccessible(user.userId, user.companyId);
   }
 
+  /** Multi-company: ensure default Lords and Kings group companies exist. */
+  @Post('companies/ensure-defaults')
+  @Permissions({ module: 'organization', action: 'create' })
+  ensureDefaults(@CurrentUser() user: AuthUser) {
+    return this.companiesService.ensureGroupDefaults(user.userId);
+  }
+
+  /** Multi-company: list employees belonging to a specific company. */
+  @Get('companies/:id/employees')
+  listCompanyEmployees(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.companiesService.listCompanyEmployees(user.userId, id);
+  }
+
+  /** Multi-company: list all employees across all group companies. */
+  @Get('group/employees')
+  listAllGroupEmployees(@CurrentUser() user: AuthUser) {
+    return this.companiesService.listAllGroupEmployees(user.userId);
+  }
+
+  /** Multi-company: batch assign/transfer employees to a target company. */
+  @Post('companies/:id/assign-employees')
+  @Permissions({ module: 'organization', action: 'edit' })
+  assignEmployees(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() body: { employeeIds: string[]; reason?: string; effectiveFrom?: string },
+  ) {
+    return this.companiesService.assignEmployees(id, user.userId, body);
+  }
+
   /** Multi-company: create a sub-company under the caller's group. */
   @Post('companies')
   @Permissions({ module: 'organization', action: 'create' })

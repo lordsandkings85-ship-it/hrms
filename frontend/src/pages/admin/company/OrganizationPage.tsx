@@ -1,13 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Building2, Award, Plus, Trash2, MapPin, Users, Layers, Loader2, Download, Check, Settings, Pencil, X } from 'lucide-react';
-import { organizationApi, settingsApi, orgMastersApi } from '../../../api/client';
+import {
+  Building2, Award, Plus, Trash2, MapPin, Users, Layers, Loader2, Download,
+  Check, Settings, Pencil, X, Crown, Sprout, Building, Home, Search,
+  UserPlus, ArrowRightLeft, ShieldCheck, Sparkles, Mail, Phone, Globe,
+  Briefcase, CheckCircle2, UserCheck, AlertCircle, ArrowUpRight
+} from 'lucide-react';
+import { organizationApi, settingsApi, orgMastersApi, companiesApi, Company } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { Modal } from '../../../components/ui/Modal';
 
 const DEFAULT_DESIGNATIONS = [
   'Accounts Manager', 'Operations Associate', 'IT Associate', 'Accounts Associate',
@@ -19,6 +25,89 @@ const DEFAULT_DESIGNATIONS = [
 const DEFAULT_DEPARTMENTS = [
   'Finance & Accounts', 'Operations', 'IT & Engineering', 'Human Resources',
   'Business & Strategy', 'Administration',
+];
+
+const GROUP_ENTITIES = [
+  {
+    key: 'enterprises',
+    matchNames: ['lordsandkings enterprises', 'lords and kings enterprises'],
+    defaultName: 'Lordsandkings Enterprises',
+    tagline: 'TRADING | SERVICES | GROWTH',
+    industry: 'Trading & Services',
+    type: 'Proprietary',
+    theme: {
+      colorName: 'blue',
+      cardBg: 'bg-[#F0F7FF] dark:bg-blue-950/20',
+      cardBorder: 'border-blue-200/90 dark:border-blue-800/50',
+      activeBorder: 'border-blue-500 ring-2 ring-blue-500/30 shadow-blue-500/10 shadow-lg',
+      badgeBg: 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300',
+      iconBg: 'bg-blue-600 text-white shadow-md shadow-blue-500/20',
+      taglineColor: 'text-blue-700/80 dark:text-blue-400',
+      accentColor: '#2563EB',
+      headerGradient: 'from-blue-600/10 to-transparent',
+    },
+    icon: Building2,
+  },
+  {
+    key: 'agro',
+    matchNames: ['lordsandkings agro', 'lords and kings agro'],
+    defaultName: 'Lordsandkings Agro',
+    tagline: 'AGRICULTURE | FOOD | SUSTAINABILITY',
+    industry: 'Agriculture & Food',
+    type: 'Private Limited',
+    theme: {
+      colorName: 'green',
+      cardBg: 'bg-[#F0FDF4] dark:bg-emerald-950/20',
+      cardBorder: 'border-emerald-200/90 dark:border-emerald-800/50',
+      activeBorder: 'border-emerald-500 ring-2 ring-emerald-500/30 shadow-emerald-500/10 shadow-lg',
+      badgeBg: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300',
+      iconBg: 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20',
+      taglineColor: 'text-emerald-700/80 dark:text-emerald-400',
+      accentColor: '#16A34A',
+      headerGradient: 'from-emerald-600/10 to-transparent',
+    },
+    icon: Sprout,
+  },
+  {
+    key: 'enterprises-pvt-ltd',
+    matchNames: ['lordsandkings enterprises pvt ltd', 'lords and kings enterprises pvt ltd', 'lords and kings enterprises private limited'],
+    defaultName: 'Lordsandkings Enterprises Pvt Ltd',
+    tagline: 'BUSINESS | INNOVATION | EXCELLENCE',
+    industry: 'Business & Technology',
+    type: 'Private Limited',
+    theme: {
+      colorName: 'amber',
+      cardBg: 'bg-[#FFFBEB] dark:bg-amber-950/20',
+      cardBorder: 'border-amber-200/90 dark:border-amber-800/50',
+      activeBorder: 'border-amber-500 ring-2 ring-amber-500/30 shadow-amber-500/10 shadow-lg',
+      badgeBg: 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300',
+      iconBg: 'bg-amber-600 text-white shadow-md shadow-amber-500/20',
+      taglineColor: 'text-amber-700/80 dark:text-amber-400',
+      accentColor: '#D97706',
+      headerGradient: 'from-amber-600/10 to-transparent',
+    },
+    icon: Building,
+  },
+  {
+    key: 'estates-llp',
+    matchNames: ['lordsandkings estates llp', 'lords and kings estates llp', 'lords and kings estates'],
+    defaultName: 'Lordsandkings Estates LLP',
+    tagline: 'REAL ESTATE | DEVELOPMENT | VALUE',
+    industry: 'Real Estate & Infrastructure',
+    type: 'LLP',
+    theme: {
+      colorName: 'purple',
+      cardBg: 'bg-[#FAF5FF] dark:bg-purple-950/20',
+      cardBorder: 'border-purple-200/90 dark:border-purple-800/50',
+      activeBorder: 'border-purple-500 ring-2 ring-purple-500/30 shadow-purple-500/10 shadow-lg',
+      badgeBg: 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300',
+      iconBg: 'bg-purple-600 text-white shadow-md shadow-purple-500/20',
+      taglineColor: 'text-purple-700/80 dark:text-purple-400',
+      accentColor: '#7C3AED',
+      headerGradient: 'from-purple-600/10 to-transparent',
+    },
+    icon: Home,
+  },
 ];
 
 const profileSchema = z.object({
@@ -53,6 +142,7 @@ const profileSchema = z.object({
   bankAccountName: z.string().optional(),
   bankAccountNumber: z.string().optional(),
   ifsc: z.string().optional(),
+  status: z.string().optional(),
 });
 
 type TabKey = 'profile' | 'branches' | 'categories' | 'departments' | 'designations' | 'grades';
@@ -96,8 +186,22 @@ export default function OrganizationPage() {
   const subAction = pathParts.length > 2 ? pathParts[2] : 'profile';
   const { success: toastSuccess, error: toastError } = useToast();
 
-  const initialTab = SUB_TO_TAB[subAction] || 'branches';
+  const initialTab = SUB_TO_TAB[subAction] || 'profile';
   const [tab, setTab] = useState<TabKey>(initialTab);
+
+  // Selected company state inside Company Profile view
+  const [selectedCompanyKey, setSelectedCompanyKey] = useState<string>('enterprises');
+  const [companyWorkspaceTab, setCompanyWorkspaceTab] = useState<'details' | 'employees'>('details');
+
+  // Employee Assignment Modal State
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assignSearch, setAssignSearch] = useState('');
+  const [selectedEmpIds, setSelectedEmpIds] = useState<string[]>([]);
+  const [assignReason, setAssignReason] = useState('Assigned via Company Profile Manager');
+  const [assignEffectiveDate, setAssignEffectiveDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Employee list filter in workspace
+  const [empFilterSearch, setEmpFilterSearch] = useState('');
 
   useEffect(() => {
     if (subAction && SUB_TO_TAB[subAction]) {
@@ -111,7 +215,7 @@ export default function OrganizationPage() {
   };
 
   const TABS = [
-    { key: 'profile', label: 'Company Profile', icon: <Building2 size={16} /> },
+    { key: 'profile', label: 'Company Profile & Group', icon: <Building2 size={16} /> },
     { key: 'branches', label: 'Branch / Location', icon: <MapPin size={16} /> },
     { key: 'categories', label: 'Employee Category', icon: <Users size={16} /> },
     { key: 'departments', label: 'Department', icon: <Building2 size={16} /> },
@@ -125,6 +229,11 @@ export default function OrganizationPage() {
   const desigForm = useForm({ resolver: zodResolver(desigSchema), defaultValues: { title: '', grade: '' } });
 
   // Queries
+  const { data: companies = [], isLoading: isLoadingCompanies } = useQuery({
+    queryKey: ['companies-list'],
+    queryFn: () => companiesApi.list(),
+  });
+
   const { data: departments, isLoading: isLoadingDepts } = useQuery({
     queryKey: ['departments-list'],
     queryFn: () => organizationApi.listDepartments(),
@@ -148,6 +257,216 @@ export default function OrganizationPage() {
   const categories = (allMasters ?? []).filter((m: any) => m.master === 'category');
   const grades = (allMasters ?? []).filter((m: any) => m.master === 'grade');
 
+  // Match companies from backend to our 4 group cards
+  const matchedEntities = useMemo(() => {
+    return GROUP_ENTITIES.map((entity) => {
+      const found = companies.find((c) => {
+        const lowerName = (c.name || '').toLowerCase().trim();
+        const lowerDisplay = (c.displayName || '').toLowerCase().trim();
+        return entity.matchNames.some((m) => lowerName.includes(m) || lowerDisplay.includes(m));
+      });
+      return {
+        ...entity,
+        companyData: found || null,
+        companyId: found?.id || null,
+        employeeCount: found?._count?.employees ?? 0,
+      };
+    });
+  }, [companies]);
+
+  // Selected company object
+  const activeEntity = useMemo(() => {
+    return matchedEntities.find((e) => e.key === selectedCompanyKey) || matchedEntities[0];
+  }, [matchedEntities, selectedCompanyKey]);
+
+  const activeCompanyId = activeEntity?.companyId;
+
+  // Query employees of selected company
+  const { data: companyEmployees = [], isLoading: isLoadingCompEmployees } = useQuery({
+    queryKey: ['company-employees', activeCompanyId],
+    queryFn: () => (activeCompanyId ? companiesApi.getEmployees(activeCompanyId) : Promise.resolve([])),
+    enabled: !!activeCompanyId,
+  });
+
+  // Query all group employees for assignment modal
+  const { data: allGroupEmployees = [], isLoading: isLoadingAllEmployees } = useQuery({
+    queryKey: ['group-employees'],
+    queryFn: () => companiesApi.getGroupEmployees(),
+    enabled: assignModalOpen,
+  });
+
+  // Company Profile Form
+  const profileForm = useForm<z.infer<typeof profileSchema>>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      name: '', logoUrl: '', timezone: 'Asia/Kolkata', currency: 'INR',
+      address: '', phone: '', email: '', website: '',
+      gstNumber: '', panNumber: '', industry: '', companyType: '',
+      financialYearStart: '', financialYearEnd: '', payrollEffectiveFrom: '',
+      legalName: '', displayName: '', city: '', state: '', country: 'India', pincode: '',
+      tanNumber: '', cinNumber: '', pfNumber: '', esiNumber: '',
+      professionalTaxNumber: '', labourWelfareFundNumber: '',
+      bankName: '', bankAccountName: '', bankAccountNumber: '', ifsc: '', status: 'active',
+    },
+  });
+
+  // Update profile form when activeEntity changes
+  useEffect(() => {
+    const c = activeEntity?.companyData;
+    if (c) {
+      profileForm.reset({
+        name: c.name || activeEntity.defaultName,
+        logoUrl: c.logoUrl || '',
+        timezone: c.timezone || 'Asia/Kolkata',
+        currency: c.currency || 'INR',
+        address: c.address || '',
+        phone: c.phone || '',
+        email: c.email || '',
+        website: c.website || '',
+        gstNumber: c.gstNumber || '',
+        panNumber: c.panNumber || '',
+        industry: c.industry || activeEntity.industry,
+        companyType: c.companyType || activeEntity.type,
+        financialYearStart: c.financialYearStart ? String(c.financialYearStart) : '',
+        financialYearEnd: c.financialYearEnd ? String(c.financialYearEnd) : '',
+        payrollEffectiveFrom: c.payrollEffectiveFrom ? String(c.payrollEffectiveFrom) : '',
+        legalName: c.legalName || activeEntity.defaultName,
+        displayName: c.displayName || activeEntity.defaultName,
+        city: c.city || '',
+        state: c.state || '',
+        country: c.country || 'India',
+        pincode: c.pincode || '',
+        tanNumber: c.tanNumber || '',
+        cinNumber: c.cinNumber || '',
+        pfNumber: c.pfNumber || '',
+        esiNumber: c.esiNumber || '',
+        professionalTaxNumber: c.professionalTaxNumber || '',
+        labourWelfareFundNumber: c.labourWelfareFundNumber || '',
+        bankName: c.bankName || '',
+        bankAccountName: c.bankAccountName || '',
+        bankAccountNumber: c.bankAccountNumber || '',
+        ifsc: c.ifsc || '',
+        status: c.status || 'active',
+      });
+    } else if (activeEntity) {
+      profileForm.reset({
+        name: activeEntity.defaultName,
+        displayName: activeEntity.defaultName,
+        legalName: activeEntity.defaultName,
+        industry: activeEntity.industry,
+        companyType: activeEntity.type,
+        timezone: 'Asia/Kolkata',
+        currency: 'INR',
+        country: 'India',
+        status: 'active',
+      });
+    }
+  }, [activeEntity, profileForm]);
+
+  // Mutations
+  const updateCompanyMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof profileSchema>) => {
+      if (!activeCompanyId) {
+        return companiesApi.create({
+          ...data,
+          name: data.name,
+          financialYearStart: data.financialYearStart ? parseInt(data.financialYearStart) : undefined,
+          financialYearEnd: data.financialYearEnd ? parseInt(data.financialYearEnd) : undefined,
+          payrollEffectiveFrom: data.payrollEffectiveFrom ? parseInt(data.payrollEffectiveFrom) : undefined,
+        });
+      }
+      return companiesApi.update(activeCompanyId, {
+        ...data,
+        financialYearStart: data.financialYearStart ? parseInt(data.financialYearStart) : undefined,
+        financialYearEnd: data.financialYearEnd ? parseInt(data.financialYearEnd) : undefined,
+        payrollEffectiveFrom: data.payrollEffectiveFrom ? parseInt(data.payrollEffectiveFrom) : undefined,
+      });
+    },
+    onSuccess: () => {
+      toastSuccess(`${activeEntity?.defaultName || 'Company'} details updated successfully`);
+      queryClient.invalidateQueries({ queryKey: ['companies-list'] });
+    },
+    onError: (e: any) => toastError(e.message || 'Failed to update company details')
+  });
+
+  const assignEmployeesMutation = useMutation({
+    mutationFn: ({ companyId, employeeIds, reason, effectiveFrom }: { companyId: string; employeeIds: string[]; reason?: string; effectiveFrom?: string }) =>
+      companiesApi.assignEmployees(companyId, { employeeIds, reason, effectiveFrom }),
+    onSuccess: (res) => {
+      toastSuccess(`Successfully assigned ${res.assignedCount} employee(s) to ${res.companyName}`);
+      setAssignModalOpen(false);
+      setSelectedEmpIds([]);
+      queryClient.invalidateQueries({ queryKey: ['companies-list'] });
+      queryClient.invalidateQueries({ queryKey: ['company-employees'] });
+      queryClient.invalidateQueries({ queryKey: ['group-employees'] });
+    },
+    onError: (e: any) => toastError(e.message || 'Failed to assign employees'),
+  });
+
+  // Seed default masters
+  const [seeding, setSeeding] = useState(false);
+  const seedDefaults = async () => {
+    setSeeding(true);
+    try {
+      const existingDepts = departments || [];
+      const existingDesigs = designations || [];
+      const created: string[] = [];
+
+      for (const dept of DEFAULT_DEPARTMENTS) {
+        if (!existingDepts.some(d => d.name.toLowerCase() === dept.toLowerCase())) {
+          await organizationApi.createDepartment(dept);
+          created.push(`Dept: ${dept}`);
+        }
+      }
+      for (const desig of DEFAULT_DESIGNATIONS) {
+        if (!existingDesigs.some(d => d.title.toLowerCase() === desig.toLowerCase())) {
+          await organizationApi.createDesignation({ title: desig });
+          created.push(`Desig: ${desig}`);
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['departments-list'] });
+      queryClient.invalidateQueries({ queryKey: ['designations-list'] });
+      if (created.length > 0) {
+        toastSuccess(`${created.length} items seeded`);
+      } else {
+        toastSuccess('All defaults already exist');
+      }
+    } catch (e: any) {
+      toastError(e.message || 'Failed to seed defaults');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  // Filtered employees for active company
+  const filteredCompanyEmployees = useMemo(() => {
+    if (!empFilterSearch.trim()) return companyEmployees;
+    const q = empFilterSearch.toLowerCase();
+    return companyEmployees.filter((e: any) =>
+      `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
+      (e.employeeCode || '').toLowerCase().includes(q) ||
+      (e.department?.name || '').toLowerCase().includes(q) ||
+      (e.designation?.title || '').toLowerCase().includes(q) ||
+      (e.email || '').toLowerCase().includes(q)
+    );
+  }, [companyEmployees, empFilterSearch]);
+
+  // Filtered group employees for assignment modal
+  const filteredGroupEmployees = useMemo(() => {
+    return (allGroupEmployees as any[]).filter((e) => {
+      const q = assignSearch.toLowerCase();
+      const matchSearch =
+        !q ||
+        `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
+        (e.employeeCode || '').toLowerCase().includes(q) ||
+        (e.department?.name || '').toLowerCase().includes(q) ||
+        (e.company?.displayName || e.company?.name || '').toLowerCase().includes(q);
+      return matchSearch;
+    });
+  }, [allGroupEmployees, assignSearch]);
+
+  // Master handlers
   const createMasterMutation = useMutation({
     mutationFn: ({ master, value }: { master: string; value: string }) => orgMastersApi.create('masters', { master, value }),
     onSuccess: () => {
@@ -168,7 +487,6 @@ export default function OrganizationPage() {
 
   const masterForm = useForm({ defaultValues: { value: '' } });
 
-  // Mutations
   const createDeptMutation = useMutation({
     mutationFn: (data: z.infer<typeof deptSchema>) => organizationApi.createDepartment(data.name),
     onSuccess: () => {
@@ -177,6 +495,15 @@ export default function OrganizationPage() {
       queryClient.invalidateQueries({ queryKey: ['departments-list'] });
     },
     onError: (e: any) => toastError(e.message || 'Failed to create')
+  });
+
+  const deleteDeptMutation = useMutation({
+    mutationFn: (id: string) => organizationApi.deleteDepartment(id),
+    onSuccess: () => {
+      toastSuccess('Department deleted');
+      queryClient.invalidateQueries({ queryKey: ['departments-list'] });
+    },
+    onError: (e: any) => toastError(e.message || 'Failed to delete')
   });
 
   const createBranchMutation = useMutation({
@@ -221,140 +548,12 @@ export default function OrganizationPage() {
     onError: (e: any) => toastError(e.message || 'Failed to create')
   });
 
-  const deleteDeptMutation = useMutation({
-    mutationFn: (id: string) => organizationApi.deleteDepartment(id),
-    onSuccess: () => {
-      toastSuccess('Department deleted');
-      queryClient.invalidateQueries({ queryKey: ['departments-list'] });
-    },
-    onError: (e: any) => toastError(e.message || 'Failed to delete')
-  });
-
-  // Company Profile
-  const profileForm = useForm<z.infer<typeof profileSchema>>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      name: '', logoUrl: '', timezone: 'Asia/Kolkata', currency: 'INR',
-      address: '', phone: '', email: '', website: '',
-      gstNumber: '', panNumber: '', industry: '', companyType: '',
-      financialYearStart: '', financialYearEnd: '', payrollEffectiveFrom: '',
-      legalName: '', displayName: '', city: '', state: '', country: 'India', pincode: '',
-      tanNumber: '', cinNumber: '', pfNumber: '', esiNumber: '',
-      professionalTaxNumber: '', labourWelfareFundNumber: '',
-      bankName: '', bankAccountName: '', bankAccountNumber: '', ifsc: '',
-    },
-  });
-
-  const { data: profile } = useQuery({
-    queryKey: ['settings-profile'],
-    queryFn: () => settingsApi.getProfile(),
-  });
-
-  useEffect(() => {
-    if (profile) {
-      profileForm.reset({
-        name: profile.name || '',
-        logoUrl: profile.logoUrl || '',
-        timezone: profile.timezone || 'Asia/Kolkata',
-        currency: profile.currency || 'INR',
-        address: profile.address || '',
-        phone: profile.phone || '',
-        email: profile.email || '',
-        website: profile.website || '',
-        gstNumber: profile.gstNumber || '',
-        panNumber: profile.panNumber || '',
-        industry: profile.industry || '',
-        companyType: profile.companyType || '',
-        financialYearStart: profile.financialYearStart ? String(profile.financialYearStart) : '',
-        financialYearEnd: profile.financialYearEnd ? String(profile.financialYearEnd) : '',
-        payrollEffectiveFrom: profile.payrollEffectiveFrom ? String(profile.payrollEffectiveFrom) : '',
-        legalName: profile.legalName || '',
-        displayName: profile.displayName || '',
-        city: profile.city || '',
-        state: profile.state || '',
-        country: profile.country || 'India',
-        pincode: profile.pincode || '',
-        tanNumber: profile.tanNumber || '',
-        cinNumber: profile.cinNumber || '',
-        pfNumber: profile.pfNumber || '',
-        esiNumber: profile.esiNumber || '',
-        professionalTaxNumber: profile.professionalTaxNumber || '',
-        labourWelfareFundNumber: profile.labourWelfareFundNumber || '',
-        bankName: profile.bankName || '',
-        bankAccountName: profile.bankAccountName || '',
-        bankAccountNumber: profile.bankAccountNumber || '',
-        ifsc: profile.ifsc || '',
-      });
-    }
-  }, [profile, profileForm]);
-
-  const updateProfileMutation = useMutation({
-    mutationFn: (data: z.infer<typeof profileSchema>) => settingsApi.updateProfile({
-      name: data.name, logoUrl: data.logoUrl || null, timezone: data.timezone, currency: data.currency,
-      address: data.address || null, phone: data.phone || null, email: data.email || null, website: data.website || null,
-      gstNumber: data.gstNumber || null, panNumber: data.panNumber || null, industry: data.industry || null,
-      companyType: data.companyType || null,
-      financialYearStart: data.financialYearStart ? parseInt(data.financialYearStart) : null,
-      financialYearEnd: data.financialYearEnd ? parseInt(data.financialYearEnd) : null,
-      payrollEffectiveFrom: data.payrollEffectiveFrom ? parseInt(data.payrollEffectiveFrom) : null,
-      legalName: data.legalName || null, displayName: data.displayName || null,
-      city: data.city || null, state: data.state || null, country: data.country || null, pincode: data.pincode || null,
-      tanNumber: data.tanNumber || null, cinNumber: data.cinNumber || null,
-      pfNumber: data.pfNumber || null, esiNumber: data.esiNumber || null,
-      professionalTaxNumber: data.professionalTaxNumber || null,
-      labourWelfareFundNumber: data.labourWelfareFundNumber || null,
-      bankName: data.bankName || null, bankAccountName: data.bankAccountName || null,
-      bankAccountNumber: data.bankAccountNumber || null, ifsc: data.ifsc || null,
-    }),
-    onSuccess: () => {
-      toastSuccess('Company profile updated');
-      queryClient.invalidateQueries({ queryKey: ['settings-profile'] });
-    },
-    onError: (e: any) => toastError(e.message || 'Failed to update profile')
-  });
-
-  const [seeding, setSeeding] = useState(false);
-
-  const seedDefaults = async () => {
-    setSeeding(true);
-    try {
-      const existingDepts = departments || [];
-      const existingDesigs = designations || [];
-      const created: string[] = [];
-
-      for (const dept of DEFAULT_DEPARTMENTS) {
-        if (!existingDepts.some(d => d.name.toLowerCase() === dept.toLowerCase())) {
-          await organizationApi.createDepartment(dept);
-          created.push(`Dept: ${dept}`);
-        }
-      }
-      for (const desig of DEFAULT_DESIGNATIONS) {
-        if (!existingDesigs.some(d => d.title.toLowerCase() === desig.toLowerCase())) {
-          await organizationApi.createDesignation({ title: desig });
-          created.push(`Desig: ${desig}`);
-        }
-      }
-
-      queryClient.invalidateQueries({ queryKey: ['departments-list'] });
-      queryClient.invalidateQueries({ queryKey: ['designations-list'] });
-      if (created.length > 0) {
-        toastSuccess(`${created.length} items seeded`);
-      } else {
-        toastSuccess('All defaults already exist');
-      }
-    } catch (e: any) {
-      toastError(e.message || 'Failed to seed defaults');
-    } finally {
-      setSeeding(false);
-    }
-  };
-
   const deptColumns: Column<any>[] = [
     { key: 'name', header: 'Department Name', render: (row) => <span className="font-bold text-[var(--text-primary)]">{row.name}</span> },
     { key: 'code', header: 'Code', render: (row) => <span className="text-[var(--text-muted)] font-mono text-xs uppercase tracking-wider">{row.id.substring(0,8)}</span> },
-    { 
-      key: 'actions', 
-      header: 'Actions', 
+    {
+      key: 'actions',
+      header: 'Actions',
       render: (row) => (
         <button onClick={() => deleteDeptMutation.mutate(row.id)} className="text-rose-500 hover:text-rose-600 transition-colors p-1.5 hover:bg-rose-500/10 rounded">
           <Trash2 size={16} />
@@ -389,9 +588,9 @@ export default function OrganizationPage() {
 
   const masterColumns: Column<any>[] = [
     { key: 'value', header: 'Name', render: (row) => <span className="font-bold text-[var(--text-primary)]">{row.value}</span> },
-    { 
-      key: 'actions', 
-      header: 'Actions', 
+    {
+      key: 'actions',
+      header: 'Actions',
       render: (row) => (
         <button onClick={() => deleteMasterMutation.mutate(row.id)} className="text-rose-500 hover:text-rose-600 transition-colors p-1.5 hover:bg-rose-500/10 rounded">
           <Trash2 size={16} />
@@ -400,45 +599,37 @@ export default function OrganizationPage() {
     }
   ];
 
+  const totalGroupEmployees = useMemo(() => {
+    return matchedEntities.reduce((sum, e) => sum + e.employeeCount, 0);
+  }, [matchedEntities]);
+
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="absolute top-0 right-0 p-32 bg-purple-500/10 rounded-bl-full -z-0 blur-2xl"></div>
-        <div className="relative z-10 flex items-center gap-5">
-          <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-500 shadow-inner">
-             <Building2 size={28} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Company Setup Command Center</h1>
-            <p className="text-sm text-[var(--text-muted)] mt-1 font-medium">Configure branches, departments, and designations.</p>
-          </div>
+    <div className="p-6 space-y-8 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+      {/* Top Tabs Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap gap-2">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => handleTabChange(t.key)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all border ${
+                tab === t.key
+                  ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-md shadow-amber-500/20 font-extrabold'
+                  : 'bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              {t.icon}
+              {t.label}
+            </button>
+          ))}
         </div>
-      </div>
 
-      <div className="flex flex-wrap gap-2">
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => handleTabChange(t.key)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all border ${
-              tab === t.key
-                ? 'bg-purple-500 text-white border-purple-500 shadow-md shadow-purple-500/20'
-                : 'bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]'
-            }`}
-          >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex justify-end">
         {tab !== 'profile' && (
           <button
             onClick={seedDefaults}
             disabled={seeding}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-500/10 border border-purple-500/20 rounded-lg hover:bg-purple-500/20 transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-colors"
             title="Seed default departments and designations"
           >
             {seeding ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
@@ -448,449 +639,842 @@ export default function OrganizationPage() {
       </div>
 
       {tab === 'profile' ? (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm">
-              <h3 className="text-lg font-bold text-[var(--text-primary)] mb-6 flex items-center gap-2">
-                <Settings className="text-purple-500" size={20} /> Company Details
-              </h3>
-              <form onSubmit={profileForm.handleSubmit((d) => updateProfileMutation.mutate(d))} className="space-y-8">
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-4">Basic Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Company Registered Name <span className="text-rose-500">*</span></label>
-                      <input {...profileForm.register('name')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Acme Corp" />
-                      {profileForm.formState.errors.name && <p className="text-xs text-rose-500">{profileForm.formState.errors.name.message}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Brand Logo URL</label>
-                      <input {...profileForm.register('logoUrl')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="https://..." />
-                      {profileForm.formState.errors.logoUrl && <p className="text-xs text-rose-500">{profileForm.formState.errors.logoUrl.message}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Company Email</label>
-                      <input {...profileForm.register('email')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="info@company.com" />
-                      {profileForm.formState.errors.email && <p className="text-xs text-rose-500">{profileForm.formState.errors.email.message}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Company Phone</label>
-                      <input {...profileForm.register('phone')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="+91-XXXXXXXXXX" />
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Registered Address</label>
-                      <textarea {...profileForm.register('address')} rows={2} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="Enter full registered address" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Website</label>
-                      <input {...profileForm.register('website')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="https://company.com" />
-                      {profileForm.formState.errors.website && <p className="text-xs text-rose-500">{profileForm.formState.errors.website.message}</p>}
-                    </div>
-                  </div>
-                </div>
+        <div className="space-y-10">
 
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-4">Tax & Registration</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">GST Number</label>
-                      <input {...profileForm.register('gstNumber')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. 27AABCCDDEEFFG" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">PAN Number</label>
-                      <input {...profileForm.register('panNumber')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. AABCD1234E" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Industry</label>
-                      <input {...profileForm.register('industry')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. IT Services" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Company Type</label>
-                      <select {...profileForm.register('companyType')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500">
-                        <option value="">-- SELECT --</option>
-                        <option value="Private Limited">Private Limited</option>
-                        <option value="Public Limited">Public Limited</option>
-                        <option value="Partnership">Partnership</option>
-                        <option value="LLP">LLP</option>
-                        <option value="Proprietary">Proprietary</option>
-                        <option value="Trust">Trust</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
+          {/* ========================================================================= */}
+          {/* ROYAL LORDS AND KINGS GROUP HEADER BANNER (Exact visual match)            */}
+          {/* ========================================================================= */}
+          <div className="relative rounded-3xl p-8 md:p-10 border-2 border-[#D4AF37] shadow-[0_12px_40px_rgba(212,175,55,0.18)] overflow-hidden bg-gradient-to-b from-[#06152B] via-[#0B2347] to-[#06152B] text-center text-white max-w-4xl mx-auto">
+            {/* Ambient gold glow effects */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#D4AF37]/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#F7D070] to-transparent opacity-60" />
 
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-4">Statutory & Registration Numbers</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Legal Name</label>
-                      <input {...profileForm.register('legalName')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="Registered legal name" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Display Name</label>
-                      <input {...profileForm.register('displayName')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="Display name used in UI" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">TAN Number</label>
-                      <input {...profileForm.register('tanNumber')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. CHNR12345A" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">CIN Number</label>
-                      <input {...profileForm.register('cinNumber')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. U72900TN2022PTC123456" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">PF Number</label>
-                      <input {...profileForm.register('pfNumber')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. TN/CHN/12345" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">ESI Number</label>
-                      <input {...profileForm.register('esiNumber')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. 12000345678901234" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Professional Tax Number</label>
-                      <input {...profileForm.register('professionalTaxNumber')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. PT/CHN/123456" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Labour Welfare Fund Number</label>
-                      <input {...profileForm.register('labourWelfareFundNumber')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. TN/LWF/12345" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">City</label>
-                      <input {...profileForm.register('city')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Chennai" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">State</label>
-                      <input {...profileForm.register('state')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Tamil Nadu" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Country</label>
-                      <input {...profileForm.register('country')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. India" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Pincode</label>
-                      <input {...profileForm.register('pincode')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. 600001" />
-                    </div>
-                  </div>
+            <div className="relative z-10 flex flex-col items-center justify-center space-y-3">
+              {/* Gold Crown Emblem */}
+              <div className="relative flex items-center justify-center">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-b from-[#F5D77F]/20 to-transparent flex items-center justify-center border border-[#D4AF37]/40 shadow-inner">
+                  <Crown size={36} className="text-[#F5D77F] filter drop-shadow-[0_2px_8px_rgba(245,215,127,0.6)]" />
                 </div>
+              </div>
 
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-4">Bank Details (Company)</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Bank Name</label>
-                      <input {...profileForm.register('bankName')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. HDFC Bank" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Account Name</label>
-                      <input {...profileForm.register('bankAccountName')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Lords And Kings Pvt Ltd" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Account Number</label>
-                      <input {...profileForm.register('bankAccountNumber')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. 50100234567890" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">IFSC Code</label>
-                      <input {...profileForm.register('ifsc')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. HDFC0001234" />
-                    </div>
-                  </div>
+              {/* Title & Group */}
+              <div className="space-y-1">
+                <h1 className="text-3xl md:text-5xl font-extrabold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-[#FFF5D6] via-[#FFFFFF] to-[#F5D77F] uppercase font-serif drop-shadow-sm">
+                  Lords And Kings
+                </h1>
+                <div className="flex items-center justify-center gap-3">
+                  <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-[#D4AF37]" />
+                  <p className="text-xs md:text-sm tracking-[0.35em] uppercase font-bold text-[#E5C158]">
+                    G R O U P
+                  </p>
+                  <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-[#D4AF37]" />
                 </div>
+              </div>
 
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-4">Financial Year</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">FY Start Month</label>
-                      <select {...profileForm.register('financialYearStart')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500">
-                        <option value="">-- SELECT --</option>
-                        {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                          <option key={m} value={m}>{new Date(2024, m - 1, 1).toLocaleString('default', { month: 'long' })}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">FY End Month</label>
-                      <select {...profileForm.register('financialYearEnd')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500">
-                        <option value="">-- SELECT --</option>
-                        {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                          <option key={m} value={m}>{new Date(2024, m - 1, 1).toLocaleString('default', { month: 'long' })}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Payroll Effective From Year</label>
-                      <input {...profileForm.register('payrollEffectiveFrom')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. 2024" />
-                    </div>
-                  </div>
-                </div>
+              {/* Tagline */}
+              <p className="text-[11px] md:text-xs tracking-[0.2em] font-semibold text-slate-300/90 uppercase pt-1">
+                A STRONGER TOMORROW TOGETHER
+              </p>
 
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-4">System Preferences</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Operating Timezone <span className="text-rose-500">*</span></label>
-                      <select {...profileForm.register('timezone')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500">
-                        <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-                        <option value="UTC">UTC / Coordinated Time</option>
-                        <option value="America/New_York">America/New_York (EST)</option>
-                        <option value="Europe/London">Europe/London (GMT)</option>
-                        <option value="Asia/Dubai">Asia/Dubai (GST)</option>
-                        <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-[var(--text-primary)]">Default Currency <span className="text-rose-500">*</span></label>
-                      <select {...profileForm.register('currency')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500">
-                        <option value="INR">INR (₹)</option>
-                        <option value="USD">USD ($)</option>
-                        <option value="EUR">EUR (€)</option>
-                        <option value="GBP">GBP (£)</option>
-                        <option value="AED">AED (د.إ)</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-[var(--border)]">
-                  <button type="submit" disabled={updateProfileMutation.isPending} className="py-2.5 px-6 bg-purple-500 text-white rounded-xl text-sm font-bold hover:bg-purple-600 transition-colors flex justify-center items-center gap-2">
-                    {updateProfileMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Save All Changes
-                  </button>
-                </div>
-              </form>
+              {/* Summary Stats Pill */}
+              <div className="pt-2 flex items-center gap-4 text-xs">
+                <span className="px-3.5 py-1 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/40 text-[#FCE8A6] font-semibold flex items-center gap-1.5">
+                  <Building2 size={13} className="text-[#F5D77F]" /> 4 Corporate Entities
+                </span>
+                <span className="px-3.5 py-1 rounded-full bg-white/10 border border-white/20 text-slate-200 font-semibold flex items-center gap-1.5">
+                  <Users size={13} className="text-emerald-400" /> {totalGroupEmployees} Total Workforce
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="lg:col-span-1 space-y-6">
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm flex flex-col items-center justify-center text-center min-h-[340px]">
-              <div className="w-24 h-24 rounded-full border-2 border-dashed border-[var(--border)] bg-[var(--surface-alt)] flex items-center justify-center mb-4 text-purple-500 font-bold text-2xl shadow-sm overflow-hidden">
-                {profile?.logoUrl ? <img src={profile.logoUrl} alt="Logo" className="w-full h-full object-cover rounded-full" /> : (profile?.name ? profile.name.slice(0, 2).toUpperCase() : 'CO')}
-              </div>
-              <h3 className="text-xl font-bold text-[var(--text-primary)]">{profile?.name || 'Your Company'}</h3>
-              <p className="text-xs text-[var(--text-muted)] font-mono mt-1">Tenant ID: {profile?.id}</p>
-              <p className="text-xs text-[var(--text-muted)] mt-1">{profile?.email || profile?.phone || ''}</p>
-            </div>
-
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Company Snapshot</h4>
-              <div className="grid grid-cols-1 gap-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-[var(--text-muted)] font-bold uppercase text-xs">Industry</span>
-                  <span className="text-[var(--text-primary)]">{profile?.industry || '—'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[var(--text-muted)] font-bold uppercase text-xs">Type</span>
-                  <span className="text-[var(--text-primary)]">{profile?.companyType || '—'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[var(--text-muted)] font-bold uppercase text-xs">GST</span>
-                  <span className="text-[var(--text-primary)] font-mono">{profile?.gstNumber || '—'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[var(--text-muted)] font-bold uppercase text-xs">PAN</span>
-                  <span className="text-[var(--text-primary)] font-mono">{profile?.panNumber || '—'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[var(--text-muted)] font-bold uppercase text-xs">Region</span>
-                  <span className="text-[var(--text-primary)]">{profile?.timezone || '—'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[var(--text-muted)] font-bold uppercase text-xs">Currency</span>
-                  <span className="font-mono font-bold text-[var(--text-primary)] bg-[var(--surface-alt)] px-2 py-0.5 rounded border border-[var(--border)]">{profile?.currency || '—'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[var(--text-muted)] font-bold uppercase text-xs">FY</span>
-                  <span className="text-[var(--text-primary)]">
-                    {profile?.financialYearStart && profile?.financialYearEnd
-                      ? `${new Date(2024, profile.financialYearStart - 1, 1).toLocaleString('default', { month: 'short' })} – ${new Date(2024, profile.financialYearEnd - 1, 1).toLocaleString('default', { month: 'short' })}`
-                      : '—'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[var(--text-muted)] font-bold uppercase text-xs">Since</span>
-                  <span className="text-[var(--text-primary)]">{profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : '—'}</span>
-                </div>
-              </div>
-            </div>
-
-            </div>
-        </div>
-      </div>
-      ) : (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 shadow-sm">
-            <h3 className="text-sm font-bold text-[var(--text-primary)] mb-4 flex items-center gap-2"><Plus size={16} className="text-purple-500" /> Create New Entry</h3>
+          {/* ========================================================================= */}
+          {/* HIERARCHY TREE CONNECTOR (Visual branches matching diagram)               */}
+          {/* ========================================================================= */}
+          <div className="hidden lg:block relative -my-4 h-16 w-full max-w-6xl mx-auto pointer-events-none">
+            {/* Main center vertical stem coming from parent banner */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0.5 h-6 bg-[#0B2347] dark:bg-slate-400" />
             
-            {tab === 'departments' && (
-              <form onSubmit={deptForm.handleSubmit((d) => createDeptMutation.mutate(d))} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-[var(--text-primary)]">Department Name</label>
-                  <input {...deptForm.register('name')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Engineering" />
-                  {deptForm.formState.errors.name && <p className="text-xs text-rose-500">{deptForm.formState.errors.name.message}</p>}
+            {/* Horizontal branch line spanning the 4 card centers (12.5%, 37.5%, 62.5%, 87.5%) */}
+            <div className="absolute top-6 left-[12.5%] right-[12.5%] h-0.5 bg-[#0B2347] dark:bg-slate-400 rounded-full" />
+            
+            {/* 4 Vertical drops with down arrows */}
+            <div className="absolute top-6 left-[12.5%] -translate-x-1/2 w-0.5 h-7 bg-[#0B2347] dark:bg-slate-400 flex items-end justify-center">
+              <div className="w-2 h-2 border-r-2 border-b-2 border-[#0B2347] dark:border-slate-400 rotate-45 mb-[-3px]" />
+            </div>
+            <div className="absolute top-6 left-[37.5%] -translate-x-1/2 w-0.5 h-7 bg-[#0B2347] dark:bg-slate-400 flex items-end justify-center">
+              <div className="w-2 h-2 border-r-2 border-b-2 border-[#0B2347] dark:border-slate-400 rotate-45 mb-[-3px]" />
+            </div>
+            <div className="absolute top-6 left-[62.5%] -translate-x-1/2 w-0.5 h-7 bg-[#0B2347] dark:bg-slate-400 flex items-end justify-center">
+              <div className="w-2 h-2 border-r-2 border-b-2 border-[#0B2347] dark:border-slate-400 rotate-45 mb-[-3px]" />
+            </div>
+            <div className="absolute top-6 left-[87.5%] -translate-x-1/2 w-0.5 h-7 bg-[#0B2347] dark:bg-slate-400 flex items-end justify-center">
+              <div className="w-2 h-2 border-r-2 border-b-2 border-[#0B2347] dark:border-slate-400 rotate-45 mb-[-3px]" />
+            </div>
+          </div>
+
+          {/* ========================================================================= */}
+          {/* THE 4 COMPANY CARDS (Clickable, themed, showing count & details)          */}
+          {/* ========================================================================= */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+            {matchedEntities.map((entity) => {
+              const isSelected = selectedCompanyKey === entity.key;
+              const IconComponent = entity.icon;
+              return (
+                <div
+                  key={entity.key}
+                  onClick={() => setSelectedCompanyKey(entity.key)}
+                  className={`relative rounded-3xl p-6 transition-all duration-300 cursor-pointer flex flex-col justify-between text-center border-2 ${entity.theme.cardBg} ${
+                    isSelected
+                      ? entity.theme.activeBorder
+                      : `${entity.theme.cardBorder} hover:shadow-md hover:-translate-y-1`
+                  }`}
+                  style={{ minHeight: '260px' }}
+                >
+                  {/* Selected Indicator Pill */}
+                  {isSelected && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-[10px] font-extrabold uppercase tracking-wider shadow flex items-center gap-1">
+                      <CheckCircle2 size={12} className="text-emerald-400" /> Active Workspace
+                    </div>
+                  )}
+
+                  {/* Icon Emblem */}
+                  <div className="flex flex-col items-center pt-2">
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${entity.theme.iconBg} transition-transform duration-300 ${isSelected ? 'scale-110' : ''}`}>
+                      <IconComponent size={28} />
+                    </div>
+
+                    {/* Company Title */}
+                    <h3 className="text-lg md:text-xl font-extrabold text-slate-900 dark:text-white leading-snug tracking-tight">
+                      {entity.defaultName}
+                    </h3>
+                  </div>
+
+                  {/* Divider line in accent color */}
+                  <div className="my-4 flex justify-center">
+                    <div className="h-0.5 w-12 rounded-full opacity-60" style={{ backgroundColor: entity.theme.accentColor }} />
+                  </div>
+
+                  {/* Tagline & Footer Badges */}
+                  <div className="space-y-3">
+                    <p className={`text-[10px] md:text-[11px] font-bold tracking-wider uppercase ${entity.theme.taglineColor}`}>
+                      {entity.tagline}
+                    </p>
+
+                    <div className="pt-2 flex items-center justify-center gap-2">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${entity.theme.badgeBg}`}>
+                        <Users size={12} className="inline mr-1" />
+                        {entity.employeeCount} {entity.employeeCount === 1 ? 'Employee' : 'Employees'}
+                      </span>
+                      <span className="text-[10px] px-2 py-1 rounded-md font-semibold bg-white/70 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                        {entity.type}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <button type="submit" disabled={createDeptMutation.isPending} className="w-full py-2 bg-purple-500 text-white rounded-xl text-sm font-bold hover:bg-purple-600 transition-colors flex justify-center items-center gap-2">
-                  {createDeptMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Create Department
+              );
+            })}
+          </div>
+
+          {/* ========================================================================= */}
+          {/* SELECTED COMPANY WORKSPACE (Details Editor & Employee Assignment)         */}
+          {/* ========================================================================= */}
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-6 md:p-8 shadow-sm space-y-8 animate-in fade-in duration-300">
+            
+            {/* Header of the Selected Company Workspace */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-[var(--border)]">
+              <div className="flex items-center gap-4">
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${activeEntity.theme.iconBg}`}>
+                  {(() => {
+                    const ActiveIcon = activeEntity.icon;
+                    return <ActiveIcon size={30} />;
+                  })()}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <h2 className="text-2xl font-bold text-[var(--text-primary)]">
+                      {activeEntity.defaultName}
+                    </h2>
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                      Active Entity
+                    </span>
+                  </div>
+                  <p className="text-xs text-[var(--text-muted)] font-medium mt-1">
+                    {activeEntity.tagline} · {activeEntity.industry}
+                  </p>
+                </div>
+              </div>
+
+              {/* Workspace Navigation Tabs */}
+              <div className="flex items-center gap-2 bg-[var(--surface-alt)] p-1.5 rounded-2xl border border-[var(--border)]">
+                <button
+                  type="button"
+                  onClick={() => setCompanyWorkspaceTab('details')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                    companyWorkspaceTab === 'details'
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <Settings size={15} /> Company Details & Profile
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setCompanyWorkspaceTab('employees')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                    companyWorkspaceTab === 'employees'
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <Users size={15} /> Assigned Employees ({companyEmployees.length})
+                </button>
+              </div>
+            </div>
+
+            {/* TAB 1: COMPANY DETAILS EDITOR FORM */}
+            {companyWorkspaceTab === 'details' && (
+              <form onSubmit={profileForm.handleSubmit((d) => updateCompanyMutation.mutate(d))} className="space-y-8">
+                
+                {/* 1. Basic Details */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-4 flex items-center gap-2">
+                    <Building2 size={16} className="text-purple-500" /> Basic & Identity Information
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Company Name <span className="text-rose-500">*</span></label>
+                      <input {...profileForm.register('name')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Lordsandkings Enterprises" />
+                      {profileForm.formState.errors.name && <p className="text-xs text-rose-500">{profileForm.formState.errors.name.message}</p>}
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Legal / Registered Name</label>
+                      <input {...profileForm.register('legalName')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="Registered Legal Name" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Display Name</label>
+                      <input {...profileForm.register('displayName')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="Name shown across UI" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Industry Domain</label>
+                      <input {...profileForm.register('industry')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Trading / Agro / Estates" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Company Structure / Type</label>
+                      <select {...profileForm.register('companyType')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500">
+                        <option value="Proprietary">Proprietary</option>
+                        <option value="Private Limited">Private Limited</option>
+                        <option value="Public Limited">Public Limited</option>
+                        <option value="LLP">LLP</option>
+                        <option value="Partnership">Partnership</option>
+                        <option value="Trust">Trust</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Logo URL</label>
+                      <input {...profileForm.register('logoUrl')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="https://..." />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Contact & Address */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-4 flex items-center gap-2">
+                    <MapPin size={16} className="text-purple-500" /> Contact & Registered Address
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Company Email</label>
+                      <input {...profileForm.register('email')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="info@lordsandkings.com" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Company Phone</label>
+                      <input {...profileForm.register('phone')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="+91-XXXXXXXXXX" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Website</label>
+                      <input {...profileForm.register('website')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="https://lordsandkings.com" />
+                    </div>
+                    <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Full Registered Address</label>
+                      <textarea {...profileForm.register('address')} rows={2} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500 resize-none" placeholder="Enter complete registered office address" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">City</label>
+                      <input {...profileForm.register('city')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Chennai" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">State</label>
+                      <input {...profileForm.register('state')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Tamil Nadu" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Pincode</label>
+                      <input {...profileForm.register('pincode')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. 600001" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Statutory & Tax Registration */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-4 flex items-center gap-2">
+                    <ShieldCheck size={16} className="text-purple-500" /> Statutory & Tax Numbers
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">GSTIN / GST Number</label>
+                      <input {...profileForm.register('gstNumber')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm font-mono focus:outline-none focus:border-purple-500" placeholder="e.g. 33AABCL1234F1Z5" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">PAN Number</label>
+                      <input {...profileForm.register('panNumber')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm font-mono focus:outline-none focus:border-purple-500" placeholder="e.g. AABCL1234F" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">TAN Number</label>
+                      <input {...profileForm.register('tanNumber')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm font-mono focus:outline-none focus:border-purple-500" placeholder="e.g. CHNR12345A" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">CIN Number</label>
+                      <input {...profileForm.register('cinNumber')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm font-mono focus:outline-none focus:border-purple-500" placeholder="e.g. U72900TN2022PTC123456" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">PF Registration Number</label>
+                      <input {...profileForm.register('pfNumber')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. TN/CHN/12345" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">ESI Registration Number</label>
+                      <input {...profileForm.register('esiNumber')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. 12000345678901234" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Professional Tax (PT) Number</label>
+                      <input {...profileForm.register('professionalTaxNumber')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. PT/CHN/123456" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">LWF Registration Number</label>
+                      <input {...profileForm.register('labourWelfareFundNumber')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. TN/LWF/12345" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Bank Account Details */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-4 flex items-center gap-2">
+                    <Building size={16} className="text-purple-500" /> Company Bank Account
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Bank Name</label>
+                      <input {...profileForm.register('bankName')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. HDFC Bank" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Account Holder Name</label>
+                      <input {...profileForm.register('bankAccountName')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Lordsandkings Enterprises" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Account Number</label>
+                      <input {...profileForm.register('bankAccountNumber')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm font-mono focus:outline-none focus:border-purple-500" placeholder="e.g. 50200012345678" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">IFSC Code</label>
+                      <input {...profileForm.register('ifsc')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm font-mono focus:outline-none focus:border-purple-500" placeholder="e.g. HDFC0001234" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. System Preferences & Financial Year */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-4 flex items-center gap-2">
+                    <Sparkles size={16} className="text-purple-500" /> Regional & Financial Settings
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Timezone</label>
+                      <select {...profileForm.register('timezone')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500">
+                        <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                        <option value="UTC">UTC (Universal)</option>
+                        <option value="America/New_York">America/New_York (EST)</option>
+                        <option value="Asia/Dubai">Asia/Dubai (GST)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Currency</label>
+                      <select {...profileForm.register('currency')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500">
+                        <option value="INR">INR (₹)</option>
+                        <option value="USD">USD ($)</option>
+                        <option value="AED">AED (د.إ)</option>
+                        <option value="EUR">EUR (€)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">FY Start Month</label>
+                      <select {...profileForm.register('financialYearStart')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500">
+                        <option value="">-- SELECT --</option>
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                          <option key={m} value={m}>{new Date(2024, m - 1, 1).toLocaleString('default', { month: 'long' })}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">FY End Month</label>
+                      <select {...profileForm.register('financialYearEnd')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500">
+                        <option value="">-- SELECT --</option>
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                          <option key={m} value={m}>{new Date(2024, m - 1, 1).toLocaleString('default', { month: 'long' })}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Save Button */}
+                <div className="pt-6 border-t border-[var(--border)] flex justify-end gap-3">
+                  <button
+                    type="submit"
+                    disabled={updateCompanyMutation.isPending}
+                    className="px-6 py-3 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 transition-colors flex items-center gap-2 shadow-lg shadow-purple-500/20 disabled:opacity-50"
+                  >
+                    {updateCompanyMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    Save {activeEntity.defaultName} Details
+                  </button>
+                </div>
               </form>
             )}
 
-            {tab === 'branches' && (
-              editingBranchId ? (
-                <div className="space-y-3">
-                  <p className="text-xs font-bold text-[var(--text-primary)]">Edit Branch</p>
+            {/* TAB 2: ASSIGNED EMPLOYEES & WORKFORCE ASSIGNMENT */}
+            {companyWorkspaceTab === 'employees' && (
+              <div className="space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="relative flex-1 max-w-md">
+                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                    <input
+                      type="text"
+                      value={empFilterSearch}
+                      onChange={(e) => setEmpFilterSearch(e.target.value)}
+                      placeholder={`Search employees in ${activeEntity.defaultName}…`}
+                      className="w-full pl-10 pr-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedEmpIds([]);
+                      setAssignModalOpen(true);
+                    }}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-purple-700 transition-colors shadow-md shadow-purple-500/20"
+                  >
+                    <UserPlus size={16} /> Assign Employees to {activeEntity.defaultName}
+                  </button>
+                </div>
+
+                {isLoadingCompEmployees ? (
+                  <div className="flex justify-center items-center py-16">
+                    <Loader2 size={24} className="animate-spin text-purple-500" />
+                  </div>
+                ) : filteredCompanyEmployees.length === 0 ? (
+                  <div className="text-center py-16 border-2 border-dashed border-[var(--border)] rounded-2xl p-8 bg-[var(--surface-alt)]/50 space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-purple-500/10 text-purple-500 flex items-center justify-center mx-auto">
+                      <Users size={24} />
+                    </div>
+                    <h4 className="text-base font-bold text-[var(--text-primary)]">
+                      No employees assigned to {activeEntity.defaultName}
+                    </h4>
+                    <p className="text-xs text-[var(--text-muted)] max-w-md mx-auto">
+                      Assign workforce members from the group to this corporate entity to manage attendance, payroll, and departmental structures.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setAssignModalOpen(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl text-xs font-bold hover:bg-purple-700 transition-colors mt-2"
+                    >
+                      <UserPlus size={14} /> Assign Workforce Members
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredCompanyEmployees.map((emp: any) => (
+                      <div
+                        key={emp.id}
+                        className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-alt)] hover:shadow-md transition-all flex items-start justify-between gap-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-11 h-11 rounded-xl bg-purple-500/10 text-purple-600 font-bold flex items-center justify-center text-sm border border-purple-500/20 shrink-0 overflow-hidden">
+                            {emp.photoUrl ? (
+                              <img src={emp.photoUrl} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              `${emp.firstName?.[0] || ''}${emp.lastName?.[0] || ''}`
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-[var(--text-primary)]">
+                              {emp.firstName} {emp.lastName}
+                            </h4>
+                            <p className="text-xs text-purple-600 font-mono font-medium">
+                              {emp.employeeCode || emp.employeeId || '—'}
+                            </p>
+                            <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                              {emp.designation?.title || 'No Designation'} · {emp.department?.name || 'No Dept'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
+                          {emp.status || 'Active'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* MASTERS TAB VIEWS (Branches, Departments, Designations, Categories, Grades) */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1 space-y-6">
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 shadow-sm">
+              <h3 className="text-sm font-bold text-[var(--text-primary)] mb-4 flex items-center gap-2">
+                <Plus size={16} className="text-amber-500" /> Create New Entry
+              </h3>
+
+              {tab === 'departments' && (
+                <form onSubmit={deptForm.handleSubmit((d) => createDeptMutation.mutate(d))} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-[var(--text-primary)]">Department Name</label>
+                    <input {...deptForm.register('name')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" placeholder="e.g. Engineering" />
+                    {deptForm.formState.errors.name && <p className="text-xs text-rose-500">{deptForm.formState.errors.name.message}</p>}
+                  </div>
+                  <button type="submit" disabled={createDeptMutation.isPending} className="w-full py-2 bg-amber-500 text-slate-950 rounded-xl text-sm font-bold hover:bg-amber-600 transition-colors flex justify-center items-center gap-2">
+                    {createDeptMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Create Department
+                  </button>
+                </form>
+              )}
+
+              {tab === 'branches' && (
+                editingBranchId ? (
+                  <div className="space-y-3">
+                    <p className="text-xs font-bold text-[var(--text-primary)]">Edit Branch</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Name *</label>
+                        <input value={editBranchForm.name} onChange={(e) => setEditBranchForm({ ...editBranchForm, name: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Code</label>
+                        <input value={editBranchForm.code} onChange={(e) => setEditBranchForm({ ...editBranchForm, code: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" placeholder="e.g. CHN-001" />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Address</label>
+                      <input value={editBranchForm.address} onChange={(e) => setEditBranchForm({ ...editBranchForm, address: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" placeholder="e.g. 123 Tech Park" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">City</label>
+                        <input value={editBranchForm.city} onChange={(e) => setEditBranchForm({ ...editBranchForm, city: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">State</label>
+                        <input value={editBranchForm.state} onChange={(e) => setEditBranchForm({ ...editBranchForm, state: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Country</label>
+                        <input value={editBranchForm.country} onChange={(e) => setEditBranchForm({ ...editBranchForm, country: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Phone</label>
+                        <input value={editBranchForm.phone} onChange={(e) => setEditBranchForm({ ...editBranchForm, phone: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Pincode</label>
+                        <input value={editBranchForm.pincode} onChange={(e) => setEditBranchForm({ ...editBranchForm, pincode: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => setEditingBranchId(null)} className="flex-1 py-2 border border-[var(--border)] rounded-xl text-sm font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)]"><X size={14} className="inline mr-1" />Cancel</button>
+                      <button onClick={() => updateBranchMutation.mutate({ id: editingBranchId, data: editBranchForm })} disabled={!editBranchForm.name.trim() || updateBranchMutation.isPending} className="flex-1 py-2 bg-amber-500 text-slate-950 rounded-xl text-sm font-bold hover:bg-amber-600 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">
+                        {updateBranchMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Save
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                <form onSubmit={branchForm.handleSubmit((d) => createBranchMutation.mutate(d))} className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Name *</label>
-                      <input value={editBranchForm.name} onChange={(e) => setEditBranchForm({ ...editBranchForm, name: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                      <input {...branchForm.register('name')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" placeholder="e.g. Head Office" />
+                      {branchForm.formState.errors.name && <p className="text-xs text-rose-500">{branchForm.formState.errors.name.message}</p>}
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Code</label>
-                      <input value={editBranchForm.code} onChange={(e) => setEditBranchForm({ ...editBranchForm, code: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. CHN-001" />
+                      <input {...branchForm.register('code')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" placeholder="e.g. CHN-001" />
                     </div>
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Address</label>
-                    <input value={editBranchForm.address} onChange={(e) => setEditBranchForm({ ...editBranchForm, address: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. 123 Tech Park" />
+                    <input {...branchForm.register('address')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" placeholder="e.g. 123 Tech Park" />
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">City</label>
-                      <input value={editBranchForm.city} onChange={(e) => setEditBranchForm({ ...editBranchForm, city: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                      <input {...branchForm.register('city')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">State</label>
-                      <input value={editBranchForm.state} onChange={(e) => setEditBranchForm({ ...editBranchForm, state: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                      <input {...branchForm.register('state')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Country</label>
-                      <input value={editBranchForm.country} onChange={(e) => setEditBranchForm({ ...editBranchForm, country: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                      <input {...branchForm.register('country')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Phone</label>
-                      <input value={editBranchForm.phone} onChange={(e) => setEditBranchForm({ ...editBranchForm, phone: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                      <input {...branchForm.register('phone')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Pincode</label>
-                      <input value={editBranchForm.pincode} onChange={(e) => setEditBranchForm({ ...editBranchForm, pincode: e.target.value })} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
+                      <input {...branchForm.register('pincode')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" />
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setEditingBranchId(null)} className="flex-1 py-2 border border-[var(--border)] rounded-xl text-sm font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)]"><X size={14} className="inline mr-1" />Cancel</button>
-                    <button onClick={() => updateBranchMutation.mutate({ id: editingBranchId, data: editBranchForm })} disabled={!editBranchForm.name.trim() || updateBranchMutation.isPending} className="flex-1 py-2 bg-purple-500 text-white rounded-xl text-sm font-bold hover:bg-purple-600 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">
-                      {updateBranchMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Save
-                    </button>
-                  </div>
-                </div>
-              ) : (
-              <form onSubmit={branchForm.handleSubmit((d) => createBranchMutation.mutate(d))} className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Name *</label>
-                    <input {...branchForm.register('name')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Head Office" />
-                    {branchForm.formState.errors.name && <p className="text-xs text-rose-500">{branchForm.formState.errors.name.message}</p>}
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Code</label>
-                    <input {...branchForm.register('code')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. CHN-001" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Address</label>
-                  <input {...branchForm.register('address')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. 123 Tech Park" />
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">City</label>
-                    <input {...branchForm.register('city')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">State</label>
-                    <input {...branchForm.register('state')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Country</label>
-                    <input {...branchForm.register('country')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Phone</label>
-                    <input {...branchForm.register('phone')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Pincode</label>
-                    <input {...branchForm.register('pincode')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" />
-                  </div>
-                </div>
-                <button type="submit" disabled={createBranchMutation.isPending} className="w-full py-2 bg-purple-500 text-white rounded-xl text-sm font-bold hover:bg-purple-600 transition-colors flex justify-center items-center gap-2">
-                  {createBranchMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Create Branch
-                </button>
-              </form>
-              )
-            )}
+                  <button type="submit" disabled={createBranchMutation.isPending} className="w-full py-2 bg-amber-500 text-slate-950 rounded-xl text-sm font-bold hover:bg-amber-600 transition-colors flex justify-center items-center gap-2">
+                    {createBranchMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Create Branch
+                  </button>
+                </form>
+                )
+              )}
 
-            {tab === 'designations' && (
-              <form onSubmit={desigForm.handleSubmit((d) => createDesigMutation.mutate(d))} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-[var(--text-primary)]">Designation Title</label>
-                  <input {...desigForm.register('title')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Senior Developer" />
-                  {desigForm.formState.errors.title && <p className="text-xs text-rose-500">{desigForm.formState.errors.title.message}</p>}
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-[var(--text-primary)]">Grade/Band</label>
-                  <input {...desigForm.register('grade')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Band 4" />
-                </div>
-                <button type="submit" disabled={createDesigMutation.isPending} className="w-full py-2 bg-purple-500 text-white rounded-xl text-sm font-bold hover:bg-purple-600 transition-colors flex justify-center items-center gap-2">
-                  {createDesigMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Create Designation
-                </button>
-              </form>
-            )}
+              {tab === 'designations' && (
+                <form onSubmit={desigForm.handleSubmit((d) => createDesigMutation.mutate(d))} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-[var(--text-primary)]">Designation Title</label>
+                    <input {...desigForm.register('title')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" placeholder="e.g. Senior Developer" />
+                    {desigForm.formState.errors.title && <p className="text-xs text-rose-500">{desigForm.formState.errors.title.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-[var(--text-primary)]">Grade/Band</label>
+                    <input {...desigForm.register('grade')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" placeholder="e.g. Band 4" />
+                  </div>
+                  <button type="submit" disabled={createDesigMutation.isPending} className="w-full py-2 bg-amber-500 text-slate-950 rounded-xl text-sm font-bold hover:bg-amber-600 transition-colors flex justify-center items-center gap-2">
+                    {createDesigMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Create Designation
+                  </button>
+                </form>
+              )}
 
-            {(tab === 'categories' || tab === 'grades') && (
-              <form
-                onSubmit={masterForm.handleSubmit((d) => {
-                  createMasterMutation.mutate(
-                    { master: tab === 'categories' ? 'category' : 'grade', value: d.value.trim() },
-                    { onSuccess: () => masterForm.reset() }
-                  );
-                })}
-                className="space-y-4"
-              >
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-[var(--text-primary)]">{tab === 'categories' ? 'Category Name' : 'Grade Name'}</label>
-                  <input {...masterForm.register('value')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder={tab === 'categories' ? 'e.g. Permanent' : 'e.g. Grade A'} />
-                </div>
-                <button type="submit" disabled={createMasterMutation.isPending} className="w-full py-2 bg-purple-500 text-white rounded-xl text-sm font-bold hover:bg-purple-600 transition-colors flex justify-center items-center gap-2">
-                  {createMasterMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} {tab === 'categories' ? 'Create Category' : 'Create Grade'}
-                </button>
-              </form>
-            )}
+              {(tab === 'categories' || tab === 'grades') && (
+                <form
+                  onSubmit={masterForm.handleSubmit((d) => {
+                    createMasterMutation.mutate(
+                      { master: tab === 'categories' ? 'category' : 'grade', value: d.value.trim() },
+                      { onSuccess: () => masterForm.reset() }
+                    );
+                  })}
+                  className="space-y-4"
+                >
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-[var(--text-primary)]">{tab === 'categories' ? 'Category Name' : 'Grade Name'}</label>
+                    <input {...masterForm.register('value')} className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-amber-500" placeholder={tab === 'categories' ? 'e.g. Permanent' : 'e.g. Grade A'} />
+                  </div>
+                  <button type="submit" disabled={createMasterMutation.isPending} className="w-full py-2 bg-amber-500 text-slate-950 rounded-xl text-sm font-bold hover:bg-amber-600 transition-colors flex justify-center items-center gap-2">
+                    {createMasterMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} {tab === 'categories' ? 'Create Category' : 'Create Grade'}
+                  </button>
+                </form>
+              )}
+            </div>
           </div>
-        </div>
 
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm min-h-[400px]">
-            <div className="premium-datatable">
-               <style>{`
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm min-h-[400px]">
+              <div className="premium-datatable">
+                <style>{`
                   .premium-datatable table { width: 100%; border-collapse: separate; border-spacing: 0 8px; }
                   .premium-datatable th { padding: 12px 16px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 700; border-bottom: 1px solid var(--border); text-align: left; }
                   .premium-datatable td { padding: 12px 16px; background: var(--surface-alt); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); transition: background 0.2s; }
                   .premium-datatable tr td:first-child { border-left: 1px solid var(--border); border-top-left-radius: 12px; border-bottom-left-radius: 12px; }
                   .premium-datatable tr td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
                   .premium-datatable tbody tr:hover td { background: var(--surface-hover); }
-               `}</style>
-               {tab === 'departments' && <DataTable columns={deptColumns} data={departments || []} loading={isLoadingDepts} keyField="id" />}
-               {tab === 'branches' && <DataTable columns={branchColumns} data={branches || []} loading={isLoadingBranches} keyField="id" />}
-               {tab === 'designations' && <DataTable columns={desigColumns} data={designations || []} loading={isLoadingDesigs} keyField="id" />}
-               {tab === 'categories' && <DataTable columns={masterColumns} data={categories} loading={isLoadingMasters} keyField="id" />}
-               {tab === 'grades' && <DataTable columns={masterColumns} data={grades} loading={isLoadingMasters} keyField="id" />}
+                `}</style>
+                {tab === 'departments' && <DataTable columns={deptColumns} data={departments || []} loading={isLoadingDepts} keyField="id" />}
+                {tab === 'branches' && <DataTable columns={branchColumns} data={branches || []} loading={isLoadingBranches} keyField="id" />}
+                {tab === 'designations' && <DataTable columns={desigColumns} data={designations || []} loading={isLoadingDesigs} keyField="id" />}
+                {tab === 'categories' && <DataTable columns={masterColumns} data={categories} loading={isLoadingMasters} keyField="id" />}
+                {tab === 'grades' && <DataTable columns={masterColumns} data={grades} loading={isLoadingMasters} keyField="id" />}
+              </div>
             </div>
           </div>
         </div>
-      </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* ASSIGN EMPLOYEES MODAL                                                    */}
+      {/* ========================================================================= */}
+      <Modal
+        open={assignModalOpen}
+        onClose={() => setAssignModalOpen(false)}
+        title={`Assign Workforce to ${activeEntity.defaultName}`}
+        size="xl"
+      >
+        <div className="space-y-6">
+          <p className="text-xs text-[var(--text-muted)]">
+            Select employees from across the Lords And Kings Group to assign them to <strong>{activeEntity.defaultName}</strong>. Historical records are preserved.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+              <input
+                type="text"
+                value={assignSearch}
+                onChange={(e) => setAssignSearch(e.target.value)}
+                placeholder="Search by employee name, code, department, current company…"
+                className="w-full pl-10 pr-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
+              />
+            </div>
+            <div className="text-xs font-bold text-[var(--text-muted)] flex items-center gap-2">
+              <span>{selectedEmpIds.length} of {filteredGroupEmployees.length} selected</span>
+            </div>
+          </div>
+
+          {/* Quick Select / Deselect All */}
+          <div className="flex items-center justify-between text-xs px-1">
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedEmpIds.length === filteredGroupEmployees.length) {
+                  setSelectedEmpIds([]);
+                } else {
+                  setSelectedEmpIds(filteredGroupEmployees.map((e: any) => e.id));
+                }
+              }}
+              className="text-purple-600 font-bold hover:underline"
+            >
+              {selectedEmpIds.length === filteredGroupEmployees.length ? 'Deselect All' : 'Select All Filtered'}
+            </button>
+            <span className="text-[var(--text-muted)]">Target: {activeEntity.defaultName}</span>
+          </div>
+
+          {/* Employee Selection List */}
+          <div className="max-h-80 overflow-y-auto space-y-2 border border-[var(--border)] rounded-2xl p-2 bg-[var(--surface-alt)]/40">
+            {isLoadingAllEmployees ? (
+              <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-purple-500" /></div>
+            ) : filteredGroupEmployees.length === 0 ? (
+              <div className="text-center py-10 text-xs text-[var(--text-muted)]">
+                No employees found matching your search.
+              </div>
+            ) : (
+              filteredGroupEmployees.map((emp: any) => {
+                const isSelected = selectedEmpIds.includes(emp.id);
+                const isAlreadyInCompany = emp.companyId === activeCompanyId;
+                return (
+                  <label
+                    key={emp.id}
+                    className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-purple-500/10 border-purple-500'
+                        : isAlreadyInCompany
+                        ? 'bg-emerald-500/5 border-emerald-500/20 opacity-80'
+                        : 'bg-[var(--surface)] border-[var(--border)] hover:bg-[var(--surface-hover)]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedEmpIds([...selectedEmpIds, emp.id]);
+                          } else {
+                            setSelectedEmpIds(selectedEmpIds.filter((id) => id !== emp.id));
+                          }
+                        }}
+                        className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
+                      />
+                      <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-600 font-bold text-xs flex items-center justify-center shrink-0">
+                        {emp.firstName?.[0]}{emp.lastName?.[0]}
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-[var(--text-primary)]">
+                          {emp.firstName} {emp.lastName}
+                          <span className="ml-2 font-mono text-[10px] text-purple-600">({emp.employeeCode || emp.employeeId || '—'})</span>
+                        </p>
+                        <p className="text-[10px] text-[var(--text-muted)]">
+                          {emp.designation?.title || 'No Designation'} · {emp.department?.name || 'No Dept'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        isAlreadyInCompany
+                          ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                          : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                      }`}>
+                        {emp.company?.displayName || emp.company?.name || 'Unassigned'}
+                      </span>
+                    </div>
+                  </label>
+                );
+              })
+            )}
+          </div>
+
+          {/* Transfer Metadata Inputs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-[var(--text-primary)]">Effective Date</label>
+              <input
+                type="date"
+                value={assignEffectiveDate}
+                onChange={(e) => setAssignEffectiveDate(e.target.value)}
+                className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-xs focus:outline-none focus:border-purple-500"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-[var(--text-primary)]">Reason / Note</label>
+              <input
+                type="text"
+                value={assignReason}
+                onChange={(e) => setAssignReason(e.target.value)}
+                placeholder="Reason for assignment / transfer"
+                className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-xs focus:outline-none focus:border-purple-500"
+              />
+            </div>
+          </div>
+
+          {/* Modal Actions */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-[var(--border)]">
+            <button
+              type="button"
+              onClick={() => setAssignModalOpen(false)}
+              className="px-4 py-2 rounded-xl border border-[var(--border)] text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={selectedEmpIds.length === 0 || assignEmployeesMutation.isPending || !activeCompanyId}
+              onClick={() => {
+                if (activeCompanyId) {
+                  assignEmployeesMutation.mutate({
+                    companyId: activeCompanyId,
+                    employeeIds: selectedEmpIds,
+                    reason: assignReason,
+                    effectiveFrom: assignEffectiveDate,
+                  });
+                }
+              }}
+              className="flex items-center gap-2 px-5 py-2 bg-purple-600 text-white rounded-xl text-xs font-bold hover:bg-purple-700 transition-colors disabled:opacity-50 shadow-md shadow-purple-500/20"
+            >
+              {assignEmployeesMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />}
+              Assign {selectedEmpIds.length} Selected to {activeEntity.defaultName}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
     </div>
   );
 }

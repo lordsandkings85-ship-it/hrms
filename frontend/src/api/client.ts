@@ -140,6 +140,17 @@ export const companiesApi = {
     api<Company>('/companies', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Partial<Company>) =>
     api<Company>(`/companies/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  ensureDefaults: () =>
+    api<Company[]>('/companies/ensure-defaults', { method: 'POST' }),
+  getEmployees: (companyId: string) =>
+    api<any[]>(`/companies/${companyId}/employees`),
+  getGroupEmployees: () =>
+    api<any[]>('/group/employees'),
+  assignEmployees: (companyId: string, data: { employeeIds: string[]; reason?: string; effectiveFrom?: string }) =>
+    api<{ success: boolean; assignedCount: number; companyId: string; companyName: string }>(
+      `/companies/${companyId}/assign-employees`,
+      { method: 'POST', body: JSON.stringify(data) },
+    ),
 };
 
 export const authApi = {
