@@ -111,7 +111,21 @@ export default function ShiftsAdminPage() {
     },
   ];
   const assignmentColumns: Column<any>[] = [
-    { key: 'employee', header: 'Employee', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{r.employee?.firstName} {r.employee?.lastName || ''} <span className="text-[var(--text-muted)] font-mono text-xs uppercase">({r.employee?.employeeCode || '—'})</span></span> },
+    {
+      key: 'employee',
+      header: 'Employee',
+      render: (r: any) => (
+        <div>
+          <span className="font-bold text-[var(--text-primary)]">
+            {r.employee?.firstName} {r.employee?.lastName || ''}{' '}
+            <span className="text-[var(--text-muted)] font-mono text-xs uppercase">({r.employee?.employeeCode || '—'})</span>
+          </span>
+          {r.employee?.company?.displayName && (
+            <span className="block text-[10px] text-indigo-500 font-medium">{r.employee.company.displayName}</span>
+          )}
+        </div>
+      ),
+    },
     { key: 'dept', header: 'Department', render: (r: any) => <span className="text-xs">{r.employee?.department?.name || '—'}</span> },
     { key: 'shift', header: 'Shift', render: (r: any) => <span className="text-xs font-bold text-indigo-500">{r.shift?.name || '—'} {r.shift?.startTime ? <span className="text-[var(--text-muted)] font-mono">({formatTime12(r.shift.startTime)} - {formatTime12(r.shift.endTime)})</span> : null}</span> },
     { key: 'effectiveFrom', header: 'Effective From', render: (r: any) => <span className="text-xs">{fmtDate(r.effectiveFrom)}</span> },
@@ -215,7 +229,11 @@ export default function ShiftsAdminPage() {
               <div className="flex items-end gap-2 flex-wrap">
                 <select value={assignEmp} onChange={(e) => setAssignEmp(e.target.value)} className="px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-indigo-500">
                   <option value="">Select employee…</option>
-                  {employees.map((e: any) => <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>)}
+                  {employees.map((e: any) => (
+                    <option key={e.id} value={e.id}>
+                      {e.firstName} {e.lastName} ({e.employeeCode || '—'}) {e.company?.displayName ? `— ${e.company.displayName}` : ''}
+                    </option>
+                  ))}
                 </select>
                 <select value={assignShift[assignEmp] || ''} onChange={(e) => setAssignShift({ ...assignShift, [assignEmp]: e.target.value })} className="px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-indigo-500">
                   <option value="">Select shift…</option>

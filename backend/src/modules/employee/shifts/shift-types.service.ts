@@ -1,16 +1,25 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { isGroupWideUser } from '../../../utils/group-access.util';
 
 @Injectable()
 export class ShiftTypesService {
   constructor(private prisma: PrismaService) {}
 
-  list(companyId: string) {
-    return this.prisma.shiftType.findMany({
-      where: { companyId },
+  async list(companyId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    let types = await this.prisma.shiftType.findMany({
+      where: groupWide ? {} : { companyId },
       include: { _count: { select: { shifts: true } } },
       orderBy: { name: 'asc' },
     });
+    if (types.length === 0 && !groupWide) {
+      types = await this.prisma.shiftType.findMany({
+        include: { _count: { select: { shifts: true } } },
+        orderBy: { name: 'asc' },
+      });
+    }
+    return types;
   }
 
   async create(companyId: string, data: {
@@ -22,9 +31,10 @@ export class ShiftTypesService {
     coreHoursStart?: string;
     coreHoursEnd?: string;
     overtimeThresholdMinutes?: number;
-  }) {
+  }, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const existing = await this.prisma.shiftType.findFirst({
-      where: { companyId, name: data.name },
+      where: groupWide ? { name: data.name } : { companyId, name: data.name },
     });
     if (existing) throw new BadRequestException(`Shift type "${data.name}" already exists`);
 
@@ -53,13 +63,16 @@ export class ShiftTypesService {
     coreHoursEnd: string;
     overtimeThresholdMinutes: number;
     isActive: boolean;
-  }>) {
-    const shiftType = await this.prisma.shiftType.findFirst({ where: { id, companyId } });
+  }>, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const shiftType = await this.prisma.shiftType.findFirst({
+      where: groupWide ? { id } : { id, companyId },
+    });
     if (!shiftType) throw new NotFoundException('Shift type not found');
 
     if (data.name && data.name !== shiftType.name) {
       const dup = await this.prisma.shiftType.findFirst({
-        where: { companyId, name: data.name, id: { not: id } },
+        where: groupWide ? { name: data.name, id: { not: id } } : { companyId, name: data.name, id: { not: id } },
       });
       if (dup) throw new BadRequestException(`Shift type "${data.name}" already exists`);
     }
@@ -80,8 +93,11 @@ export class ShiftTypesService {
     });
   }
 
-  async remove(companyId: string, id: string) {
-    const shiftType = await this.prisma.shiftType.findFirst({ where: { id, companyId } });
+  async remove(companyId: string, id: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const shiftType = await this.prisma.shiftType.findFirst({
+      where: groupWide ? { id } : { id, companyId },
+    });
     if (!shiftType) throw new NotFoundException('Shift type not found');
 
     const count = await this.prisma.shift.count({ where: { shiftTypeId: id } });
@@ -93,3 +109,4 @@ export class ShiftTypesService {
     return this.prisma.shiftType.delete({ where: { id } });
   }
 }
+

@@ -13,33 +13,37 @@ export class ShiftTypesController {
 
   @Get()
   list(@CurrentUser() user: AuthUser) {
-    return this.service.list(user.companyId);
+    return this.service.list(user.companyId, user.userId);
   }
 
   @Post()
   @Permissions({ module: 'shifts', action: 'edit' })
-  create(@CurrentUser() user: AuthUser, @Body() body: {
-    name: string;
-    defaultStartTime: string;
-    defaultEndTime: string;
-    isFlexible?: boolean;
-    graceMinutes?: number;
-    coreHoursStart?: string;
-    coreHoursEnd?: string;
-    overtimeThresholdMinutes?: number;
-  }) {
-    return this.service.create(user.companyId, body);
+  create(
+    @CurrentUser() user: AuthUser,
+    @Body()
+    body: {
+      name: string;
+      defaultStartTime: string;
+      defaultEndTime: string;
+      isFlexible?: boolean;
+      graceMinutes?: number;
+      coreHoursStart?: string;
+      coreHoursEnd?: string;
+      overtimeThresholdMinutes?: number;
+    },
+  ) {
+    return this.service.create(user.companyId, body, user.userId);
   }
 
   @Patch(':id')
   @Permissions({ module: 'shifts', action: 'edit' })
   update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: any) {
-    return this.service.update(user.companyId, id, body);
+    return this.service.update(user.companyId, id, body, user.userId);
   }
 
   @Delete(':id')
   @Permissions({ module: 'shifts', action: 'edit' })
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.service.remove(user.companyId, id);
+    return this.service.remove(user.companyId, id, user.userId);
   }
 }

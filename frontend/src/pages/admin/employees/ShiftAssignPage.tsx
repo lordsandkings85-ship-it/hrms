@@ -50,7 +50,18 @@ export default function ShiftAssignPage() {
   const canAssign = empId && shiftId && effectiveFrom;
 
   const columns: Column<any>[] = [
-    { key: 'name', header: 'Employee Name', render: (row: any) => <span className="font-bold text-[var(--text-primary)]">{row.firstName} {row.lastName}</span> },
+    {
+      key: 'name',
+      header: 'Employee Name',
+      render: (row: any) => (
+        <div>
+          <span className="font-bold text-[var(--text-primary)]">{row.firstName} {row.lastName}</span>
+          {row.company?.displayName && (
+            <span className="block text-[10px] text-indigo-500 font-medium">{row.company.displayName}</span>
+          )}
+        </div>
+      ),
+    },
     { key: 'empId', header: 'Employee ID', render: (row: any) => <span className="font-mono text-xs uppercase text-[var(--text-muted)] tracking-wider">{row.employeeCode || row.employeeId || 'N/A'}</span> },
     { key: 'dept', header: 'Department', render: (row: any) => <span className="text-[var(--text-primary)] text-xs font-semibold">{row.department?.name || '—'}</span> },
     { key: 'designation', header: 'Designation', render: (row: any) => <span className="text-[var(--text-muted)] text-xs">{row.designation?.title || '—'}</span> },
@@ -110,7 +121,9 @@ export default function ShiftAssignPage() {
             >
               <option value="">Select employee…</option>
               {empList.map((e: any) => (
-                <option key={e.id} value={e.id}>{e.firstName} {e.lastName} ({e.employeeCode || e.employeeId || '—'})</option>
+                <option key={e.id} value={e.id}>
+                  {e.firstName} {e.lastName} ({e.employeeCode || e.employeeId || '—'}) {e.company?.displayName ? `— ${e.company.displayName}` : ''}
+                </option>
               ))}
             </select>
           </div>

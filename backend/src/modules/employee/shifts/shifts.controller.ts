@@ -10,26 +10,48 @@ import { ShiftsService } from './shifts.service';
 @Controller('shifts')
 export class ShiftsController {
   constructor(private service: ShiftsService) {}
-  @Get() list(@CurrentUser() user: AuthUser) { return this.service.list(user.companyId); }
+  @Get()
+  list(@CurrentUser() user: AuthUser) {
+    return this.service.list(user.companyId, user.userId);
+  }
+
   @Post()
   @Permissions({ module: 'shifts', action: 'edit' })
-  create(@CurrentUser() user: AuthUser, @Body() body: { name: string; startTime: string; endTime: string; type: string; shiftTypeId?: string }) {
-    return this.service.create(user.companyId, body.name, body.startTime, body.endTime, body.type, body.shiftTypeId);
+  create(
+    @CurrentUser() user: AuthUser,
+    @Body() body: { name: string; startTime: string; endTime: string; type: string; shiftTypeId?: string },
+  ) {
+    return this.service.create(user.companyId, body.name, body.startTime, body.endTime, body.type, body.shiftTypeId, user.userId);
   }
+
   @Delete(':id')
   @Permissions({ module: 'shifts', action: 'edit' })
-  deleteShift(@CurrentUser() user: AuthUser, @Param('id') id: string) { return this.service.deleteShift(user.companyId, id); }
+  deleteShift(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.service.deleteShift(user.companyId, id, user.userId);
+  }
+
   @Post('assign')
   @Permissions({ module: 'shifts', action: 'edit' })
   assign(@CurrentUser() user: AuthUser, @Body() body: { shiftId: string; employeeId: string; effectiveFrom: string }) {
-    return this.service.assign(user.companyId, body.shiftId, body.employeeId, body.effectiveFrom);
+    return this.service.assign(user.companyId, body.shiftId, body.employeeId, body.effectiveFrom, user.userId);
   }
+
   @Get('assignments')
-  listAssignments(@CurrentUser() user: AuthUser) { return this.service.listAssignments(user.companyId); }
+  listAssignments(@CurrentUser() user: AuthUser) {
+    return this.service.listAssignments(user.companyId, user.userId);
+  }
+
   @Delete('assignments/:id')
   @Permissions({ module: 'shifts', action: 'edit' })
-  deleteAssignment(@CurrentUser() user: AuthUser, @Param('id') id: string) { return this.service.deleteAssignment(user.companyId, id); }
-  @Get('holidays') listHolidays(@CurrentUser() user: AuthUser) { return this.service.listHolidays(user.companyId); }
+  deleteAssignment(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.service.deleteAssignment(user.companyId, id, user.userId);
+  }
+
+  @Get('holidays')
+  listHolidays(@CurrentUser() user: AuthUser) {
+    return this.service.listHolidays(user.companyId, user.userId);
+  }
+
   @Post('holidays')
   @Permissions({ module: 'shifts', action: 'edit' })
   addHoliday(@CurrentUser() user: AuthUser, @Body() body: { name: string; date: string }) {
@@ -40,36 +62,39 @@ export class ShiftsController {
   @Permissions({ module: 'shifts', action: 'edit' })
   generateRoster(
     @CurrentUser() user: AuthUser,
-    @Body() body: { departmentId: string; shiftIds: string[]; startDate: string; weeks: number }
+    @Body() body: { departmentId: string; shiftIds: string[]; startDate: string; weeks: number },
   ) {
     return this.service.generateDepartmentRoster(
       user.companyId,
       body.departmentId,
       body.shiftIds,
       body.startDate,
-      body.weeks
+      body.weeks,
+      user.userId,
     );
   }
 
   @Post('request-change')
   @Permissions({ module: 'shifts', action: 'create' })
   requestChange(@CurrentUser() user: AuthUser, @Body() body: any) {
-    return this.service.requestChange(user.companyId, body);
+    return this.service.requestChange(user.companyId, body, user.userId);
   }
+
   @Get('change-requests')
   @Permissions({ module: 'shifts', action: 'view' })
   listChangeRequests(@CurrentUser() user: AuthUser) {
-    return this.service.listChangeRequests(user.companyId);
+    return this.service.listChangeRequests(user.companyId, user.userId);
   }
+
   @Post('change-requests/:id/approve')
   @Permissions({ module: 'shifts', action: 'approve' })
   approveChangeRequest(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.service.approveChangeRequest(id, user.companyId, user.userId);
   }
+
   @Post('change-requests/:id/reject')
   @Permissions({ module: 'shifts', action: 'approve' })
   rejectChangeRequest(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.service.rejectChangeRequest(id, user.companyId, user.userId);
   }
 }
-
