@@ -329,7 +329,7 @@ export function CompanyFormModal({
             </button>
             <button type="submit" disabled={submitting} className="px-5 py-2 bg-purple-500 text-white rounded-xl text-sm font-bold hover:bg-purple-600 transition-colors flex items-center gap-2 disabled:opacity-50">
               {submitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-              Create Company
+              {mode === 'edit' ? 'Save Changes' : 'Create Company'}
             </button>
           </div>
         </form>
