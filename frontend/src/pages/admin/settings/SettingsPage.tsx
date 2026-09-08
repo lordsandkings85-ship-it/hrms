@@ -7,6 +7,7 @@ import { useToast } from '../../../components/ui/ToastProvider';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { compressImage } from '../../../utils/imageCompressor';
 
 const ALL_MODULES = [
   'dashboard', 'employees', 'attendance', 'leave', 'payroll', 'recruitment',
@@ -214,14 +215,19 @@ export default function SettingsPage() {
                                 type="file"
                                 accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
                                 className="hidden"
-                                onChange={(e) => {
+                                onChange={async (e) => {
                                   const file = e.target.files?.[0];
                                   if (!file) return;
-                                  const reader = new FileReader();
-                                  reader.onload = () => {
-                                    profileForm.setValue('logoUrl', reader.result as string, { shouldDirty: true });
-                                  };
-                                  reader.readAsDataURL(file);
+                                  try {
+                                    const compressed = await compressImage(file);
+                                    profileForm.setValue('logoUrl', compressed, { shouldDirty: true });
+                                  } catch {
+                                    const reader = new FileReader();
+                                    reader.onload = () => {
+                                      profileForm.setValue('logoUrl', reader.result as string, { shouldDirty: true });
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
                                 }}
                               />
                             </label>

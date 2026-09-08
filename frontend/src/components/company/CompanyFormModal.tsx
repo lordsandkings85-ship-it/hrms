@@ -8,6 +8,7 @@ import { Modal } from '../ui/Modal';
 import { companiesApi, authApi, Company } from '../../api/client';
 import { useToast } from '../ui/ToastProvider';
 import { useAuthStore } from '../../store/useAuthStore';
+import { compressImage } from '../../utils/imageCompressor';
 
 export const GROUP_NAME = 'Lords And Kings Group';
 
@@ -275,14 +276,19 @@ export function CompanyFormModal({
                           type="file"
                           accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
                           className="hidden"
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const file = e.target.files?.[0];
                             if (!file) return;
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                              setValue('logoUrl', reader.result as string, { shouldDirty: true });
-                            };
-                            reader.readAsDataURL(file);
+                            try {
+                              const compressed = await compressImage(file);
+                              setValue('logoUrl', compressed, { shouldDirty: true });
+                            } catch {
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                setValue('logoUrl', reader.result as string, { shouldDirty: true });
+                              };
+                              reader.readAsDataURL(file);
+                            }
                           }}
                         />
                       </label>

@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { DecimalToNumberInterceptor } from './common/interceptors/decimal-to-number.interceptor';
 
@@ -18,6 +19,10 @@ async function bootstrap() {
   assertRequiredEnv(['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'ENCRYPTION_KEY']);
 
   const app = await NestFactory.create(AppModule);
+
+  // Increase payload size limit to support image/logo uploads
+  app.use(json({ limit: '25mb' }));
+  app.use(urlencoded({ extended: true, limit: '25mb' }));
 
   // Trust the first hop so client IPs (used by the throttler) are correct behind
   // reverse proxies (Render/Railway/Nginx). Keep at 1 proxy hop.

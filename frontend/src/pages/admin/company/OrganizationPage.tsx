@@ -15,6 +15,7 @@ import * as z from 'zod';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { Modal } from '../../../components/ui/Modal';
 import { CompanyFormModal } from '../../../components/company/CompanyFormModal';
+import { compressImage } from '../../../utils/imageCompressor';
 
 const DEFAULT_DESIGNATIONS = [
   'Accounts Manager', 'Operations Associate', 'IT Associate', 'Accounts Associate',
@@ -1040,15 +1041,20 @@ export default function OrganizationPage() {
                           type="file"
                           accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
                           className="hidden"
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const file = e.target.files?.[0];
                             if (!file) return;
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                              const result = reader.result as string;
-                              profileForm.setValue('logoUrl', result, { shouldDirty: true, shouldValidate: true });
-                            };
-                            reader.readAsDataURL(file);
+                            try {
+                              const compressed = await compressImage(file);
+                              profileForm.setValue('logoUrl', compressed, { shouldDirty: true, shouldValidate: true });
+                            } catch {
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                const result = reader.result as string;
+                                profileForm.setValue('logoUrl', result, { shouldDirty: true, shouldValidate: true });
+                              };
+                              reader.readAsDataURL(file);
+                            }
                           }}
                         />
                       </label>
