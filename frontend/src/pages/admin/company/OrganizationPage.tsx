@@ -14,6 +14,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { Modal } from '../../../components/ui/Modal';
+import { CompanyFormModal } from '../../../components/company/CompanyFormModal';
 
 const DEFAULT_DESIGNATIONS = [
   'Accounts Manager', 'Operations Associate', 'IT Associate', 'Accounts Associate',
@@ -25,6 +26,57 @@ const DEFAULT_DESIGNATIONS = [
 const DEFAULT_DEPARTMENTS = [
   'Finance & Accounts', 'Operations', 'IT & Engineering', 'Human Resources',
   'Business & Strategy', 'Administration',
+];
+
+const EXTRA_THEMES = [
+  {
+    colorName: 'cyan',
+    cardBg: 'bg-[#ECFEFF] dark:bg-cyan-950/20',
+    cardBorder: 'border-cyan-200/90 dark:border-cyan-800/50',
+    activeBorder: 'border-cyan-500 ring-2 ring-cyan-500/30 shadow-cyan-500/10 shadow-lg',
+    badgeBg: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/60 dark:text-cyan-300',
+    iconBg: 'bg-cyan-600 text-white shadow-md shadow-cyan-500/20',
+    taglineColor: 'text-cyan-700/80 dark:text-cyan-400',
+    accentColor: '#0891B2',
+    headerGradient: 'from-cyan-600/10 to-transparent',
+    icon: Building2,
+  },
+  {
+    colorName: 'rose',
+    cardBg: 'bg-[#FFF1F2] dark:bg-rose-950/20',
+    cardBorder: 'border-rose-200/90 dark:border-rose-800/50',
+    activeBorder: 'border-rose-500 ring-2 ring-rose-500/30 shadow-rose-500/10 shadow-lg',
+    badgeBg: 'bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300',
+    iconBg: 'bg-rose-600 text-white shadow-md shadow-rose-500/20',
+    taglineColor: 'text-rose-700/80 dark:text-rose-400',
+    accentColor: '#E11D48',
+    headerGradient: 'from-rose-600/10 to-transparent',
+    icon: Briefcase,
+  },
+  {
+    colorName: 'teal',
+    cardBg: 'bg-[#F0FDFA] dark:bg-teal-950/20',
+    cardBorder: 'border-teal-200/90 dark:border-teal-800/50',
+    activeBorder: 'border-teal-500 ring-2 ring-teal-500/30 shadow-teal-500/10 shadow-lg',
+    badgeBg: 'bg-teal-100 text-teal-800 dark:bg-teal-900/60 dark:text-teal-300',
+    iconBg: 'bg-teal-600 text-white shadow-md shadow-teal-500/20',
+    taglineColor: 'text-teal-700/80 dark:text-teal-400',
+    accentColor: '#0D9488',
+    headerGradient: 'from-teal-600/10 to-transparent',
+    icon: Globe,
+  },
+  {
+    colorName: 'orange',
+    cardBg: 'bg-[#FFF7ED] dark:bg-orange-950/20',
+    cardBorder: 'border-orange-200/90 dark:border-orange-800/50',
+    activeBorder: 'border-orange-500 ring-2 ring-orange-500/30 shadow-orange-500/10 shadow-lg',
+    badgeBg: 'bg-orange-100 text-orange-800 dark:bg-orange-900/60 dark:text-orange-300',
+    iconBg: 'bg-orange-600 text-white shadow-md shadow-orange-500/20',
+    taglineColor: 'text-orange-700/80 dark:text-orange-400',
+    accentColor: '#EA580C',
+    headerGradient: 'from-orange-600/10 to-transparent',
+    icon: Building,
+  },
 ];
 
 const GROUP_ENTITIES = [
@@ -192,6 +244,7 @@ export default function OrganizationPage() {
   // Selected company state inside Company Profile view
   const [selectedCompanyKey, setSelectedCompanyKey] = useState<string>('enterprises');
   const [companyWorkspaceTab, setCompanyWorkspaceTab] = useState<'details' | 'employees'>('details');
+  const [addCompanyModalOpen, setAddCompanyModalOpen] = useState(false);
 
   // Employee Assignment Modal State
   const [assignModalOpen, setAssignModalOpen] = useState(false);
@@ -257,9 +310,9 @@ export default function OrganizationPage() {
   const categories = (allMasters ?? []).filter((m: any) => m.master === 'category');
   const grades = (allMasters ?? []).filter((m: any) => m.master === 'grade');
 
-  // Match companies from backend to our 4 group cards
+  // Match companies from backend to our group cards (standard 4 presets + any dynamic additions)
   const matchedEntities = useMemo(() => {
-    return GROUP_ENTITIES.map((entity) => {
+    const standardEntities = GROUP_ENTITIES.map((entity) => {
       const found = companies.find((c) => {
         const lowerName = (c.name || '').toLowerCase().trim();
         const lowerDisplay = (c.displayName || '').toLowerCase().trim();
@@ -272,6 +325,38 @@ export default function OrganizationPage() {
         employeeCount: found?._count?.employees ?? 0,
       };
     });
+
+    const standardCompanyIds = new Set(standardEntities.map((e) => e.companyId).filter(Boolean));
+    const extraCompanies = companies.filter((c) => !standardCompanyIds.has(c.id));
+
+    const extraEntities = extraCompanies.map((c, index) => {
+      const themeConfig = EXTRA_THEMES[index % EXTRA_THEMES.length];
+      return {
+        key: `custom-${c.id}`,
+        matchNames: [(c.name || '').toLowerCase(), (c.displayName || '').toLowerCase()],
+        defaultName: c.displayName || c.name,
+        tagline: `${(c.industry || 'BUSINESS').toUpperCase()} | ${(c.companyType || 'ENTERPRISE').toUpperCase()}`,
+        industry: c.industry || 'Business & Enterprise',
+        type: c.companyType || 'Private Limited',
+        theme: {
+          colorName: themeConfig.colorName,
+          cardBg: themeConfig.cardBg,
+          cardBorder: themeConfig.cardBorder,
+          activeBorder: themeConfig.activeBorder,
+          badgeBg: themeConfig.badgeBg,
+          iconBg: themeConfig.iconBg,
+          taglineColor: themeConfig.taglineColor,
+          accentColor: themeConfig.accentColor,
+          headerGradient: themeConfig.headerGradient,
+        },
+        icon: themeConfig.icon,
+        companyData: c,
+        companyId: c.id,
+        employeeCount: c._count?.employees ?? 0,
+      };
+    });
+
+    return [...standardEntities, ...extraEntities];
   }, [companies]);
 
   // Selected company object
@@ -625,17 +710,29 @@ export default function OrganizationPage() {
           ))}
         </div>
 
-        {tab !== 'profile' && (
-          <button
-            onClick={seedDefaults}
-            disabled={seeding}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-colors"
-            title="Seed default departments and designations"
-          >
-            {seeding ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-            Seed Defaults
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {tab === 'profile' && (
+            <button
+              onClick={() => setAddCompanyModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 text-xs font-extrabold text-slate-950 bg-gradient-to-r from-[#D4AF37] to-[#F5D77F] hover:from-[#F5D77F] hover:to-[#D4AF37] rounded-xl shadow-md shadow-amber-500/20 transition-all transform hover:scale-105 cursor-pointer"
+            >
+              <Plus size={15} className="stroke-[3]" />
+              Add Company
+            </button>
+          )}
+
+          {tab !== 'profile' && (
+            <button
+              onClick={seedDefaults}
+              disabled={seeding}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-colors"
+              title="Seed default departments and designations"
+            >
+              {seeding ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              Seed Defaults
+            </button>
+          )}
+        </div>
       </div>
 
       {tab === 'profile' ? (
@@ -676,14 +773,21 @@ export default function OrganizationPage() {
                 A STRONGER TOMORROW TOGETHER
               </p>
 
-              {/* Summary Stats Pill */}
-              <div className="pt-2 flex items-center gap-4 text-xs">
+              {/* Summary Stats & Add Company Pill */}
+              <div className="pt-2 flex flex-wrap items-center justify-center gap-3 text-xs">
                 <span className="px-3.5 py-1 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/40 text-[#FCE8A6] font-semibold flex items-center gap-1.5">
-                  <Building2 size={13} className="text-[#F5D77F]" /> 4 Corporate Entities
+                  <Building2 size={13} className="text-[#F5D77F]" /> {matchedEntities.length} Corporate Entities
                 </span>
                 <span className="px-3.5 py-1 rounded-full bg-white/10 border border-white/20 text-slate-200 font-semibold flex items-center gap-1.5">
                   <Users size={13} className="text-emerald-400" /> {totalGroupEmployees} Total Workforce
                 </span>
+                <button
+                  type="button"
+                  onClick={() => setAddCompanyModalOpen(true)}
+                  className="px-3.5 py-1 rounded-full bg-gradient-to-r from-[#D4AF37] to-[#F5D77F] hover:from-[#F5D77F] hover:to-[#D4AF37] text-slate-950 font-extrabold flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all transform hover:scale-105 cursor-pointer"
+                >
+                  <Plus size={13} className="stroke-[3]" /> Add Company
+                </button>
               </div>
             </div>
           </div>
@@ -714,7 +818,7 @@ export default function OrganizationPage() {
           </div>
 
           {/* ========================================================================= */}
-          {/* THE 4 COMPANY CARDS (Clickable, themed, showing count & details)          */}
+          {/* THE COMPANY CARDS (Clickable, themed, showing count & details)            */}
           {/* ========================================================================= */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
             {matchedEntities.map((entity) => {
@@ -774,6 +878,26 @@ export default function OrganizationPage() {
                 </div>
               );
             })}
+
+            {/* Add Company Card Button */}
+            <div
+              onClick={() => setAddCompanyModalOpen(true)}
+              className="relative rounded-3xl p-6 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center text-center border-2 border-dashed border-[var(--border)] hover:border-amber-500 bg-[var(--surface)] hover:bg-amber-500/5 group shadow-sm hover:shadow-md hover:-translate-y-1"
+              style={{ minHeight: '260px' }}
+            >
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:bg-gradient-to-r group-hover:from-[#D4AF37] group-hover:to-[#F5D77F] group-hover:text-slate-950 transition-all shadow-sm">
+                <Plus size={32} className="stroke-[2.5]" />
+              </div>
+              <h3 className="text-lg font-bold text-[var(--text-primary)] group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                Add Company
+              </h3>
+              <p className="text-xs text-[var(--text-muted)] mt-1.5 max-w-[200px]">
+                Create a new corporate entity or subsidiary under the group
+              </p>
+              <span className="mt-4 px-3.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 rounded-full border border-amber-200 dark:border-amber-800/60 flex items-center gap-1">
+                <Plus size={12} className="stroke-[3]" /> New Entity
+              </span>
+            </div>
           </div>
 
           {/* ========================================================================= */}
@@ -1474,6 +1598,13 @@ export default function OrganizationPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Add Company Modal */}
+      <CompanyFormModal
+        open={addCompanyModalOpen}
+        mode="add"
+        onClose={() => setAddCompanyModalOpen(false)}
+      />
 
     </div>
   );
