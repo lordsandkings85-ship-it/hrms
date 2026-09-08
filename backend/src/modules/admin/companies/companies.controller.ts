@@ -3,7 +3,7 @@ import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { Permissions } from '../../../common/decorators/permissions.decorator';
 import { CurrentUser, AuthUser } from '../../../common/decorators/current-user.decorator';
-import { CompaniesService } from './companies.service';
+import { CompaniesService, CreateCompanyInput } from './companies.service';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller()
@@ -24,16 +24,13 @@ export class CompaniesController {
   /** Multi-company: create a sub-company under the caller's group. */
   @Post('companies')
   @Permissions({ module: 'organization', action: 'create' })
-  createCompany(@CurrentUser() user: AuthUser, @Body() body: {
-    name: string; displayName?: string; legalName?: string; timezone?: string; currency?: string;
-    address?: string; city?: string; state?: string; country?: string; pincode?: string;
-    gstNumber?: string; panNumber?: string;
-  }) {
+  createCompany(@CurrentUser() user: AuthUser, @Body() body: CreateCompanyInput) {
     return this.companiesService.create(user.userId, user.companyId, body);
   }
 
-  /** Multi-company: update a company within the caller's access scope. */
+  /** Multi-company: update a company (Admin/Super Admin only). */
   @Patch('companies/:id')
+  @Permissions({ module: 'organization', action: 'edit' })
   updateCompany(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: any) {
     return this.companiesService.update(user.userId, user.companyId, id, body);
   }

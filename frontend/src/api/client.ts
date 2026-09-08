@@ -104,6 +104,10 @@ export interface Company {
   planId?: string | null;
   timezone?: string;
   currency?: string;
+  logoUrl?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
   gstNumber?: string | null;
   panNumber?: string | null;
   address?: string | null;
@@ -111,6 +115,22 @@ export interface Company {
   state?: string | null;
   country?: string | null;
   pincode?: string | null;
+  industry?: string | null;
+  companyType?: string | null;
+  financialYearStart?: number | null;
+  financialYearEnd?: number | null;
+  payrollEffectiveFrom?: number | null;
+  tanNumber?: string | null;
+  cinNumber?: string | null;
+  pfNumber?: string | null;
+  esiNumber?: string | null;
+  professionalTaxNumber?: string | null;
+  labourWelfareFundNumber?: string | null;
+  bankName?: string | null;
+  bankAccountName?: string | null;
+  bankAccountNumber?: string | null;
+  ifsc?: string | null;
+  createdAt?: string;
   _count?: { employees?: number };
 }
 

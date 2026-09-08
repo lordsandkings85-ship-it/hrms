@@ -194,48 +194,84 @@ export class AuthService {
     };
   }
 
-  /** Resolve the user's accessible companies (primary + memberships) for the HR selector. */
+  /**
+   * Group-wide visibility: users who manage the whole Lords And Kings Group
+   * (super admin, system role, or any role with `organization` grants) can see,
+   * switch to and manage EVERY company under the group. Everyone else sees only
+   * their primary company plus explicit UserCompany memberships.
+   */
+  private async isGroupWide(userId: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        isSuperAdmin: true,
+        role: { select: { isSystem: true, permissions: { select: { module: true } } } },
+      },
+    });
+    if (!user) return false;
+    if (user.isSuperAdmin) return true;
+    if (user.role?.isSystem) return true;
+    return !!user.role?.permissions?.some((p) => p.module === 'organization');
+  }
+
+  /** Resolve the user's accessible companies for the HR selector. */
   private async resolveCompanies(userId: string, primaryCompanyId: string) {
-    const membership = await this.prisma.userCompany.findMany({
-      where: { userId, isActive: true },
-      select: {
-        company: {
-          select: {
-            id: true, name: true, displayName: true, legalName: true,
-            status: true, planId: true,
-          },
-        },
-      },
-    });
-    const primary = await this.prisma.company.findUnique({
-      where: { id: primaryCompanyId },
-      select: {
-        id: true, name: true, displayName: true, legalName: true,
-        status: true, planId: true,
-      },
-    });
-    // Merge primary first (dedupe against memberships).
-    const merged = new Map<string, typeof primary & object>();
-    if (primary) merged.set(primary.id, primary);
-    for (const m of membership) {
-      if (m.company && !merged.has(m.company.id)) merged.set(m.company.id, m.company);
+    const select = {
+      id: true, name: true, displayName: true, legalName: true,
+      status: true, planId: true,
+    } as const;
+
+    // Fetch all accessible companies explicitly so membership rows stay in
+    // sync with token claims (a company may exist without a creator membership).
+    let accessible: Array<{ id: string } & Record<string, any>>;
+    if (await this.isGroupWide(userId)) {
+      accessible = await this.prisma.company.findMany({ select, orderBy: { createdAt: 'asc' } });
+    } else {
+      const membership = await this.prisma.userCompany.findMany({
+        where: { userId, isActive: true },
+        select: { company: { select } },
+      });
+      const merged = new Map<string, any>();
+      for (const m of membership) {
+        if (m.company) merged.set(m.company.id, m.company);
+      }
+      const primary = await this.prisma.company.findUnique({
+        where: { id: primaryCompanyId },
+        select,
+      });
+      if (primary && !merged.has(primary.id)) {
+        merged.set(primary.id, primary);
+      }
+      accessible = Array.from(merged.values());
     }
-    return Array.from(merged.values()).map((c) => ({
-      ...c,
-      label: c.displayName || c.name,
-    }));
+
+    // Primary company always first, then creation order.
+    return accessible
+      .map((c) => ({ ...c, label: c.displayName || c.name }))
+      .sort((a, b) => {
+        if (a.id === primaryCompanyId) return -1;
+        if (b.id === primaryCompanyId) return 1;
+        return 0;
+      });
   }
 
   private async issueTokens(userId: string, companyId: string, email: string, roleId?: string) {
-    // Resolve the user's full set of accessible companies: their primary companyId
-    // plus any additional UserCompany memberships (multi-company HR/admin).
-    const membership = await this.prisma.userCompany.findMany({
-      where: { userId, isActive: true },
-      select: { companyId: true },
-    });
-    const companyIds = Array.from(
-      new Set([companyId, ...membership.map((m) => m.companyId)]),
-    );
+    // Resolve the user's accessible companies: group admins/HR get every
+    // company under Lords And Kings Group; everyone else gets primary +
+    // memberships (multi-company HR/admin).
+    let companyIds: string[];
+    if (await this.isGroupWide(userId)) {
+      const all = await this.prisma.company.findMany({ select: { id: true } });
+      companyIds = Array.from(new Set([companyId, ...all.map((c) => c.id)]));
+    } else {
+      const membership = await this.prisma.userCompany.findMany({
+        where: { userId, isActive: true },
+        select: { companyId: true },
+      });
+      companyIds = Array.from(
+        new Set([companyId, ...membership.map((m) => m.companyId)]),
+      );
+    }
 
     const payload = { sub: userId, companyId, activeCompanyId: companyId, companyIds, email, roleId };
 

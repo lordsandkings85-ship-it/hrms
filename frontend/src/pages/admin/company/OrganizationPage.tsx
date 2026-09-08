@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Building2, Landmark, ShieldAlert, Award, Plus, Trash2, MapPin, Users, Layers, Loader2, Search, Download, Check, Settings, Pencil, X } from 'lucide-react';
-import { organizationApi, settingsApi, orgMastersApi, companiesApi } from '../../../api/client';
+import { Building2, Landmark, ShieldAlert, Award, Plus, Trash2, MapPin, Users, Layers, Loader2, Search, Download, Check, Settings, Pencil, X, Eye, Power } from 'lucide-react';
+import { organizationApi, settingsApi, orgMastersApi, companiesApi, Company } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
+import { CompanyFormModal, GROUP_NAME } from '../../../components/company/CompanyFormModal';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -313,24 +314,25 @@ export default function OrganizationPage() {
     onError: (e: any) => toastError(e.message || 'Failed to update profile')
   });
 
-  // Multi-company: list accessible companies + create a sub-company
-  const { data: companies } = useQuery({
+  // Multi-company: list all companies under the Lords And Kings Group
+  const { data: companies, isLoading: isLoadingCompanies } = useQuery({
     queryKey: ['companies-list'],
     queryFn: () => companiesApi.list(),
   });
 
-  const createCompanyMutation = useMutation({
-    mutationFn: (data: { name: string; displayName?: string; legalName?: string; gstNumber?: string; panNumber?: string; address?: string; city?: string; state?: string; country?: string; pincode?: string }) =>
-      companiesApi.create(data),
-    onSuccess: () => {
-      toastSuccess('Sub-company created');
-      setNewCompanyForm({ name: '', displayName: '', legalName: '', gstNumber: '', panNumber: '', address: '', city: '', state: '', country: 'India', pincode: '' });
+  const [companyModal, setCompanyModal] = useState<{
+    mode: 'add' | 'edit' | 'view';
+    company?: Company | null;
+  } | null>(null);
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => companiesApi.update(id, { status }),
+    onSuccess: (_data, vars) => {
+      toastSuccess(`Company ${vars.status === 'active' ? 'activated' : 'deactivated'}`);
       queryClient.invalidateQueries({ queryKey: ['companies-list'] });
     },
-    onError: (e: any) => toastError(e.message || 'Failed to create company')
+    onError: (e: any) => toastError(e.message || 'Failed to update company status'),
   });
-
-  const [newCompanyForm, setNewCompanyForm] = useState({ name: '', displayName: '', legalName: '', gstNumber: '', panNumber: '', address: '', city: '', state: '', country: 'India', pincode: '' });
 
   const [seeding, setSeeding] = useState(false);
 
@@ -419,6 +421,101 @@ export default function OrganizationPage() {
     }
   ];
 
+  // Lords And Kings (the profile company) always first, then creation order.
+  const sortedCompanies = (companies ?? []).slice().sort((a, b) => {
+    if (a.id === profile?.id) return -1;
+    if (b.id === profile?.id) return 1;
+    return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+  });
+  const isProfileCompany = (id: string) => id === profile?.id;
+
+  const companiesColumns: Column<any>[] = [
+    {
+      key: 'logo',
+      header: 'Company Logo',
+      render: (row) => (
+        <div className="w-10 h-10 rounded-xl overflow-hidden border border-[var(--border)] bg-[var(--surface-alt)] flex items-center justify-center text-purple-500 font-bold text-sm">
+          {row.logoUrl
+            ? <img src={row.logoUrl} alt="" className="w-full h-full object-cover" />
+            : (row.displayName || row.name || 'CO').slice(0, 2).toUpperCase()}
+        </div>
+      ),
+    },
+    {
+      key: 'name',
+      header: 'Company Name',
+      sortable: true,
+      render: (row) => (
+        <div className="min-w-0">
+          <p className="font-bold text-[var(--text-primary)] truncate flex items-center gap-2">
+            {row.displayName || row.name}
+            {isProfileCompany(row.id) && (
+              <span className="shrink-0 text-[9px] font-bold uppercase bg-purple-500/10 text-purple-500 border border-purple-500/20 px-1.5 py-0.5 rounded-full">Parent</span>
+            )}
+          </p>
+          {row.legalName && <p className="text-xs text-[var(--text-muted)] truncate">{row.legalName}</p>}
+        </div>
+      ),
+    },
+    { key: 'legalName', header: 'Legal Name', render: (row) => <span className="text-xs text-[var(--text-muted)]">{row.legalName || '—'}</span> },
+    { key: 'panNumber', header: 'PAN', render: (row) => <span className="text-xs font-mono">{row.panNumber || '—'}</span> },
+    { key: 'gstNumber', header: 'GSTIN', render: (row) => <span className="text-xs font-mono">{row.gstNumber || '—'}</span> },
+    {
+      key: 'location',
+      header: 'Location',
+      render: (row) => <span className="text-xs text-[var(--text-muted)]">{[row.city, row.state].filter(Boolean).join(', ') || '—'}</span>,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (row) => row.status === 'active'
+        ? <span className="text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full text-[10px] font-bold border border-emerald-500/20">Active</span>
+        : <span className="text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full text-[10px] font-bold border border-rose-500/20">Inactive</span>,
+    },
+    {
+      key: 'createdAt',
+      header: 'Created',
+      sortable: true,
+      render: (row) => <span className="text-xs text-[var(--text-muted)]">{row.createdAt ? new Date(row.createdAt).toLocaleDateString() : '—'}</span>,
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (row) => (
+        <div className="flex gap-1.5 justify-end">
+          <button
+            onClick={() => setCompanyModal({ mode: 'view', company: row })}
+            title="View company"
+            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-purple-500 hover:bg-purple-500/10"
+          >
+            <Eye size={14} />
+          </button>
+          <button
+            onClick={() => setCompanyModal({ mode: 'edit', company: row })}
+            title="Edit company"
+            className="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-500/10"
+          >
+            <Pencil size={14} />
+          </button>
+          {!isProfileCompany(row.id) && (
+            <button
+              onClick={() => {
+                const next = row.status === 'active' ? 'inactive' : 'active';
+                if (confirm(`${next === 'active' ? 'Activate' : 'Deactivate'} "${row.displayName || row.name}"?`)) {
+                  toggleStatusMutation.mutate({ id: row.id, status: next });
+                }
+              }}
+              title={row.status === 'active' ? 'Deactivate company' : 'Activate company'}
+              className={`p-1.5 rounded-lg ${row.status === 'active' ? 'text-rose-500 hover:bg-rose-500/10' : 'text-emerald-500 hover:bg-emerald-500/10'}`}
+            >
+              <Power size={14} />
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
       
@@ -467,7 +564,50 @@ export default function OrganizationPage() {
       </div>
 
       {tab === 'profile' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="space-y-6">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="absolute top-0 right-0 p-24 bg-purple-500/10 rounded-bl-full -z-0 blur-2xl"></div>
+            <div className="relative z-10 flex items-center gap-5">
+              <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-500 shadow-inner">
+                <Landmark size={28} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">{GROUP_NAME}</h2>
+                <p className="text-sm text-[var(--text-muted)] mt-0.5 font-medium">This is the parent / group-level organization. All companies below operate under this group.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setCompanyModal({ mode: 'add', company: null })}
+              className="relative z-10 flex items-center gap-2 px-4 py-2.5 bg-purple-500 text-white rounded-xl text-sm font-bold hover:bg-purple-600 transition-all shadow-md shadow-purple-500/20"
+            >
+              <Plus size={16} /> Add New Company
+            </button>
+          </div>
+
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 pt-5 pb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
+                  <Building2 className="text-purple-500" size={18} /> Companies
+                </h3>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">Manage all companies under {GROUP_NAME}</p>
+              </div>
+              <span className="text-[10px] font-mono text-purple-500 bg-purple-500/10 px-2.5 py-1 rounded-full border border-purple-500/20">{companies?.length ?? 0} total</span>
+            </div>
+            <DataTable
+              columns={companiesColumns}
+              data={sortedCompanies}
+              keyField="id"
+              loading={isLoadingCompanies}
+              selectable={false}
+              showToolbar={false}
+              pageSize={10}
+              emptyTitle="No companies found"
+              emptyMessage="This group does not have any companies yet."
+            />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm">
               <h3 className="text-lg font-bold text-[var(--text-primary)] mb-6 flex items-center gap-2">
@@ -730,100 +870,9 @@ export default function OrganizationPage() {
               </div>
             </div>
 
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center justify-between">
-                <span>Sub-Companies</span>
-                <span className="text-[10px] font-mono text-purple-500">{companies?.length ?? 0}</span>
-              </h4>
-              <div className="space-y-2">
-                {(companies ?? []).filter((c) => c.id !== profile?.id).length === 0 && (
-                  <p className="text-xs text-[var(--text-muted)]">No sub-companies yet. Create one below to assign employees and run separate payroll cycles.</p>
-                )}
-                {(companies ?? [])
-                  .filter((c) => c.id !== profile?.id)
-                  .map((c) => (
-                    <div key={c.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl" style={{ background: 'var(--surface-alt)', border: '1px solid var(--border)' }}>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-[var(--text-primary)] truncate">{c.displayName || c.name}</p>
-                        <p className="text-[10px] text-[var(--text-muted)] font-mono truncate">{c.gstNumber || c.legalName || c.id.slice(0, 8)}</p>
-                      </div>
-                      <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--surface-active)', color: 'var(--text-muted)' }}>
-                        {c._count?.employees ?? 0} emp
-                      </span>
-                    </div>
-                  ))}
-              </div>
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (newCompanyForm.name.trim()) createCompanyMutation.mutate(newCompanyForm);
-                }}
-                className="space-y-3 pt-2 border-t"
-                style={{ borderColor: 'var(--border)' }}
-              >
-                <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Create Sub-Company</p>
-                <input
-                  value={newCompanyForm.name}
-                  onChange={(e) => setNewCompanyForm({ ...newCompanyForm, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
-                  placeholder="Company name (required)"
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    value={newCompanyForm.displayName}
-                    onChange={(e) => setNewCompanyForm({ ...newCompanyForm, displayName: e.target.value })}
-                    className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
-                    placeholder="Display name"
-                  />
-                  <input
-                    value={newCompanyForm.legalName}
-                    onChange={(e) => setNewCompanyForm({ ...newCompanyForm, legalName: e.target.value })}
-                    className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
-                    placeholder="Legal name"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    value={newCompanyForm.gstNumber}
-                    onChange={(e) => setNewCompanyForm({ ...newCompanyForm, gstNumber: e.target.value })}
-                    className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
-                    placeholder="GST number"
-                  />
-                  <input
-                    value={newCompanyForm.panNumber}
-                    onChange={(e) => setNewCompanyForm({ ...newCompanyForm, panNumber: e.target.value })}
-                    className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
-                    placeholder="PAN number"
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <input
-                    value={newCompanyForm.city}
-                    onChange={(e) => setNewCompanyForm({ ...newCompanyForm, city: e.target.value })}
-                    className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
-                    placeholder="City"
-                  />
-                  <input
-                    value={newCompanyForm.state}
-                    onChange={(e) => setNewCompanyForm({ ...newCompanyForm, state: e.target.value })}
-                    className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
-                    placeholder="State"
-                  />
-                  <input
-                    value={newCompanyForm.country}
-                    onChange={(e) => setNewCompanyForm({ ...newCompanyForm, country: e.target.value })}
-                    className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
-                    placeholder="Country"
-                  />
-                </div>
-                <button type="submit" disabled={!newCompanyForm.name.trim() || createCompanyMutation.isPending} className="w-full py-2 bg-purple-500 text-white rounded-xl text-sm font-bold hover:bg-purple-600 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">
-                  {createCompanyMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Create Sub-Company
-                </button>
-              </form>
             </div>
-          </div>
         </div>
+      </div>
       ) : (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 space-y-6">
@@ -999,6 +1048,14 @@ export default function OrganizationPage() {
           </div>
         </div>
       </div>
+      )}
+      {companyModal && (
+        <CompanyFormModal
+          open
+          mode={companyModal.mode}
+          company={companyModal.company}
+          onClose={() => setCompanyModal(null)}
+        />
       )}
     </div>
   );

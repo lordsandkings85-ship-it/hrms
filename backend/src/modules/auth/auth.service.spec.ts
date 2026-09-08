@@ -44,6 +44,9 @@ function mockPrisma(opts: {
     userCompany: {
       findMany: jest.fn(async () => []),
     },
+    company: {
+      findMany: jest.fn(async () => []),
+    },
   };
 }
 
@@ -109,11 +112,15 @@ describe('AuthService.refresh employee-status gate', () => {
       refreshToken: { findMany: jest.fn(async () => [{ id: 't-1', tokenHash: 'x' }]), update: jest.fn(async () => ({})), create: jest.fn(async () => ({})) },
       user: {
         findUniqueOrThrow: jest.fn(async () => ({ id: 'u-1', companyId: 'c-1', email: 'a@b.c', roleId: 'r-1', employeeId: 'emp-1', isSuperAdmin: false })),
+        findUnique: jest.fn(async () => ({ isSuperAdmin: false, role: { isSystem: false, permissions: [] } })),
       },
       employee: {
         findUnique: jest.fn(async () => (found ? { status, isSystem } : null)),
       },
       userCompany: {
+        findMany: jest.fn(async () => []),
+      },
+      company: {
         findMany: jest.fn(async () => []),
       },
     };

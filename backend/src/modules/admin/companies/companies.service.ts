@@ -1,5 +1,52 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+
+export interface CreateCompanyInput {
+  name: string;
+  displayName?: string;
+  legalName?: string;
+  logoUrl?: string;
+  timezone?: string;
+  currency?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  gstNumber?: string;
+  panNumber?: string;
+  industry?: string;
+  companyType?: string;
+  financialYearStart?: number;
+  financialYearEnd?: number;
+  payrollEffectiveFrom?: number;
+  city?: string;
+  state?: string;
+  country?: string;
+  pincode?: string;
+  tanNumber?: string;
+  cinNumber?: string;
+  pfNumber?: string;
+  esiNumber?: string;
+  professionalTaxNumber?: string;
+  labourWelfareFundNumber?: string;
+  bankName?: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  ifsc?: string;
+  status?: string;
+}
+
+const EDITABLE_FIELDS = [
+  'name', 'displayName', 'legalName', 'logoUrl', 'timezone', 'currency',
+  'address', 'phone', 'email', 'website', 'gstNumber', 'panNumber',
+  'industry', 'companyType', 'financialYearStart', 'financialYearEnd',
+  'payrollEffectiveFrom', 'city', 'state', 'country', 'pincode',
+  'tanNumber', 'cinNumber', 'pfNumber', 'esiNumber', 'professionalTaxNumber',
+  'labourWelfareFundNumber', 'bankName', 'bankAccountName', 'bankAccountNumber',
+  'ifsc', 'status',
+];
+
+const INTEGER_FIELDS = ['financialYearStart', 'financialYearEnd', 'payrollEffectiveFrom'];
 
 @Injectable()
 export class CompaniesService {
@@ -36,7 +83,7 @@ export class CompaniesService {
 
   async deleteDepartment(companyId: string, id: string) {
     const existing = await this.prisma.department.findFirst({ where: { id, companyId } });
-    if (!existing) throw new Error('Department not found');
+    if (!existing) throw new NotFoundException('Department not found');
     return this.prisma.department.delete({ where: { id } });
   }
 
@@ -60,15 +107,15 @@ export class CompaniesService {
     state?: string; country?: string; phone?: string; pincode?: string; isActive?: boolean;
   }) {
     const existing = await this.prisma.branch.findFirst({ where: { id, companyId } });
-    if (!existing) throw new Error('Branch not found');
+    if (!existing) throw new NotFoundException('Branch not found');
     return this.prisma.branch.update({ where: { id }, data });
   }
 
   async deleteBranch(id: string, companyId: string) {
     const existing = await this.prisma.branch.findFirst({ where: { id, companyId } });
-    if (!existing) throw new Error('Branch not found');
+    if (!existing) throw new NotFoundException('Branch not found');
     const employeeCount = await this.prisma.employee.count({ where: { branchId: id } });
-    if (employeeCount > 0) throw new Error(`Cannot delete: ${employeeCount} employee(s) are assigned to this branch`);
+    if (employeeCount > 0) throw new BadRequestException(`Cannot delete: ${employeeCount} employee(s) are assigned to this branch`);
     return this.prisma.branch.delete({ where: { id } });
   }
 
@@ -109,12 +156,22 @@ export class CompaniesService {
 
   async deleteConfig(companyId: string, key: string) {
     const existing = await this.prisma.setting.findFirst({ where: { companyId, key } });
-    if (!existing) throw new Error('Setting not found');
+    if (!existing) throw new NotFoundException('Setting not found');
     return this.prisma.setting.delete({ where: { id: existing.id } });
   }
 
-  /** Companies the caller can see: their primary company plus any memberships. */
+  /**
+   * Companies the caller can access: group-wide managers (super admin, system
+   * role, or any role holding `organization` grants) see every company under
+   * the group; everyone else sees primary company plus explicit memberships.
+   */
   async listAccessible(userId: string, primaryCompanyId: string) {
+    if (await this.isGroupWide(userId)) {
+      return this.prisma.company.findMany({
+        include: { _count: { select: { employees: true } } },
+        orderBy: { createdAt: 'asc' },
+      });
+    }
     const memberships = await this.prisma.userCompany.findMany({
       where: { userId, isActive: true },
       select: { companyId: true },
@@ -127,56 +184,185 @@ export class CompaniesService {
     });
   }
 
-  /** Create a sub-company under the caller's group. */
-  async create(userId: string, primaryCompanyId: string, data: {
-    name: string; displayName?: string; legalName?: string; timezone?: string; currency?: string;
-    address?: string; city?: string; state?: string; country?: string; pincode?: string;
-    gstNumber?: string; panNumber?: string;
-  }) {
+  /**
+   * Create a sub-company under the Lords And Kings Group. The creator and every
+   * group-wide manager get membership so HR remains common to all companies.
+   */
+  async create(userId: string, _primaryCompanyId: string, data: CreateCompanyInput) {
+    if (!data.name?.trim()) throw new BadRequestException('Company name is required');
+    await this.assertNoDuplicate(data.name.trim(), undefined, data.gstNumber, data.panNumber);
+
     const company = await this.prisma.company.create({
       data: {
-        name: data.name,
+        name: data.name.trim(),
         displayName: data.displayName,
         legalName: data.legalName,
+        logoUrl: data.logoUrl,
         timezone: data.timezone || 'Asia/Kolkata',
         currency: data.currency || 'INR',
         address: data.address,
-        city: data.city,
-        state: data.state,
-        country: data.country,
-        pincode: data.pincode,
+        phone: data.phone,
+        email: data.email,
+        website: data.website,
         gstNumber: data.gstNumber,
         panNumber: data.panNumber,
+        industry: data.industry,
+        companyType: data.companyType,
+        financialYearStart: this.toIntOrNull(data.financialYearStart),
+        financialYearEnd: this.toIntOrNull(data.financialYearEnd),
+        payrollEffectiveFrom: this.toIntOrNull(data.payrollEffectiveFrom),
+        city: data.city,
+        state: data.state,
+        country: data.country || 'India',
+        pincode: data.pincode,
+        tanNumber: data.tanNumber,
+        cinNumber: data.cinNumber,
+        pfNumber: data.pfNumber,
+        esiNumber: data.esiNumber,
+        professionalTaxNumber: data.professionalTaxNumber,
+        labourWelfareFundNumber: data.labourWelfareFundNumber,
+        bankName: data.bankName,
+        bankAccountName: data.bankAccountName,
+        bankAccountNumber: data.bankAccountNumber,
+        ifsc: data.ifsc,
+        status: data.status || 'active',
       },
     });
 
-    // The primary user becomes a member of the new sub-company.
-    await this.prisma.userCompany.create({
-      data: { userId, companyId: company.id, isActive: true },
-    }).catch(() => {});
+    // Membership: the creator plus all group-wide managers, so newly created
+    // companies are immediately visible to the whole HR/admin team.
+    const groupUsers = await this.prisma.user.findMany({
+      where: {
+        OR: [
+          { isSuperAdmin: true },
+          { role: { is: { isSystem: true } } },
+          { role: { is: { permissions: { some: { module: 'organization' } } } } },
+        ],
+      },
+      select: { id: true },
+    });
+    const memberIds = Array.from(new Set([userId, ...groupUsers.map((u) => u.id)]));
+    if (memberIds.length) {
+      await this.prisma.userCompany.createMany({
+        data: memberIds.map((uid) => ({ userId: uid, companyId: company.id, isActive: true })),
+        skipDuplicates: true,
+      });
+    }
 
+    await this.audit(company.id, userId, 'create', 'company', company.id, {
+      name: company.name,
+      gstNumber: company.gstNumber,
+      panNumber: company.panNumber,
+    });
     return company;
   }
 
-  /** Update a specific company (must be within the caller's access scope). */
+  /** Update a specific company (group-wide managers or members within scope). */
   async update(userId: string, primaryCompanyId: string, id: string, data: Record<string, unknown>) {
-    const memberships = await this.prisma.userCompany.findMany({
-      where: { userId, isActive: true },
-      select: { companyId: true },
-    });
-    const ids = new Set([primaryCompanyId, ...memberships.map((m) => m.companyId)]);
-    if (!ids.has(id)) throw new Error('Company not in your access scope');
+    const company = await this.prisma.company.findUnique({ where: { id } });
+    if (!company) throw new NotFoundException('Company not found');
 
-    // Protect structural fields a sub-company member should not change.
-    const { name, displayName, legalName, status, ...rest } = data as any;
+    const groupWide = await this.isGroupWide(userId);
+    if (!groupWide) {
+      const memberships = await this.prisma.userCompany.findMany({
+        where: { userId, isActive: true },
+        select: { companyId: true },
+      });
+      const ids = new Set([primaryCompanyId, ...memberships.map((m) => m.companyId)]);
+      if (!ids.has(id)) throw new ForbiddenException('Company not in your access scope');
+    }
+
     const patch: Record<string, unknown> = {};
-    if (name !== undefined) patch.name = name;
-    if (displayName !== undefined) patch.displayName = displayName;
-    if (legalName !== undefined) patch.legalName = legalName;
-    if (status !== undefined) patch.status = status;
-    Object.assign(patch, rest);
+    for (const key of EDITABLE_FIELDS) {
+      if (data[key] !== undefined) {
+        patch[key] = INTEGER_FIELDS.includes(key) ? this.toIntOrNull(data[key] as any) : data[key];
+      }
+    }
+    if (Object.keys(patch).length === 0) return company;
 
-    return this.prisma.company.update({ where: { id }, data: patch });
+    const nextName = (patch.name as string | undefined)?.trim() ?? company.name;
+    await this.assertNoDuplicate(
+      nextName,
+      id,
+      (patch.gstNumber as string | undefined) ?? company.gstNumber,
+      (patch.panNumber as string | undefined) ?? company.panNumber,
+    );
+
+    const before = { name: company.name, status: company.status, gstNumber: company.gstNumber, panNumber: company.panNumber };
+    const updated = await this.prisma.company.update({ where: { id }, data: patch });
+    await this.audit(id, userId, 'update', 'company', id, {
+      before,
+      after: { name: updated.name, status: updated.status, gstNumber: updated.gstNumber, panNumber: updated.panNumber },
+    });
+    return updated;
+  }
+
+  /** Group-wide managers can access every company under the group. */
+  private async isGroupWide(userId: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        isSuperAdmin: true,
+        role: { select: { isSystem: true, permissions: { select: { module: true } } } },
+      },
+    });
+    if (!user) return false;
+    if (user.isSuperAdmin) return true;
+    if (user.role?.isSystem) return true;
+    return !!user.role?.permissions?.some((p) => p.module === 'organization');
+  }
+
+  private async assertNoDuplicate(
+    name: string,
+    excludeId?: string,
+    gstNumber?: string | null,
+    panNumber?: string | null,
+  ) {
+    const exclusion = excludeId ? { id: { not: excludeId } } : {};
+    // MySQL default collation is case-insensitive, so a plain equals check
+    // already rejects names that differ only by case.
+    const nameDup = await this.prisma.company.findFirst({
+      where: { name: { equals: name }, ...exclusion },
+    });
+    if (nameDup) throw new BadRequestException(`A company named "${name}" already exists`);
+
+    if (gstNumber) {
+      const dupGst = await this.prisma.company.findFirst({
+        where: { gstNumber: { equals: gstNumber }, ...exclusion },
+      });
+      if (dupGst) throw new BadRequestException('A company with this GSTIN already exists');
+    }
+    if (panNumber) {
+      const dupPan = await this.prisma.company.findFirst({
+        where: { panNumber: { equals: panNumber }, ...exclusion },
+      });
+      if (dupPan) throw new BadRequestException('A company with this PAN already exists');
+    }
+  }
+
+  private toIntOrNull(value: unknown): number | null {
+    if (value === undefined || value === null || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  private async audit(
+    companyId: string,
+    userId: string,
+    action: string,
+    entity: string,
+    entityId?: string,
+    metadata?: Record<string, unknown>,
+  ) {
+    await this.prisma.auditLog.create({
+      data: {
+        companyId,
+        userId,
+        action,
+        entity,
+        entityId,
+        metadata: metadata as any,
+      },
+    });
   }
 }
-
