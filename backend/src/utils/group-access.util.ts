@@ -11,9 +11,7 @@ export async function isGroupWideUser(prisma: PrismaService, userId?: string): P
     include: {
       role: {
         include: {
-          permissions: {
-            include: { permission: true },
-          },
+          permissions: true,
         },
       },
     },
@@ -40,22 +38,22 @@ export async function isGroupWideUser(prisma: PrismaService, userId?: string): P
   return (
     user.role?.permissions?.some(
       (p) =>
-        (p.permission.module === 'ALL' ||
-          p.permission.module === '*' ||
-          p.permission.module === 'companies' ||
-          p.permission.module === 'company' ||
-          p.permission.module === 'organization' ||
-          p.permission.module === 'dashboard' ||
-          p.permission.module === 'employees' ||
-          p.permission.module === 'attendance' ||
-          p.permission.module === 'leave' ||
-          p.permission.module === 'payroll') &&
-        (p.permission.action === 'ALL' ||
-          p.permission.action === '*' ||
-          p.permission.action === 'view' ||
-          p.permission.action === 'manage' ||
-          p.permission.action === 'edit' ||
-          p.permission.action === 'approve')
+        (p.module === 'ALL' ||
+          p.module === '*' ||
+          p.module === 'companies' ||
+          p.module === 'company' ||
+          p.module === 'organization' ||
+          p.module === 'dashboard' ||
+          p.module === 'employees' ||
+          p.module === 'attendance' ||
+          p.module === 'leave' ||
+          p.module === 'payroll') &&
+        (p.action === 'ALL' ||
+          p.action === '*' ||
+          p.action === 'view' ||
+          p.action === 'manage' ||
+          p.action === 'edit' ||
+          p.action === 'approve')
     ) || false
   );
 }

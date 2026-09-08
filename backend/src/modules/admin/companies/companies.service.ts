@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { isGroupWideUser } from '../../../utils/group-access.util';
 
 export interface CreateCompanyInput {
   name: string;
@@ -73,8 +74,13 @@ export class CompaniesService {
     return this.prisma.company.update({ where: { id: companyId }, data });
   }
 
-  listDepartments(companyId: string) {
-    return this.prisma.department.findMany({ where: { companyId } });
+  async listDepartments(companyId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    let list = await this.prisma.department.findMany({ where: { companyId }, orderBy: { name: 'asc' } });
+    if (list.length === 0 || groupWide) {
+      list = await this.prisma.department.findMany({ orderBy: { name: 'asc' } });
+    }
+    return list;
   }
 
   createDepartment(companyId: string, name: string) {
@@ -87,12 +93,20 @@ export class CompaniesService {
     return this.prisma.department.delete({ where: { id } });
   }
 
-  listBranches(companyId: string) {
-    return this.prisma.branch.findMany({
+  async listBranches(companyId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    let list = await this.prisma.branch.findMany({
       where: { companyId },
       include: { _count: { select: { employees: true } } },
       orderBy: { name: 'asc' },
     });
+    if (list.length === 0 || groupWide) {
+      list = await this.prisma.branch.findMany({
+        include: { _count: { select: { employees: true } } },
+        orderBy: { name: 'asc' },
+      });
+    }
+    return list;
   }
 
   createBranch(companyId: string, data: {
@@ -119,16 +133,26 @@ export class CompaniesService {
     return this.prisma.branch.delete({ where: { id } });
   }
 
-  listDesignations(companyId: string) {
-    return this.prisma.designation.findMany({ where: { companyId } });
+  async listDesignations(companyId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    let list = await this.prisma.designation.findMany({ where: { companyId }, orderBy: { title: 'asc' } });
+    if (list.length === 0 || groupWide) {
+      list = await this.prisma.designation.findMany({ orderBy: { title: 'asc' } });
+    }
+    return list;
   }
 
   createDesignation(companyId: string, title: string, grade?: string) {
     return this.prisma.designation.create({ data: { companyId, title, grade } });
   }
 
-  listRoles(companyId: string) {
-    return this.prisma.role.findMany({ where: { companyId }, include: { permissions: true } });
+  async listRoles(companyId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    let list = await this.prisma.role.findMany({ where: { companyId }, include: { permissions: true } });
+    if (list.length === 0 || groupWide) {
+      list = await this.prisma.role.findMany({ include: { permissions: true } });
+    }
+    return list;
   }
 
   createRole(companyId: string, name: string, permissions: { module: string; action: string }[]) {

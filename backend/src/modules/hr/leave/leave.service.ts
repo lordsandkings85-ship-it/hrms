@@ -2,6 +2,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { isGroupWideUser } from '../../../utils/group-access.util';
 
 @Injectable()
 export class LeaveService {
@@ -10,8 +11,13 @@ export class LeaveService {
     private notifications: NotificationsService,
   ) {}
 
-  listTypes(companyId: string) {
-    return this.prisma.leaveType.findMany({ where: { companyId } });
+  async listTypes(companyId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    let types = await this.prisma.leaveType.findMany({ where: { companyId } });
+    if (types.length === 0 || groupWide) {
+      types = await this.prisma.leaveType.findMany({});
+    }
+    return types;
   }
 
   createType(companyId: string, data: { name: string; paid: boolean; code?: string; accrualRate?: number; annualAllocation?: number; maxConsecutiveDays?: number; halfDayAllowed?: boolean; carryForward?: boolean; carryForwardLimit?: number; encashment?: boolean; negativeBalanceAllowed?: boolean; attachmentRequired?: boolean; applicableAfterDays?: number; approvalRequired?: boolean; gender?: string }) {
@@ -39,7 +45,7 @@ export class LeaveService {
     ]);
   }
 
-async apply(
+  async apply(
     companyId: string,
     employeeId: string,
     leaveTypeId: string,
@@ -47,13 +53,23 @@ async apply(
     endDate: string,
     isHalfDay: boolean,
     reason?: string,
+    userId?: string,
   ) {
-    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
-    if (!employee) throw new ForbiddenException('Employee does not belong to this company');
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const employee = await this.prisma.employee.findFirst({
+      where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
+    });
+    if (!employee) throw new ForbiddenException('Employee not found');
     if (!leaveTypeId || !startDate || !endDate) throw new BadRequestException('leaveTypeId, startDate and endDate are required');
-    const type = await this.prisma.leaveType.findFirst({ where: { id: leaveTypeId, companyId } });
+    let type = await this.prisma.leaveType.findFirst({
+      where: groupWide ? { id: leaveTypeId } : { id: leaveTypeId, companyId },
+    });
+    if (!type && groupWide) {
+      type = await this.prisma.leaveType.findUnique({ where: { id: leaveTypeId } });
+    }
     if (!type) throw new NotFoundException('Leave type not found');
 
+    const targetCompanyId = employee.companyId || companyId;
     const start = new Date(startDate);
     const year = start.getFullYear();
     const month = start.getMonth() + 1;
@@ -81,10 +97,10 @@ async apply(
       });
       await this.prisma.$transaction(
         (tx) =>
-          this.updateMonthlyBalanceTx(tx, companyId, employeeId, leaveTypeId, year, month, { pending: days }),
+          this.updateMonthlyBalanceTx(tx, targetCompanyId, employeeId, leaveTypeId, year, month, { pending: days }),
         { timeout: 60000, maxWait: 20000 },
       );
-      void this.notifyLeaveApplied(companyId, employee, type.name, start, new Date(endDate), request.id);
+      void this.notifyLeaveApplied(targetCompanyId, employee, type.name, start, new Date(endDate), request.id);
       return request;
     }
 
@@ -98,7 +114,7 @@ async apply(
         reason,
       },
     });
-    void this.notifyLeaveApplied(companyId, employee, type.name, new Date(startDate), new Date(endDate), created.id);
+    void this.notifyLeaveApplied(targetCompanyId, employee, type.name, new Date(startDate), new Date(endDate), created.id);
     return created;
   }
 
@@ -129,13 +145,14 @@ async apply(
     }
   }
 
-async approve(id: string, companyId: string, approverId: string) {
+  async approve(id: string, companyId: string, approverId: string) {
+    const groupWide = await isGroupWideUser(this.prisma, approverId);
     const req = await this.prisma.leaveRequest.findUnique({
       where: { id },
       include: { employee: true }
     });
     if (!req) throw new NotFoundException('Leave request not found');
-    if (req.employee.companyId !== companyId) throw new ForbiddenException('Leave request does not belong to this company');
+    if (!groupWide && req.employee.companyId !== companyId) throw new ForbiddenException('Leave request does not belong to this company');
     if (req.status !== 'pending') throw new BadRequestException('Leave request is already processed');
 
     let days = isHalfDayCount(req.startDate, req.endDate, req.isHalfDay);
@@ -293,14 +310,16 @@ async approve(id: string, companyId: string, approverId: string) {
   }
 
   async reject(id: string, companyId: string, approverId: string) {
+    const groupWide = await isGroupWideUser(this.prisma, approverId);
     const req = await this.prisma.leaveRequest.findUnique({
       where: { id },
       include: { employee: true },
     });
     if (!req) throw new NotFoundException('Leave request not found');
-    if (req.employee.companyId !== companyId) throw new ForbiddenException('Leave request does not belong to this company');
+    if (!groupWide && req.employee.companyId !== companyId) throw new ForbiddenException('Leave request does not belong to this company');
     if (req.status !== 'pending') throw new BadRequestException('Leave request is already processed');
 
+    const targetCompanyId = req.employee.companyId || companyId;
     const year = req.startDate.getFullYear();
     const month = req.startDate.getMonth() + 1;
     const monthlyActive = await this.hasMonthlyBalance(req.employeeId, req.leaveTypeId, year);
@@ -314,13 +333,13 @@ async approve(id: string, companyId: string, approverId: string) {
         });
         if (monthlyActive) {
           // Release the pending reservation (do not count rejected leave)
-          await this.updateMonthlyBalanceTx(tx, companyId, req.employeeId, req.leaveTypeId, year, month, { pending: -reservedDays });
+          await this.updateMonthlyBalanceTx(tx, targetCompanyId, req.employeeId, req.leaveTypeId, year, month, { pending: -reservedDays });
         }
         return { id, status: 'rejected' };
       },
       { timeout: 60000, maxWait: 20000 },
     ).then(async (res) => {
-      await this.notifyEmployeeLeaveDecision(companyId, req, id, 'rejected');
+      await this.notifyEmployeeLeaveDecision(targetCompanyId, req, id, 'rejected');
       return res;
     });
   }
@@ -330,16 +349,17 @@ async approve(id: string, companyId: string, approverId: string) {
    * Approved requests create a LeaveCancellationRequest for HR approval.
    */
   async cancel(id: string, userId: string, reason?: string) {
+    const groupWide = await isGroupWideUser(this.prisma, userId);
     const req = await this.prisma.leaveRequest.findUnique({
       where: { id },
       include: { employee: true },
     });
     if (!req) throw new NotFoundException('Leave request not found');
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (req.employee.companyId !== user?.companyId) {
+    if (!groupWide && req.employee.companyId !== user?.companyId) {
       throw new ForbiddenException('Leave request does not belong to your company');
     }
-    if (user?.employeeId && user.employeeId !== req.employeeId) {
+    if (!groupWide && user?.employeeId && user.employeeId !== req.employeeId) {
       throw new ForbiddenException('Cannot cancel another employee\'s leave request');
     }
     if (req.status === 'pending') {
@@ -380,14 +400,24 @@ async approve(id: string, companyId: string, approverId: string) {
     });
   }
 
-  async listCancellations(companyId: string, status?: string) {
+  async listCancellations(companyId: string, status?: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const rows = await this.prisma.leaveCancellationRequest.findMany({
-      where: { companyId, ...(status ? { status } : {}) },
+      where: {
+        ...(groupWide ? {} : { companyId }),
+        ...(status && status !== 'all' ? { status } : {}),
+      },
       include: {
         leaveRequest: { include: { leaveType: true } },
         employee: {
-          select: { id: true, firstName: true, lastName: true, employeeCode: true,
-            department: { select: { name: true } } },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            department: { select: { name: true } },
+            company: { select: { name: true, displayName: true } },
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -405,12 +435,13 @@ async approve(id: string, companyId: string, approverId: string) {
   }
 
   async approveCancellation(id: string, companyId: string, approverId: string) {
+    const groupWide = await isGroupWideUser(this.prisma, approverId);
     const cancel = await this.prisma.leaveCancellationRequest.findUnique({
       where: { id },
       include: { leaveRequest: true, employee: true },
     });
     if (!cancel) throw new NotFoundException('Cancellation request not found');
-    if (cancel.employee.companyId !== companyId) throw new ForbiddenException('Cancellation request does not belong to this company');
+    if (!groupWide && cancel.employee.companyId !== companyId) throw new ForbiddenException('Cancellation request does not belong to this company');
     if (cancel.status !== 'pending') throw new Error('Cancellation request already processed');
 
     // Restore leave balance if the leave was approved and counted.
@@ -512,12 +543,13 @@ async approve(id: string, companyId: string, approverId: string) {
   }
 
   async rejectCancellation(id: string, companyId: string, approverId: string) {
+    const groupWide = await isGroupWideUser(this.prisma, approverId);
     const cancel = await this.prisma.leaveCancellationRequest.findUnique({
       where: { id },
       include: { employee: true },
     });
     if (!cancel) throw new NotFoundException('Cancellation request not found');
-    if (cancel.employee.companyId !== companyId) throw new ForbiddenException('Cancellation request does not belong to this company');
+    if (!groupWide && cancel.employee.companyId !== companyId) throw new ForbiddenException('Cancellation request does not belong to this company');
     if (cancel.status !== 'pending') throw new Error('Cancellation request already processed');
     return this.prisma.leaveCancellationRequest.update({
       where: { id },
@@ -525,8 +557,11 @@ async approve(id: string, companyId: string, approverId: string) {
     });
   }
 
-async listForEmployee(employeeId: string, companyId: string) {
-    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+  async listForEmployee(employeeId: string, companyId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const employee = await this.prisma.employee.findFirst({
+      where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
+    });
     if (!employee) throw new NotFoundException('Employee not found in this company');
     return this.prisma.leaveRequest.findMany({
       where: { employeeId },
@@ -542,9 +577,13 @@ async listForEmployee(employeeId: string, companyId: string) {
     }).then((rows) => rows.map((r) => ({ ...r, cancellationPending: r.cancellations?.[0] ?? null })));
   }
 
-  async listPendingForCompany(companyId: string) {
+  async listPendingForCompany(companyId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const rows = await this.prisma.leaveRequest.findMany({
-      where: { employee: { companyId }, status: 'pending' },
+      where: {
+        ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId, isSystem: false } }),
+        status: 'pending',
+      },
       include: {
         leaveType: true,
         employee: {
@@ -553,6 +592,7 @@ async listForEmployee(employeeId: string, companyId: string) {
             lastName: true,
             employeeCode: true,
             department: { select: { name: true } },
+            company: { select: { name: true, displayName: true } },
             manager: { select: { firstName: true, lastName: true } },
           },
         },
@@ -566,8 +606,11 @@ async listForEmployee(employeeId: string, companyId: string) {
     }));
   }
 
-async balances(employeeId: string, year: number, companyId: string) {
-    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+  async balances(employeeId: string, year: number, companyId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const employee = await this.prisma.employee.findFirst({
+      where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
+    });
     if (!employee) throw new NotFoundException('Employee not found in this company');
     return this.prisma.leaveBalance.findMany({
       where: { employeeId, year },
@@ -580,10 +623,12 @@ async balances(employeeId: string, year: number, companyId: string) {
     companyId: string,
     year: number,
     filters: { departmentId?: string; leaveTypeId?: string; search?: string },
+    userId?: string,
   ) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const employees = await this.prisma.employee.findMany({
       where: {
-        companyId,
+        ...(groupWide ? { isSystem: false } : { companyId, isSystem: false }),
         status: 'active',
         ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
         ...(filters.search
@@ -602,6 +647,7 @@ async balances(employeeId: string, year: number, companyId: string) {
         lastName: true,
         employeeCode: true,
         department: { select: { name: true } },
+        company: { select: { name: true, displayName: true } },
         leaveBalances: {
           where: {
             year,
@@ -618,6 +664,7 @@ async balances(employeeId: string, year: number, companyId: string) {
       employeeCode: e.employeeCode,
       name: `${e.firstName} ${e.lastName}`,
       department: e.department?.name || '-',
+      company: e.company?.displayName || e.company?.name || '-',
       balances: e.leaveBalances.map((b) => ({
         id: b.id,
         leaveType: b.leaveType.name,
@@ -632,17 +679,19 @@ async balances(employeeId: string, year: number, companyId: string) {
   }
 
   // All leave requests for a company (used by the Reports tab), with optional filters.
-  listAllForCompany(
+  async listAllForCompany(
     companyId: string,
     filters: { departmentId?: string; status?: string; year?: number },
+    userId?: string,
   ) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     return this.prisma.leaveRequest.findMany({
       where: {
         employee: {
-          companyId,
+          ...(groupWide ? { isSystem: false } : { companyId, isSystem: false }),
           ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
         },
-        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.status && filters.status !== 'all' ? { status: filters.status } : {}),
         ...(filters.year
           ? {
               startDate: {
@@ -660,6 +709,8 @@ async balances(employeeId: string, year: number, companyId: string) {
             lastName: true,
             employeeCode: true,
             department: { select: { name: true } },
+            company: { select: { name: true, displayName: true } },
+            manager: { select: { firstName: true, lastName: true } },
           },
         },
       },
@@ -667,11 +718,16 @@ async balances(employeeId: string, year: number, companyId: string) {
     });
   }
 
-  listHolidays(companyId: string) {
-    return this.prisma.holiday.findMany({
-      where: { companyId },
-      orderBy: { date: 'asc' }
+  async listHolidays(companyId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    let holidays = await this.prisma.holiday.findMany({
+      where: groupWide ? {} : { companyId },
+      orderBy: { date: 'asc' },
     });
+    if (holidays.length === 0 && !groupWide) {
+      holidays = await this.prisma.holiday.findMany({ orderBy: { date: 'asc' } });
+    }
+    return holidays;
   }
 
   createHoliday(companyId: string, name: string, date: string) {
@@ -899,8 +955,11 @@ async balances(employeeId: string, year: number, companyId: string) {
     return { success: true, id };
   }
 
-  async transactions(companyId: string, employeeId: string, year?: number) {
-    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+  async transactions(companyId: string, employeeId: string, year?: number, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const employee = await this.prisma.employee.findFirst({
+      where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
+    });
     if (!employee) throw new NotFoundException('Employee not found');
     return this.prisma.leaveTransaction.findMany({
       where: {
@@ -947,8 +1006,11 @@ async balances(employeeId: string, year: number, companyId: string) {
   }
 
   /** Rule 4 — monthly balance ledger for an employee (optionally filtered by year) */
-  async monthlyBalances(employeeId: string, companyId: string, year?: number) {
-    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+  async monthlyBalances(employeeId: string, companyId: string, year?: number, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const employee = await this.prisma.employee.findFirst({
+      where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
+    });
     if (!employee) throw new NotFoundException('Employee not found in this company');
     return this.prisma.leaveMonthlyBalance.findMany({
       where: { employeeId, ...(year ? { year } : {}) },
@@ -1066,8 +1128,13 @@ async balances(employeeId: string, year: number, companyId: string) {
   }
 
   async bulkReject(ids: string[], companyId: string, approverId: string) {
+    const groupWide = await isGroupWideUser(this.prisma, approverId);
     const result = await this.prisma.leaveRequest.updateMany({
-      where: { id: { in: ids }, status: 'pending', employee: { companyId } },
+      where: {
+        id: { in: ids },
+        status: 'pending',
+        ...(groupWide ? {} : { employee: { companyId } }),
+      },
       data: { status: 'rejected', approverId },
     });
     return { count: result.count };
@@ -1088,22 +1155,26 @@ async balances(employeeId: string, year: number, companyId: string) {
     });
   }
 
-  async analytics(companyId: string) {
+  async analytics(companyId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
     const totalEmployees = await this.prisma.employee.count({
-      where: { companyId, status: 'active' }
+      where: groupWide ? { isSystem: false, status: 'active' } : { companyId, status: 'active' }
     });
 
     const pendingRequests = await this.prisma.leaveRequest.count({
-      where: { employee: { companyId }, status: 'pending' }
+      where: {
+        employee: groupWide ? { isSystem: false } : { companyId, isSystem: false },
+        status: 'pending',
+      }
     });
 
     const approvedThisMonth = await this.prisma.leaveRequest.count({
       where: { 
-        employee: { companyId }, 
+        employee: groupWide ? { isSystem: false } : { companyId, isSystem: false }, 
         status: 'approved',
         createdAt: { gte: startOfMonth, lte: endOfMonth }
       }
@@ -1111,21 +1182,27 @@ async balances(employeeId: string, year: number, companyId: string) {
 
     const rejectedThisMonth = await this.prisma.leaveRequest.count({
       where: { 
-        employee: { companyId }, 
+        employee: groupWide ? { isSystem: false } : { companyId, isSystem: false }, 
         status: 'rejected',
         createdAt: { gte: startOfMonth, lte: endOfMonth }
       }
     });
 
     const upcomingHolidays = await this.prisma.holiday.findMany({
-      where: { companyId, date: { gte: now } },
+      where: {
+        ...(groupWide ? {} : { companyId }),
+        date: { gte: now },
+      },
       orderBy: { date: 'asc' },
       take: 5
     });
 
     // Leave balance alerts: employees with 2 or fewer days remaining on any leave type.
     const currentYearBalances = await this.prisma.leaveBalance.findMany({
-      where: { year: now.getFullYear(), employee: { companyId, status: 'active' } },
+      where: {
+        year: now.getFullYear(),
+        employee: groupWide ? { isSystem: false, status: 'active' } : { companyId, status: 'active' },
+      },
     });
     const lowBalanceEmployeeIds = new Set(
       currentYearBalances.filter((b) => b.allotted - b.used <= 2).map((b) => b.employeeId),
@@ -1135,7 +1212,7 @@ async balances(employeeId: string, year: number, companyId: string) {
     // We can simulate today's on-leave based on the date range
     const onLeaveToday = await this.prisma.leaveRequest.count({
       where: {
-        employee: { companyId },
+        employee: groupWide ? { isSystem: false } : { companyId, isSystem: false },
         status: 'approved',
         startDate: { lte: now },
         endDate: { gte: now }
@@ -1146,7 +1223,7 @@ async balances(employeeId: string, year: number, companyId: string) {
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
     const leaveRequestsLast6Months = await this.prisma.leaveRequest.findMany({
       where: {
-        employee: { companyId },
+        employee: groupWide ? { isSystem: false } : { companyId, isSystem: false },
         startDate: { gte: sixMonthsAgo }
       },
       select: {

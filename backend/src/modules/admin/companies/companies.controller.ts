@@ -74,7 +74,7 @@ export class CompaniesController {
 
   @Get('organization/departments')
   listDepartments(@CurrentUser() user: AuthUser) {
-    return this.companiesService.listDepartments(user.companyId);
+    return this.companiesService.listDepartments(user.companyId, user.userId);
   }
 
   @Post('organization/departments')
@@ -91,7 +91,7 @@ export class CompaniesController {
 
   @Get('organization/branches')
   listBranches(@CurrentUser() user: AuthUser) {
-    return this.companiesService.listBranches(user.companyId);
+    return this.companiesService.listBranches(user.companyId, user.userId);
   }
 
   @Post('organization/branches')
@@ -120,7 +120,7 @@ export class CompaniesController {
 
   @Get('organization/designations')
   listDesignations(@CurrentUser() user: AuthUser) {
-    return this.companiesService.listDesignations(user.companyId);
+    return this.companiesService.listDesignations(user.companyId, user.userId);
   }
 
   @Post('organization/designations')
@@ -131,7 +131,7 @@ export class CompaniesController {
 
   @Get('settings/roles')
   listRoles(@CurrentUser() user: AuthUser) {
-    return this.companiesService.listRoles(user.companyId);
+    return this.companiesService.listRoles(user.companyId, user.userId);
   }
 
   @Get('settings/config')

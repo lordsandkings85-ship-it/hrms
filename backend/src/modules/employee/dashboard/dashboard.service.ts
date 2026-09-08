@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { isApprover } from '../../../common/approver';
+import { isGroupWideUser } from '../../../utils/group-access.util';
 
 @Injectable()
 export class DashboardService {
@@ -12,18 +13,7 @@ export class DashboardService {
 
   private async isGroupWide(userId?: string): Promise<boolean> {
     if (!userId) return false;
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        isSuperAdmin: true,
-        role: { select: { name: true, isSystem: true, permissions: { select: { module: true, action: true } } } },
-      },
-    });
-    if (!user) return false;
-    if (user.isSuperAdmin) return true;
-    if (user.role?.isSystem) return true;
-    if (['HR Admin', 'Admin', 'Super Admin'].includes(user.role?.name || '')) return true;
-    return !!user.role?.permissions?.some((p) => p.module === 'organization' || p.module === 'ALL' || p.module === '*' || p.action === 'ALL');
+    return isGroupWideUser(this.prisma, userId);
   }
 
   async getSummary(companyId: string, user?: any) {
@@ -77,13 +67,6 @@ export class DashboardService {
           companyId: { in: targetCompanyIds }, 
           status: 'active',
           isSystem: false,
-          NOT: {
-            user: {
-              role: {
-                isSystem: true
-              }
-            }
-          }
         } 
       }),
       this.prisma.leaveRequest.count({
@@ -109,13 +92,6 @@ export class DashboardService {
         companyId: { in: targetCompanyIds },
         status: 'active',
         isSystem: false,
-        NOT: {
-          user: {
-            role: {
-              isSystem: true,
-            },
-          },
-        },
       },
       select: { id: true },
     });

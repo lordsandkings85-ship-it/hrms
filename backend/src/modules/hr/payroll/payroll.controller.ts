@@ -14,91 +14,90 @@ export class PayrollController {
   @Post('salary-structure/:employeeId')
   @Permissions({ module: 'payroll', action: 'edit' })
   setSalaryStructure(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string, @Body() body: SalaryStructureDto) {
-    return this.payrollService.setSalaryStructure(user.companyId, employeeId, body);
+    return this.payrollService.setSalaryStructure(user.companyId, employeeId, body, user.userId);
   }
 
   @Get('salary-structure/:employeeId')
   @Permissions({ module: 'payroll', action: 'view' })
   getSalaryStructure(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string) {
-    return this.payrollService.getSalaryStructure(user.companyId, employeeId);
+    return this.payrollService.getSalaryStructure(user.companyId, employeeId, user.userId);
   }
 
   @Get('structure/:employeeId')
   @Permissions({ module: 'payroll', action: 'view' })
   getSalaryStructureAlias(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string) {
-    return this.payrollService.getSalaryStructure(user.companyId, employeeId);
+    return this.payrollService.getSalaryStructure(user.companyId, employeeId, user.userId);
   }
 
   @Post('run')
   @Permissions({ module: 'payroll', action: 'approve' })
-runPayroll(@CurrentUser() user: AuthUser, @Body() body: RunPayrollDto) {
+  runPayroll(@CurrentUser() user: AuthUser, @Body() body: RunPayrollDto) {
     return this.payrollService.runPayroll(user.companyId, body.month, body.year, body.regime, body.employeeIds);
   }
 
   @Get('cycles')
   @Permissions({ module: 'payroll', action: 'view' })
   listCycles(@CurrentUser() user: AuthUser) {
-    return this.payrollService.listCycles(user.companyId);
+    return this.payrollService.listCycles(user.companyId, user.userId);
   }
 
   @Post('cycles/:id/lock')
   @Permissions({ module: 'payroll', action: 'approve' })
   lockCycle(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.payrollService.lockCycle(user.companyId, id);
+    return this.payrollService.lockCycle(user.companyId, id, user.userId);
   }
 
   @Get('payslips/:employeeId')
   @Permissions({ module: 'payroll', action: 'view' })
   getPayslips(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string) {
-    return this.payrollService.getPayslips(user.companyId, employeeId);
+    return this.payrollService.getPayslips(user.companyId, employeeId, user.userId);
   }
 
   @Get('payslip/:id')
   @Permissions({ module: 'payroll', action: 'view' })
   getPayslipDetail(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.payrollService.getPayslipDetail(user.companyId, id);
+    return this.payrollService.getPayslipDetail(user.companyId, id, user.userId);
   }
 
-@Post('tax-preview')
+  @Post('tax-preview')
   @Permissions({ module: 'payroll', action: 'view' })
   taxPreview(@Body() body: TaxPreviewDto) {
     return this.payrollService.computeTaxPreview(body);
   }
+
   @Get('attendance-summary')
   @Permissions({ module: 'payroll', action: 'view' })
   getAttendanceSummary(@CurrentUser() user: AuthUser, @Query('month') month: string, @Query('year') year: string) {
-    return this.payrollService.getAttendanceSummary(user.companyId, parseInt(month), parseInt(year));
+    return this.payrollService.getAttendanceSummary(user.companyId, parseInt(month), parseInt(year), user.userId);
   }
 
   @Get('payouts')
   @Permissions({ module: 'payroll', action: 'view' })
   getPayouts(@CurrentUser() user: AuthUser, @Query('month') month: string, @Query('year') year: string) {
-    return this.payrollService.getPayouts(user.companyId, parseInt(month), parseInt(year));
+    return this.payrollService.getPayouts(user.companyId, parseInt(month), parseInt(year), user.userId);
   }
 
   @Post('payouts')
   @Permissions({ module: 'payroll', action: 'edit' })
-addPayout(@CurrentUser() user: AuthUser, @Body() body: AddPayoutDto) {
-    return this.payrollService.addPayout(user.companyId, body);
+  addPayout(@CurrentUser() user: AuthUser, @Body() body: AddPayoutDto) {
+    return this.payrollService.addPayout(user.companyId, body, user.userId);
   }
 
   @Delete('payouts/:id')
   @Permissions({ module: 'payroll', action: 'edit' })
   deletePayout(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.payrollService.deletePayout(user.companyId, id);
+    return this.payrollService.deletePayout(user.companyId, id, user.userId);
   }
 
   @Get('cycles/:id/payslips')
   @Permissions({ module: 'payroll', action: 'view' })
   getCyclePayslips(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.payrollService.getCyclePayslips(user.companyId, id);
+    return this.payrollService.getCyclePayslips(user.companyId, id, user.userId);
   }
 
   @Post('cycles/:id/send-payslips')
   @Permissions({ module: 'payroll', action: 'edit' })
   sendPayslips(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.payrollService.sendPayslips(user.companyId, id);
+    return this.payrollService.sendPayslips(user.companyId, id, user.userId);
   }
 }
-
-

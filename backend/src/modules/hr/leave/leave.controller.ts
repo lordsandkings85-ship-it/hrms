@@ -17,7 +17,7 @@ export class LeaveController {
   @Get('analytics')
   @Permissions({ module: 'leave', action: 'view' })
   analytics(@CurrentUser() user: AuthUser) {
-    return this.leaveService.analytics(user.companyId);
+    return this.leaveService.analytics(user.companyId, user.userId);
   }
 
   @Get('policies')
@@ -46,7 +46,7 @@ export class LeaveController {
 
   @Get('types')
   listTypes(@CurrentUser() user: AuthUser) {
-    return this.leaveService.listTypes(user.companyId);
+    return this.leaveService.listTypes(user.companyId, user.userId);
   }
 
   @Post('types')
@@ -89,6 +89,7 @@ export class LeaveController {
       body.endDate,
       !!body.isHalfDay,
       body.reason,
+      user.userId,
     );
   }
 
@@ -117,7 +118,7 @@ export class LeaveController {
   @Get('cancellations/pending')
   @Permissions({ module: 'leave', action: 'view' })
   listCancellations(@CurrentUser() user: AuthUser, @Query('status') status?: string) {
-    return this.leaveService.listCancellations(user.companyId, status);
+    return this.leaveService.listCancellations(user.companyId, status, user.userId);
   }
 
   @Post('cancellations/:id/approve')
@@ -135,19 +136,19 @@ export class LeaveController {
   @Get('employee/:employeeId')
   @Permissions({ module: 'leave', action: 'view' })
   listForEmployee(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string) {
-    return this.leaveService.listForEmployee(employeeId, user.companyId);
+    return this.leaveService.listForEmployee(employeeId, user.companyId, user.userId);
   }
 
   @Get('pending')
   @Permissions({ module: 'leave', action: 'view' })
   listPending(@CurrentUser() user: AuthUser) {
-    return this.leaveService.listPendingForCompany(user.companyId);
+    return this.leaveService.listPendingForCompany(user.companyId, user.userId);
   }
 
   @Get('balances/:employeeId')
   @Permissions({ module: 'leave', action: 'view' })
   balances(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string, @Query('year') year?: string) {
-    return this.leaveService.balances(employeeId, year ? Number(year) : new Date().getFullYear(), user.companyId);
+    return this.leaveService.balances(employeeId, year ? Number(year) : new Date().getFullYear(), user.companyId, user.userId);
   }
 
   @Get('balances-overview')
@@ -163,6 +164,7 @@ export class LeaveController {
       user.companyId,
       year ? Number(year) : new Date().getFullYear(),
       { departmentId, leaveTypeId, search },
+      user.userId,
     );
   }
 
@@ -178,12 +180,12 @@ export class LeaveController {
       departmentId,
       status,
       year: year ? Number(year) : undefined,
-    });
+    }, user.userId);
   }
 
   @Get('holidays')
   listHolidays(@CurrentUser() user: AuthUser) {
-    return this.leaveService.listHolidays(user.companyId);
+    return this.leaveService.listHolidays(user.companyId, user.userId);
   }
 
   @Post('holidays')
@@ -215,7 +217,7 @@ export class LeaveController {
   @Get('balances/:employeeId/transactions')
   @Permissions({ module: 'leave', action: 'view' })
   transactions(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string, @Query('year') year?: string) {
-    return this.leaveService.transactions(user.companyId, employeeId, year ? Number(year) : undefined);
+    return this.leaveService.transactions(user.companyId, employeeId, year ? Number(year) : undefined, user.userId);
   }
 
   @Put('balances/:id')
@@ -239,7 +241,7 @@ export class LeaveController {
   @Get('monthly-balances/:employeeId')
   @Permissions({ module: 'leave', action: 'view' })
   monthlyBalances(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string, @Query('year') year?: string) {
-    return this.leaveService.monthlyBalances(employeeId, user.companyId, year ? Number(year) : undefined);
+    return this.leaveService.monthlyBalances(employeeId, user.companyId, year ? Number(year) : undefined, user.userId);
   }
 
   // Idempotent manual trigger of the monthly Casual Leave allocation (also used for backfill/testing)
@@ -300,4 +302,3 @@ export class LeaveController {
     return this.leaveService.processCarryForward(user.companyId, body.fromYearId, user.userId);
   }
 }
-

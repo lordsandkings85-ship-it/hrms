@@ -3,14 +3,19 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { computeIncomeTax, computePF, computeESI, TaxInput } from './tax.calculator';
 import { decryptPiiFields, decryptNestedPii } from '../../../utils/crypto.util';
 import { MailService } from '../../../common/mail/mail.service';
+import { isGroupWideUser } from '../../../utils/group-access.util';
 
 @Injectable()
 export class PayrollService {
   constructor(private prisma: PrismaService, private mail: MailService) {}
 
-  async setSalaryStructure(companyId: string, employeeId: string, data: any) {
-    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+  async setSalaryStructure(companyId: string, employeeId: string, data: any, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const employee = await this.prisma.employee.findFirst({
+      where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
+    });
     if (!employee) throw new NotFoundException('Employee not found in this company');
+    const targetCompanyId = employee.companyId || companyId;
     const { effectiveFrom, ...rest } = data || {};
 
     // Normalize to the calendar date (UTC midnight) so edits always land on the same
@@ -47,7 +52,7 @@ export class PayrollService {
         : this.prisma.salaryStructure.create({ data: { employeeId, effectiveFrom: effectiveDate, ...rest } }),
       this.prisma.salaryRevision.create({
         data: {
-          companyId,
+          companyId: targetCompanyId,
           employeeId,
           effectiveFrom: effectiveDate,
           revisedCtc,
@@ -60,8 +65,11 @@ export class PayrollService {
     return structure;
   }
 
-  async getSalaryStructure(companyId: string, employeeId: string) {
-    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+  async getSalaryStructure(companyId: string, employeeId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const employee = await this.prisma.employee.findFirst({
+      where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
+    });
     if (!employee) throw new NotFoundException('Employee not found in this company');
     return this.prisma.salaryStructure.findFirst({
       where: { employeeId },
@@ -77,16 +85,20 @@ export class PayrollService {
     });
   }
 
-  async lockCycle(companyId: string, cycleId: string) {
-    const cycle = await this.prisma.payrollCycle.findFirst({ where: { id: cycleId, companyId } });
+  async lockCycle(companyId: string, cycleId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const cycle = await this.prisma.payrollCycle.findFirst({
+      where: groupWide ? { id: cycleId } : { id: cycleId, companyId },
+    });
     if (!cycle) throw new NotFoundException('Payroll cycle not found');
     if (cycle.status === 'locked') throw new BadRequestException('Cycle already locked');
     return this.prisma.payrollCycle.update({ where: { id: cycleId }, data: { status: 'locked' } });
   }
 
-  async listCycles(companyId: string) {
+  async listCycles(companyId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     return this.prisma.payrollCycle.findMany({
-      where: { companyId },
+      where: groupWide ? {} : { companyId },
       include: { _count: { select: { payslips: true } } },
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     });
@@ -293,9 +305,11 @@ let payslipCount = 0;
     }, { timeout: 60000 });
     return { cycle: updated, payslipCount };
   }
-
-  async getPayslips(companyId: string, employeeId: string) {
-    const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, companyId } });
+  async getPayslips(companyId: string, employeeId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const employee = await this.prisma.employee.findFirst({
+      where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
+    });
     if (!employee) throw new NotFoundException('Employee not found in this company');
     return this.prisma.payslip.findMany({
       where: { employeeId },
@@ -304,9 +318,10 @@ let payslipCount = 0;
     });
   }
 
-  async getPayslipDetail(companyId: string, payslipId: string) {
+  async getPayslipDetail(companyId: string, payslipId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const payslip = await this.prisma.payslip.findFirst({
-      where: { id: payslipId, employee: { companyId } },
+      where: groupWide ? { id: payslipId } : { id: payslipId, employee: { companyId } },
       include: {
         payrollCycle: true,
         employee: {
@@ -316,6 +331,7 @@ let payslipCount = 0;
             paymentInfo: true, bankAccountNumber: true, bankIfsc: true,
             department: { select: { name: true } },
             designation: { select: { title: true } },
+            company: { select: { name: true, displayName: true } },
           },
         },
       },
@@ -332,18 +348,28 @@ let payslipCount = 0;
   computeTaxPreview(input: TaxInput) {
     return computeIncomeTax(input);
   }
-async getAttendanceSummary(companyId: string, month: number, year: number) {
+
+  async getAttendanceSummary(companyId: string, month: number, year: number, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const start = new Date(year, month - 1, 1);
     const end = new Date(year, month, 1);
 
     const [employees, holidays, logs, cycle] = await Promise.all([
       this.prisma.employee.findMany({
-        where: { companyId, status: 'active', isSystem: false },
-        select: { id: true, employeeCode: true, firstName: true, lastName: true, workingDaysPerWeek: true, department: { select: { name: true } } }
+        where: groupWide ? { status: 'active', isSystem: false } : { companyId, status: 'active', isSystem: false },
+        select: {
+          id: true,
+          employeeCode: true,
+          firstName: true,
+          lastName: true,
+          workingDaysPerWeek: true,
+          department: { select: { name: true } },
+          company: { select: { name: true, displayName: true } },
+        }
       }),
-      this.prisma.holiday.findMany({ where: { companyId, date: { gte: start, lt: end } } }),
-      this.prisma.attendanceLog.findMany({ where: { employee: { companyId }, date: { gte: start, lt: end } } }),
-      this.prisma.payrollCycle.findUnique({ where: { companyId_month_year: { companyId, month, year } } }),
+      this.prisma.holiday.findMany({ where: groupWide ? { date: { gte: start, lt: end } } : { companyId, date: { gte: start, lt: end } } }),
+      this.prisma.attendanceLog.findMany({ where: groupWide ? { date: { gte: start, lt: end } } : { employee: { companyId }, date: { gte: start, lt: end } } }),
+      this.prisma.payrollCycle.findFirst({ where: { companyId, month, year } }),
     ]);
 
     const logsByEmployee = new Map<string, typeof logs>();
@@ -409,16 +435,31 @@ async getAttendanceSummary(companyId: string, month: number, year: number) {
     });
   }
 
-  async getPayouts(companyId: string, month: number, year: number) {
+  async getPayouts(companyId: string, month: number, year: number, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     return this.prisma.additionalPayout.findMany({
-      where: { employee: { companyId }, month, year },
-      include: { employee: { select: { firstName: true, lastName: true, employeeCode: true } } }
+      where: {
+        ...(groupWide ? {} : { employee: { companyId } }),
+        month,
+        year,
+      },
+      include: {
+        employee: {
+          select: {
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            company: { select: { name: true, displayName: true } },
+          },
+        },
+      },
     });
   }
 
-  async addPayout(companyId: string, body: any) {
+  async addPayout(companyId: string, body: any, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const employee = await this.prisma.employee.findFirst({
-      where: { id: body.employeeId, companyId },
+      where: groupWide ? { id: body.employeeId } : { id: body.employeeId, companyId },
       select: { id: true },
     });
     if (!employee) throw new NotFoundException('Employee not found in this company');
@@ -434,25 +475,42 @@ async getAttendanceSummary(companyId: string, month: number, year: number) {
     });
   }
 
-  async deletePayout(companyId: string, id: string) {
+  async deletePayout(companyId: string, id: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const payout = await this.prisma.additionalPayout.findFirst({
-      where: { id, employee: { companyId } },
+      where: groupWide ? { id } : { id, employee: { companyId } },
     });
     if (!payout) throw new NotFoundException('Payout not found');
     return this.prisma.additionalPayout.delete({ where: { id } });
   }
 
-  async getCyclePayslips(companyId: string, cycleId: string) {
-    const cycle = await this.prisma.payrollCycle.findFirst({ where: { id: cycleId, companyId } });
+  async getCyclePayslips(companyId: string, cycleId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const cycle = await this.prisma.payrollCycle.findFirst({
+      where: groupWide ? { id: cycleId } : { id: cycleId, companyId },
+    });
     if (!cycle) throw new NotFoundException('Payroll cycle not found');
     return this.prisma.payslip.findMany({
       where: { payrollCycleId: cycleId },
-      include: { employee: { select: { firstName: true, lastName: true, employeeCode: true, department: { select: { name: true } } } } }
+      include: {
+        employee: {
+          select: {
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            department: { select: { name: true } },
+            company: { select: { name: true, displayName: true } },
+          },
+        },
+      },
     });
   }
 
-async sendPayslips(companyId: string, cycleId: string) {
-    const cycle = await this.prisma.payrollCycle.findFirst({ where: { id: cycleId, companyId } });
+  async sendPayslips(companyId: string, cycleId: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const cycle = await this.prisma.payrollCycle.findFirst({
+      where: groupWide ? { id: cycleId } : { id: cycleId, companyId },
+    });
     if (!cycle) throw new NotFoundException('Payroll cycle not found');
 
     const payslips = await this.prisma.payslip.findMany({
