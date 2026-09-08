@@ -10,12 +10,23 @@ export class DashboardService {
     private notifications: NotificationsService,
   ) {}
 
-async getSummary(companyId: string, user?: any) {
-    // Strict approver principal: company-wide HR/approval alerts (pending
-    // regularization, pending leave approvals, job openings) are only shown to
-    // system/super admins and roles with an explicit leave/attendance approval
-    // permission. A role with an unrelated grant, or a manager-ish title, is
-    // NOT privileged.
+  private async isGroupWide(userId?: string): Promise<boolean> {
+    if (!userId) return false;
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        isSuperAdmin: true,
+        role: { select: { name: true, isSystem: true, permissions: { select: { module: true, action: true } } } },
+      },
+    });
+    if (!user) return false;
+    if (user.isSuperAdmin) return true;
+    if (user.role?.isSystem) return true;
+    if (['HR Admin', 'Admin', 'Super Admin'].includes(user.role?.name || '')) return true;
+    return !!user.role?.permissions?.some((p) => p.module === 'organization' || p.module === 'ALL' || p.module === '*' || p.action === 'ALL');
+  }
+
+  async getSummary(companyId: string, user?: any) {
     let isPrivileged = !!user?.isSuperAdmin;
     if (!isPrivileged && user?.roleId) {
       const role = await this.prisma.role.findUnique({
@@ -32,11 +43,28 @@ async getSummary(companyId: string, user?: any) {
         isPrivileged = isApprover({ isSuperAdmin: false, roleIsSystem: false }, grants);
       }
     }
+
+    const isGroupManager = isPrivileged || await this.isGroupWide(user?.userId || user?.id);
+    let targetCompanyIds: string[] = [companyId];
+
+    if (isGroupManager) {
+      const allCompanies = await this.prisma.company.findMany({ select: { id: true } });
+      targetCompanyIds = allCompanies.map((c) => c.id);
+    } else if (user?.userId) {
+      const emp = await this.prisma.employee.findFirst({
+        where: { userId: user.userId },
+        select: { companyId: true },
+      });
+      if (emp?.companyId) {
+        targetCompanyIds = [emp.companyId];
+      }
+    }
+
     const today = new Date();
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
-const [
+    const [
       totalEmployees,
       pendingLeaveApprovals,
       openPositions,
@@ -44,8 +72,8 @@ const [
       pendingRegularizationCount,
     ] = await this.prisma.$transaction([
       this.prisma.employee.count({ 
-where: { 
-          companyId, 
+        where: { 
+          companyId: { in: targetCompanyIds }, 
           status: 'active',
           isSystem: false,
           NOT: {
@@ -58,28 +86,26 @@ where: {
         } 
       }),
       this.prisma.leaveRequest.count({
-        where: { employee: { companyId }, status: 'pending' },
+        where: { employee: { companyId: { in: targetCompanyIds } }, status: 'pending' },
       }),
-      this.prisma.job.count({ where: { companyId, status: 'open' } }),
-      this.prisma.project.count({ where: { companyId, status: 'active' } }),
+      this.prisma.job.count({ where: { companyId: { in: targetCompanyIds }, status: 'open' } }),
+      this.prisma.project.count({ where: { companyId: { in: targetCompanyIds }, status: 'active' } }),
       this.prisma.regularizationRequest.count({
-        where: { employee: { companyId }, status: 'pending' },
+        where: { employee: { companyId: { in: targetCompanyIds } }, status: 'pending' },
       }),
     ]);
 
-// Late arrivals count
     const lateArrivals = await this.prisma.attendanceLog.count({
       where: {
-        employee: { companyId },
+        employee: { companyId: { in: targetCompanyIds } },
         date: { gte: startOfDay, lt: endOfDay },
         status: 'late'
       }
     });
 
-    // Present / on-leave / absent from distinct active employee sets
     const activeIds = await this.prisma.employee.findMany({
       where: {
-        companyId,
+        companyId: { in: targetCompanyIds },
         status: 'active',
         isSystem: false,
         NOT: {
@@ -95,7 +121,7 @@ where: {
     const presentGroup = await this.prisma.attendanceLog.groupBy({
       by: ['employeeId'],
       where: {
-        employee: { companyId, isSystem: false },
+        employee: { companyId: { in: targetCompanyIds }, isSystem: false },
         date: { gte: startOfDay, lt: endOfDay },
         status: { in: ['present', 'late', 'half_day'] },
       },
@@ -104,7 +130,7 @@ where: {
     const onLeaveGroup = await this.prisma.leaveRequest.groupBy({
       by: ['employeeId'],
       where: {
-        employee: { companyId, isSystem: false },
+        employee: { companyId: { in: targetCompanyIds }, isSystem: false },
         status: 'approved',
         isHalfDay: false,
         startDate: { lte: endOfDay },
@@ -115,7 +141,7 @@ where: {
     const halfDayLeaveGroup = await this.prisma.leaveRequest.groupBy({
       by: ['employeeId'],
       where: {
-        employee: { companyId, isSystem: false },
+        employee: { companyId: { in: targetCompanyIds }, isSystem: false },
         status: 'approved',
         isHalfDay: true,
         startDate: { lte: endOfDay },
@@ -129,20 +155,19 @@ where: {
     const onLeaveToday = activeIds.filter((e) => onLeaveSet.has(e.id)).length;
     const absentToday = Math.max(totalEmployees - presentToday - onLeaveToday, 0);
 
-    // Pending Payroll for current month
     const currentMonthStr = today.getMonth() + 1;
     const currentYearNum = today.getFullYear();
-    const cycle = await this.prisma.payrollCycle.findUnique({
-      where: { companyId_month_year: { companyId, month: currentMonthStr, year: currentYearNum } },
+    const cycles = await this.prisma.payrollCycle.findMany({
+      where: { companyId: { in: targetCompanyIds }, month: currentMonthStr, year: currentYearNum },
       include: { payslips: true }
     });
-    const payslipCount = cycle ? cycle.payslips.length : 0;
+    const payslipCount = cycles.reduce((acc, c) => acc + (c.payslips?.length || 0), 0);
     const pendingPayroll = Math.max(0, totalEmployees - payslipCount);
 
     const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 5, 1);
     const logs = await this.prisma.attendanceLog.findMany({
       where: {
-        employee: { companyId },
+        employee: { companyId: { in: targetCompanyIds } },
         date: { gte: sixMonthsAgo }
       },
       select: { date: true, status: true }
@@ -164,29 +189,24 @@ where: {
       }
     }
 
-    // --- NEW: Department Mix ---
     const deptStats = await this.prisma.employee.groupBy({
       by: ['departmentId'],
-      where: { companyId, status: 'active' },
+      where: { companyId: { in: targetCompanyIds }, status: 'active', isSystem: false },
       _count: { id: true }
     });
 
     const departments = await this.prisma.department.findMany({
-      where: { companyId },
+      where: { companyId: { in: targetCompanyIds } },
       select: { id: true, name: true }
     });
 
     const deptMap = new Map(departments.map(d => [d.id, d.name]));
-    // Generate distinct colors for departments
     const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#14B8A6', '#F43F5E', '#6366F1'];
     
-const departmentMix = deptStats
+    const departmentMix = deptStats
       .map((stat, i) => {
         const count = stat._count.id;
         const name = stat.departmentId ? (deptMap.get(stat.departmentId) || 'Department') : 'General';
-        // value = raw active headcount so pie slices are exactly proportional to
-        // the number of employees (no rounding loss for small departments) and
-        // tooltips/legends surface the true per-department count.
         return {
           name,
           value: count,
@@ -197,13 +217,13 @@ const departmentMix = deptStats
       })
       .sort((a, b) => b.count - a.count);
 
-    // --- NEW: Headcount Trend (last 6 months) ---
     const headcountTrend: { month: string; headcount: number }[] = [];
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(today.getFullYear(), today.getMonth() - i + 1, 0); // End of month
+      const d = new Date(today.getFullYear(), today.getMonth() - i + 1, 0);
       const count = await this.prisma.employee.count({
         where: {
-          companyId,
+          companyId: { in: targetCompanyIds },
+          isSystem: false,
           OR: [
             { joiningDate: { lte: d } },
             { joiningDate: null }
@@ -217,10 +237,9 @@ const departmentMix = deptStats
       });
     }
 
-    // --- NEW: Recruitment Pipeline ---
     const candidates = await this.prisma.candidate.groupBy({
       by: ['stage'],
-      where: { job: { companyId } },
+      where: { job: { companyId: { in: targetCompanyIds } } },
       _count: { id: true }
     });
     
@@ -237,15 +256,14 @@ const departmentMix = deptStats
       else if (c.stage === 'hired') recruitmentPipeline.hired = c._count.id;
     }
 
-    // --- NEW: Leave Statistics ---
     const currentYear = today.getFullYear();
     const leaveStats = await this.prisma.leaveRequest.groupBy({
       by: ['leaveTypeId'],
-      where: { employee: { companyId }, startDate: { gte: new Date(currentYear, 0, 1) } },
+      where: { employee: { companyId: { in: targetCompanyIds } }, startDate: { gte: new Date(currentYear, 0, 1) } },
       _count: { id: true }
     });
     
-    const leaveTypes = await this.prisma.leaveType.findMany({ where: { companyId } });
+    const leaveTypes = await this.prisma.leaveType.findMany({ where: { companyId: { in: targetCompanyIds } } });
     const leaveTypeMap = new Map(leaveTypes.map(t => [t.id, t.name]));
     
     const leaveStatistics = leaveStats.map(s => ({
@@ -253,10 +271,8 @@ const departmentMix = deptStats
       value: s._count.id
     }));
 
-    // --- NEW: Monthly Payroll Cost ---
-    // Calculate active total monthly CTC sum as baseline
-const activeEmployees = await this.prisma.employee.findMany({
-      where: { companyId, status: 'active', isSystem: false },
+    const activeEmployees = await this.prisma.employee.findMany({
+      where: { companyId: { in: targetCompanyIds }, status: 'active', isSystem: false },
       include: { salaryStructures: { orderBy: { effectiveFrom: 'desc' }, take: 1 } }
     });
     
@@ -277,12 +293,12 @@ const activeEmployees = await this.prisma.employee.findMany({
       const mNum = d.getMonth() + 1;
       const yNum = d.getFullYear();
       
-      const cycle = await this.prisma.payrollCycle.findUnique({
-        where: { companyId_month_year: { companyId, month: mNum, year: yNum } },
+      const monthCycles = await this.prisma.payrollCycle.findMany({
+        where: { companyId: { in: targetCompanyIds }, month: mNum, year: yNum },
         include: { payslips: true }
       });
-      
-      const cost = cycle && cycle.payslips.length > 0 ? cycle.payslips.reduce((acc, p) => acc + Number(p.netPay), 0) : estimatedMonthlyCost;
+      const payslips = monthCycles.flatMap(c => c.payslips || []);
+      const cost = payslips.length > 0 ? payslips.reduce((acc, p) => acc + Number(p.netPay), 0) : estimatedMonthlyCost;
       
       payrollCost.push({
         month: d.toLocaleString('en-US', { month: 'short' }),
@@ -290,10 +306,9 @@ const activeEmployees = await this.prisma.employee.findMany({
       });
     }
 
-    // --- REAL: Gender Distribution ---
     const genderGroups = await this.prisma.employeePersonalInfo.groupBy({
       by: ['gender'],
-      where: { employee: { companyId, status: 'active' } },
+      where: { employee: { companyId: { in: targetCompanyIds }, status: 'active', isSystem: false } },
       _count: { id: true }
     });
 
@@ -304,7 +319,7 @@ const activeEmployees = await this.prisma.employee.findMany({
     ];
 
     const inactiveEmployeesCount = await this.prisma.employee.count({
-      where: { companyId, status: { in: ['resigned', 'terminated', 'inactive'] } }
+      where: { companyId: { in: targetCompanyIds }, isSystem: false, status: { in: ['resigned', 'terminated', 'inactive', 'ex-employee'] } }
     });
     const realAttritionPct = totalEmployees > 0 ? Number(((inactiveEmployeesCount / (totalEmployees + inactiveEmployeesCount)) * 100).toFixed(1)) : 0;
 
@@ -317,12 +332,11 @@ const activeEmployees = await this.prisma.employee.findMany({
       });
     }
 
-    // --- NEW: Milestones (New Joiners & Anniversaries this month) ---
-    const currentMonthNum = today.getMonth() + 1; // 1-12
+    const currentMonthNum = today.getMonth() + 1;
     const currentYearVal = today.getFullYear();
     
     const employees = await this.prisma.employee.findMany({
-      where: { companyId, status: 'active', joiningDate: { not: null } },
+      where: { companyId: { in: targetCompanyIds }, status: 'active', isSystem: false, joiningDate: { not: null } },
       select: { id: true, firstName: true, lastName: true, joiningDate: true }
     });
 
@@ -353,14 +367,12 @@ const activeEmployees = await this.prisma.employee.findMany({
       }
     }
 
-    // --- REAL Feeds & Recent System Activities ---
     const recentActivitiesRaw = await this.prisma.auditLog.findMany({
-      where: { companyId },
+      where: { companyId: { in: targetCompanyIds } },
       orderBy: { createdAt: 'desc' },
       take: 8
     });
     
-    // Fallback to recent employee additions & leave requests if audit log is empty
     let recentActivities: { id: string; title: string; time: string }[] = [];
     if (recentActivitiesRaw.length > 0) {
       recentActivities = recentActivitiesRaw.map(a => ({
@@ -370,7 +382,7 @@ const activeEmployees = await this.prisma.employee.findMany({
       }));
     } else {
       const recentEmps = await this.prisma.employee.findMany({
-        where: { companyId },
+        where: { companyId: { in: targetCompanyIds }, isSystem: false },
         orderBy: { createdAt: 'desc' },
         take: 4,
         select: { id: true, firstName: true, lastName: true, createdAt: true }
@@ -382,11 +394,6 @@ const activeEmployees = await this.prisma.employee.findMany({
       }));
     }
 
-    // --- Authorized Notifications & Alerts ---
-    // Server-side scoping: every user only ever receives notifications that are
-    // addressed to them personally, to their role, to their manager relationship,
-    // to HR (theirs is an HR role), or as company-wide announcements. Employees
-    // never see company-wide approval feeds.
     const myNotifications = user?.userId
       ? await this.notifications.getMine(
           { userId: user.userId, companyId, email: user?.email ?? '', roleId: user?.roleId, isSuperAdmin: user?.isSuperAdmin },
@@ -431,7 +438,7 @@ const activeEmployees = await this.prisma.employee.findMany({
       }
     }
 
-const summary = {
+    const summary = {
       widgets: {
         totalEmployees,
         presentToday,
@@ -457,7 +464,7 @@ const summary = {
       notifications,
       pendingLeaveRequests: isPrivileged
         ? (await this.prisma.leaveRequest.findMany({
-            where: { employee: { companyId }, status: 'pending' },
+            where: { employee: { companyId: { in: targetCompanyIds } }, status: 'pending' },
             include: { employee: true, leaveType: true },
             orderBy: { createdAt: 'desc' },
             take: 5,
@@ -476,7 +483,6 @@ const summary = {
     };
 
     if (!isPrivileged) {
-      // Employees do not see company-wide salary/payroll analytics.
       delete (summary.widgets as any).totalAnnualCTC;
       delete (summary as any).monthlyPayrollCost;
       delete (summary as any).departmentMix;
@@ -489,4 +495,3 @@ const summary = {
     return summary;
   }
 }
-

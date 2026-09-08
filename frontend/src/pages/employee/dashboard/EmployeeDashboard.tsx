@@ -123,8 +123,19 @@ export default function EmployeeDashboard() {
 
    if (!emp) {
       return (
-         <div className="flex items-center justify-center h-64">
-            <Spinner />
+         <div className="page-container flex flex-col items-center justify-center min-h-[350px] text-center p-8 space-y-4 bg-[var(--surface)] border border-[var(--border)] rounded-2xl">
+            <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center">
+               <AlertTriangle size={24} />
+            </div>
+            <div>
+               <h3 className="text-base font-bold text-[var(--text-primary)]">No Employee Record Found</h3>
+               <p className="text-xs text-[var(--text-muted)] mt-1 max-w-md">
+                  This user account is not linked to an active employee profile in the system.
+               </p>
+            </div>
+            <Link to="/organization/profile" className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 transition-colors">
+               Go to Company & Group Directory
+            </Link>
          </div>
       );
    }

@@ -111,12 +111,23 @@ export class AuthService {
       }
     }
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
+    const effectiveCompanyId = user.employeeId
+      ? (await this.prisma.employee.findUnique({ where: { id: user.employeeId }, select: { companyId: true } }))?.companyId || user.companyId
+      : user.companyId;
 
-    return this.issueTokens(user.id, user.companyId, user.email, user.roleId || undefined);
+    if (effectiveCompanyId !== user.companyId) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { companyId: effectiveCompanyId, lastLoginAt: new Date() },
+      });
+    } else {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      });
+    }
+
+    return this.issueTokens(user.id, effectiveCompanyId, user.email, user.roleId || undefined);
   }
 
   async refresh(userId: string, providedToken: string) {
@@ -140,10 +151,14 @@ export class AuthService {
     if (user.employeeId && !user.isSuperAdmin) {
       const employee = await this.prisma.employee.findUnique({
         where: { id: user.employeeId },
-        select: { status: true, isSystem: true },
+        select: { status: true, isSystem: true, companyId: true },
       });
       if (employee && !employee.isSystem && employee.status !== 'active') {
         throw new UnauthorizedException('Your account is no longer active');
+      }
+      if (employee?.companyId && employee.companyId !== user.companyId) {
+        await this.prisma.user.update({ where: { id: user.id }, data: { companyId: employee.companyId } });
+        user.companyId = employee.companyId;
       }
     }
 
@@ -205,13 +220,14 @@ export class AuthService {
       where: { id: userId },
       select: {
         isSuperAdmin: true,
-        role: { select: { isSystem: true, permissions: { select: { module: true } } } },
+        role: { select: { name: true, isSystem: true, permissions: { select: { module: true, action: true } } } },
       },
     });
     if (!user) return false;
     if (user.isSuperAdmin) return true;
     if (user.role?.isSystem) return true;
-    return !!user.role?.permissions?.some((p) => p.module === 'organization');
+    if (['HR Admin', 'Admin', 'Super Admin'].includes(user.role?.name || '')) return true;
+    return !!user.role?.permissions?.some((p) => p.module === 'organization' || p.module === 'ALL' || p.module === '*' || p.action === 'ALL');
   }
 
   /** Resolve the user's accessible companies for the HR selector. */

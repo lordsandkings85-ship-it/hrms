@@ -15,12 +15,12 @@ export default function AdminDashboard() {
   const { user } = useAuthStore();
 
   const emp = user?.employee as any;
-  const empCode = emp?.employeeCode || '—';
+  const empCode = emp?.employeeCode || (user?.isSuperAdmin ? 'SUPER-ADMIN' : 'ADMIN');
   const hireDate = emp?.joiningDate
     ? fmtDate(emp.joiningDate)
     : '—';
-  const locationName = emp?.branch?.name || '—';
-  const deptName = emp?.department?.name || '—';
+  const locationName = emp?.branch?.name || (user?.isSuperAdmin ? 'All Locations (Lords & Kings Group)' : 'Headquarters');
+  const deptName = emp?.department?.name || (user?.isSuperAdmin ? 'Executive Management' : 'Administration');
 
   const { data, isLoading } = useQuery({
     queryKey: dashboardSummaryKey(user?.id),

@@ -231,7 +231,8 @@ export class CompaniesService {
         OR: [
           { isSuperAdmin: true },
           { role: { is: { isSystem: true } } },
-          { role: { is: { permissions: { some: { module: 'organization' } } } } },
+          { role: { is: { name: { in: ['HR Admin', 'Admin', 'Super Admin'] } } } },
+          { role: { is: { permissions: { some: { module: { in: ['organization', 'ALL', '*'] } } } } } },
         ],
       },
       select: { id: true },
@@ -239,13 +240,11 @@ export class CompaniesService {
     const memberIds = Array.from(new Set([userId, ...groupUsers.map((u) => u.id)]));
 
     for (const item of DEFAULT_COMPANIES) {
-      let existing = await this.prisma.company.findFirst({
-        where: {
-          OR: [
-            { name: { equals: item.name } },
-            { displayName: { equals: item.displayName } },
-          ],
-        },
+      const normalizedSearch = item.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const allComps = await this.prisma.company.findMany();
+      let existing = allComps.find(c => {
+        const cNorm = (c.displayName || c.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        return cNorm.includes(normalizedSearch) || normalizedSearch.includes(cNorm);
       });
 
       if (!existing) {
@@ -330,6 +329,11 @@ export class CompaniesService {
 
         await tx.employee.update({
           where: { id: empId },
+          data: { companyId },
+        });
+
+        await tx.user.updateMany({
+          where: { employeeId: empId },
           data: { companyId },
         });
 
@@ -477,13 +481,14 @@ export class CompaniesService {
       where: { id: userId },
       select: {
         isSuperAdmin: true,
-        role: { select: { isSystem: true, permissions: { select: { module: true } } } },
+        role: { select: { name: true, isSystem: true, permissions: { select: { module: true, action: true } } } },
       },
     });
     if (!user) return false;
     if (user.isSuperAdmin) return true;
     if (user.role?.isSystem) return true;
-    return !!user.role?.permissions?.some((p) => p.module === 'organization');
+    if (['HR Admin', 'Admin', 'Super Admin'].includes(user.role?.name || '')) return true;
+    return !!user.role?.permissions?.some((p) => p.module === 'organization' || p.module === 'ALL' || p.module === '*' || p.action === 'ALL');
   }
 
   private async assertNoDuplicate(
