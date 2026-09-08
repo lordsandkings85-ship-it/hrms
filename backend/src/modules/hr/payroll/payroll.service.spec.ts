@@ -47,6 +47,11 @@ describe('PayrollService', () => {
       additionalPayout: {
         findMany: jest.fn(async () => []),
       },
+      company: {
+        findFirst: jest.fn(async () => ({
+          id: 'company-1', name: 'Test Co', gstNumber: null, panNumber: null,
+        })),
+      },
       payrollCycle: {
         upsert: jest.fn(async () => ({ id: 'cycle-1', status: 'draft' })),
         update: jest.fn(async () => ({ id: 'cycle-1', status: 'processed' })),

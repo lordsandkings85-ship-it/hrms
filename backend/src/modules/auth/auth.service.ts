@@ -190,11 +190,54 @@ export class AuthService {
       ...safeUser,
       canApproveApproval,
       employee: user.employee ? decryptEmployeeNested(decryptPiiFields(user.employee)) : user.employee,
+      companies: await this.resolveCompanies(user.id, user.companyId),
     };
   }
 
+  /** Resolve the user's accessible companies (primary + memberships) for the HR selector. */
+  private async resolveCompanies(userId: string, primaryCompanyId: string) {
+    const membership = await this.prisma.userCompany.findMany({
+      where: { userId, isActive: true },
+      select: {
+        company: {
+          select: {
+            id: true, name: true, displayName: true, legalName: true,
+            status: true, planId: true,
+          },
+        },
+      },
+    });
+    const primary = await this.prisma.company.findUnique({
+      where: { id: primaryCompanyId },
+      select: {
+        id: true, name: true, displayName: true, legalName: true,
+        status: true, planId: true,
+      },
+    });
+    // Merge primary first (dedupe against memberships).
+    const merged = new Map<string, typeof primary & object>();
+    if (primary) merged.set(primary.id, primary);
+    for (const m of membership) {
+      if (m.company && !merged.has(m.company.id)) merged.set(m.company.id, m.company);
+    }
+    return Array.from(merged.values()).map((c) => ({
+      ...c,
+      label: c.displayName || c.name,
+    }));
+  }
+
   private async issueTokens(userId: string, companyId: string, email: string, roleId?: string) {
-    const payload = { sub: userId, companyId, email, roleId };
+    // Resolve the user's full set of accessible companies: their primary companyId
+    // plus any additional UserCompany memberships (multi-company HR/admin).
+    const membership = await this.prisma.userCompany.findMany({
+      where: { userId, isActive: true },
+      select: { companyId: true },
+    });
+    const companyIds = Array.from(
+      new Set([companyId, ...membership.map((m) => m.companyId)]),
+    );
+
+    const payload = { sub: userId, companyId, activeCompanyId: companyId, companyIds, email, roleId };
 
     const accessToken = this.jwt.sign(payload, {
       secret: process.env.JWT_ACCESS_SECRET,

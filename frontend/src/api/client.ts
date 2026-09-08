@@ -10,6 +10,10 @@ function getToken() {
   return localStorage.getItem('accessToken');
 }
 
+function getActiveCompanyId(): string | null {
+  return localStorage.getItem('activeCompanyId');
+}
+
 function getUserIdFromToken(token: string): string | null {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
@@ -62,6 +66,7 @@ export async function api<T>(path: string, options: RequestInit = {}, _retried =
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(getActiveCompanyId() ? { 'X-Company-Id': getActiveCompanyId()! } : {}),
         ...options.headers,
       },
     });
@@ -88,6 +93,34 @@ export async function api<T>(path: string, options: RequestInit = {}, _retried =
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;
 }
+
+export interface Company {
+  id: string;
+  name: string;
+  displayName?: string | null;
+  legalName?: string | null;
+  label?: string;
+  status?: string;
+  planId?: string | null;
+  timezone?: string;
+  currency?: string;
+  gstNumber?: string | null;
+  panNumber?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  pincode?: string | null;
+  _count?: { employees?: number };
+}
+
+export const companiesApi = {
+  list: () => api<Company[]>('/companies'),
+  create: (data: Partial<Company> & { name: string }) =>
+    api<Company>('/companies', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<Company>) =>
+    api<Company>(`/companies/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+};
 
 export const authApi = {
   me: () => api<any>('/auth/me'),
@@ -294,6 +327,10 @@ export const employeesApi = {
       `/employees/${employeeId}/reset-password`,
       { method: 'POST', body: JSON.stringify({ sendEmail: !!sendEmail }) },
     ),
+  transfer: (employeeId: string, data: { targetCompanyId: string; effectiveFrom?: string; reason?: string }) =>
+    api<any>(`/employees/${employeeId}/transfer`, { method: 'POST', body: JSON.stringify(data) }),
+  companyHistory: (employeeId: string) =>
+    api<any[]>(`/employees/${employeeId}/company-history`),
 };
 
 export const attendanceApi = {

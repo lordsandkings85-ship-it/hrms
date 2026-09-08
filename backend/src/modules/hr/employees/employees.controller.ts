@@ -120,6 +120,20 @@ export class EmployeesController {
     return this.employeesService.update(user.companyId, user.userId, id, dto);
   }
 
+  @Post(':id/transfer')
+  @Permissions({ module: 'employees', action: 'edit' })
+  transfer(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: {
+    targetCompanyId: string; effectiveFrom?: string; reason?: string;
+  }) {
+    return this.employeesService.transferCompany(user.companyId, user.userId, id, body);
+  }
+
+  @Get(':id/company-history')
+  @Permissions({ module: 'employees', action: 'view' })
+  companyHistory(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.employeesService.companyHistory(user.companyId, id);
+  }
+
   @Post(':id/archive')
   @Permissions({ module: 'employees', action: 'delete' })
   archive(@CurrentUser() user: AuthUser, @Param('id') id: string) {

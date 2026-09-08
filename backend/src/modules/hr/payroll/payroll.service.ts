@@ -138,6 +138,18 @@ const employees = await this.prisma.employee.findMany({
     const monthStart = new Date(year, month - 1, 1);
     const monthEnd = new Date(year, month, 1);
 
+    // Snapshot the company identity used on this run: payslips carry the
+    // company at generation time so historical payslips stay accurate even if
+    // company details change later (multi-company).
+    const companySnapshot = await this.prisma.company.findFirst({
+      where: { id: companyId },
+      select: {
+        id: true, name: true, legalName: true, displayName: true,
+        gstNumber: true, panNumber: true, tanNumber: true, cinNumber: true,
+        address: true, city: true, state: true, pincode: true, country: true,
+      },
+    });
+
     // Count working days in a date range based on workingDaysPerWeek
     const countWorkingDays = (from: Date, to: Date, workingDaysPerWeek: number) => {
       let workingDays = 0;
@@ -265,6 +277,8 @@ let payslipCount = 0;
             data: {
               employeeId: emp.id,
               payrollCycleId: cycle.id,
+              companyId,
+              companySnapshot: (companySnapshot as any) ?? undefined,
               grossPay: grossTotal,
               totalDeductions,
               netPay: net,
@@ -460,9 +474,11 @@ async sendPayslips(companyId: string, cycleId: string) {
         continue;
       }
       try {
+        const snap: any = p.companySnapshot;
+        const companyLabel = snap?.legalName || snap?.displayName || snap?.name;
         await this.mail.send({
           to: email,
-          subject: `Payslip — ${cycle.month}/${cycle.year} — ${p.employee.firstName} ${p.employee.lastName || ''}`,
+          subject: `Payslip — ${cycle.month}/${cycle.year} — ${p.employee.firstName} ${p.employee.lastName || ''}${companyLabel ? ` (${companyLabel})` : ''}`,
           html: this.buildPayslipEmailHtml(p, cycle),
         });
         sent++;

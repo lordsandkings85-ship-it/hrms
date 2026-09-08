@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -619,6 +619,75 @@ export class EmployeesService {
       sent.push(employee.id);
     }
     return { sent: sent.length, skipped };
+  }
+
+  /** Multi-company: reassign an employee to another company within the caller's scope,
+   *  recording an EmployeeCompanyHistory entry. Never removes historical payslips. */
+  async transferCompany(companyId: string, userId: string, employeeId: string, dto: {
+    targetCompanyId: string; effectiveFrom?: string; reason?: string;
+  }) {
+    const employee = await this.prisma.employee.findFirst({
+      where: { id: employeeId, companyId },
+      select: { id: true, companyId: true },
+    });
+    if (!employee) throw new NotFoundException('Employee not found');
+
+    // The target company must be within the caller's access scope.
+    const memberships = await this.prisma.userCompany.findMany({
+      where: { userId, isActive: true },
+      select: { companyId: true },
+    });
+    const accessible = new Set([companyId, ...memberships.map((m) => m.companyId)]);
+    if (!accessible.has(dto.targetCompanyId)) throw new ForbiddenException('Target company not in your access scope');
+
+    if (dto.targetCompanyId === employee.companyId) {
+      throw new BadRequestException('Employee is already assigned to this company');
+    }
+
+    const targetCompany = await this.prisma.company.findUnique({ where: { id: dto.targetCompanyId } });
+    if (!targetCompany) throw new NotFoundException('Target company not found');
+
+    await this.prisma.$transaction(async (tx) => {
+      // Close any open history entry for the current company.
+      await tx.employeeCompanyHistory.updateMany({
+        where: { employeeId, effectiveTo: null },
+        data: { effectiveTo: new Date() },
+      });
+
+      await tx.employee.update({
+        where: { id: employeeId },
+        data: { companyId: dto.targetCompanyId },
+      });
+
+      await tx.employeeCompanyHistory.create({
+        data: {
+          employeeId,
+          companyId: dto.targetCompanyId,
+          effectiveFrom: dto.effectiveFrom ? new Date(dto.effectiveFrom) : new Date(),
+          reason: dto.reason,
+          changedBy: userId,
+        },
+      });
+    });
+
+    return this.prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { id: true, companyId: true, employeeCode: true, firstName: true, lastName: true },
+    });
+  }
+
+  /** History of company assignments for an employee within the caller's company scope. */
+  async companyHistory(companyId: string, employeeId: string) {
+    const employee = await this.prisma.employee.findFirst({
+      where: { id: employeeId, companyId },
+      select: { id: true },
+    });
+    if (!employee) throw new NotFoundException('Employee not found');
+    return this.prisma.employeeCompanyHistory.findMany({
+      where: { employeeId },
+      orderBy: { effectiveFrom: 'asc' },
+      include: { company: { select: { id: true, name: true, displayName: true } } },
+    });
   }
 
   private async audit(companyId: string, userId: string, action: string, entityId: string) {

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRightLeft, Check, Loader2 } from 'lucide-react';
-import { employeesApi, organizationApi } from '../../../api/client';
+import { ArrowRightLeft, Check, Loader2, Building2 } from 'lucide-react';
+import { employeesApi, organizationApi, companiesApi } from '../../../api/client';
+import { useAuthStore } from '../../../store/useAuthStore';
 import { useToast } from '../../../components/ui/ToastProvider';
 
 export default function EmployeeTransferPage() {
@@ -12,8 +13,17 @@ export default function EmployeeTransferPage() {
   const [branchId, setBranchId] = useState('');
   const [departmentId, setDepartmentId] = useState('');
   const [designationId, setDesignationId] = useState('');
+  const [companyId, setCompanyId] = useState('');
   const [transferDate, setTransferDate] = useState('');
   const [reason, setReason] = useState('');
+
+  const user = useAuthStore((s) => s.user);
+  const activeCompanyId = useAuthStore((s) => s.activeCompanyId);
+
+  const { data: companies = [] } = useQuery({
+    queryKey: ['companies-list'],
+    queryFn: () => companiesApi.list(),
+  });
 
   const { data: employees } = useQuery({
     queryKey: ['employees-list'],
@@ -60,11 +70,32 @@ export default function EmployeeTransferPage() {
 
   const canSubmit = !!employeeId && !!transferDate;
 
+  const currentCompanyName = (companies.find((c: any) => c.id === (selectedEmployee as any)?.companyId || (selectedEmployee as any)?.company?.id) as any)?.name
+    || (selectedEmployee as any)?.company?.name
+    || '—';
+
+  const companyTransfer = useMutation({
+    mutationFn: () => employeesApi.transfer(employeeId, {
+      targetCompanyId: companyId,
+      effectiveFrom: transferDate,
+      reason: reason || undefined,
+    }),
+    onSuccess: () => {
+      toastSuccess('Company transfer saved');
+      queryClient.invalidateQueries({ queryKey: ['employees-list'] });
+      queryClient.invalidateQueries({ queryKey: ['company-history'] });
+    },
+    onError: (e: any) => toastError(e.message || 'Failed to transfer company'),
+  });
+
+  const canSubmitCompany = !!employeeId && !!companyId && !!transferDate && companyId !== (selectedEmployee as any)?.companyId;
+
   const onEmployeeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setEmployeeId(e.target.value);
     setBranchId('');
     setDepartmentId('');
     setDesignationId('');
+    setCompanyId('');
     setTransferDate('');
     setReason('');
   };
@@ -161,6 +192,62 @@ export default function EmployeeTransferPage() {
               >
                 {transfer.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                 {transfer.isPending ? 'Saving…' : 'Save Transfer'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-[var(--text-muted)] mt-6">Select an employee to begin.</p>
+        )}
+      </div>
+
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
+          <Building2 size={18} className="text-indigo-500" /> Transfer Across Company
+        </h3>
+        <p className="text-sm text-[var(--text-muted)] mt-1 font-medium">
+          Move this employee to another company in your group (Lords And Kings group). Historical payslips and company identity are preserved via company snapshots.
+        </p>
+
+        {selectedEmployee ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Target Company</label>
+                <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className={selectClass}>
+                  <option value="">Select company…</option>
+                  {(companies as any[] || []).filter((c) => c.id !== (selectedEmployee as any)?.companyId && c.id !== (selectedEmployee as any)?.company?.id).map((c) => (
+                    <option key={c.id} value={c.id}>{c.displayName || c.name}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-[var(--text-muted)]">Current company: {currentCompanyName}</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Effective Date</label>
+                <input
+                  type="date"
+                  value={transferDate}
+                  onChange={(e) => setTransferDate(e.target.value)}
+                  className={selectClass}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Reason</label>
+                <input
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Reason for company transfer…"
+                  className={selectClass}
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => companyTransfer.mutate()}
+                disabled={!canSubmitCompany || companyTransfer.isPending}
+                className="flex items-center gap-2 px-5 py-2.5 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 transition-colors shadow-sm text-xs font-bold uppercase tracking-wider disabled:opacity-50"
+              >
+                {companyTransfer.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                {companyTransfer.isPending ? 'Transferring…' : 'Transfer Company'}
               </button>
             </div>
           </>

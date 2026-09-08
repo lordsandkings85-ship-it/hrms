@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Building2, Landmark, ShieldAlert, Award, Plus, Trash2, MapPin, Users, Layers, Loader2, Search, Download, Check, Settings, Pencil, X } from 'lucide-react';
-import { organizationApi, settingsApi, orgMastersApi } from '../../../api/client';
+import { organizationApi, settingsApi, orgMastersApi, companiesApi } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -37,6 +37,22 @@ const profileSchema = z.object({
   financialYearStart: z.string().optional(),
   financialYearEnd: z.string().optional(),
   payrollEffectiveFrom: z.string().optional(),
+  legalName: z.string().optional(),
+  displayName: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  country: z.string().optional(),
+  pincode: z.string().optional(),
+  tanNumber: z.string().optional(),
+  cinNumber: z.string().optional(),
+  pfNumber: z.string().optional(),
+  esiNumber: z.string().optional(),
+  professionalTaxNumber: z.string().optional(),
+  labourWelfareFundNumber: z.string().optional(),
+  bankName: z.string().optional(),
+  bankAccountName: z.string().optional(),
+  bankAccountNumber: z.string().optional(),
+  ifsc: z.string().optional(),
 });
 
 type TabKey = 'profile' | 'branches' | 'categories' | 'departments' | 'designations' | 'grades';
@@ -222,6 +238,10 @@ export default function OrganizationPage() {
       address: '', phone: '', email: '', website: '',
       gstNumber: '', panNumber: '', industry: '', companyType: '',
       financialYearStart: '', financialYearEnd: '', payrollEffectiveFrom: '',
+      legalName: '', displayName: '', city: '', state: '', country: 'India', pincode: '',
+      tanNumber: '', cinNumber: '', pfNumber: '', esiNumber: '',
+      professionalTaxNumber: '', labourWelfareFundNumber: '',
+      bankName: '', bankAccountName: '', bankAccountNumber: '', ifsc: '',
     },
   });
 
@@ -248,6 +268,22 @@ export default function OrganizationPage() {
         financialYearStart: profile.financialYearStart ? String(profile.financialYearStart) : '',
         financialYearEnd: profile.financialYearEnd ? String(profile.financialYearEnd) : '',
         payrollEffectiveFrom: profile.payrollEffectiveFrom ? String(profile.payrollEffectiveFrom) : '',
+        legalName: profile.legalName || '',
+        displayName: profile.displayName || '',
+        city: profile.city || '',
+        state: profile.state || '',
+        country: profile.country || 'India',
+        pincode: profile.pincode || '',
+        tanNumber: profile.tanNumber || '',
+        cinNumber: profile.cinNumber || '',
+        pfNumber: profile.pfNumber || '',
+        esiNumber: profile.esiNumber || '',
+        professionalTaxNumber: profile.professionalTaxNumber || '',
+        labourWelfareFundNumber: profile.labourWelfareFundNumber || '',
+        bankName: profile.bankName || '',
+        bankAccountName: profile.bankAccountName || '',
+        bankAccountNumber: profile.bankAccountNumber || '',
+        ifsc: profile.ifsc || '',
       });
     }
   }, [profile, profileForm]);
@@ -261,6 +297,14 @@ export default function OrganizationPage() {
       financialYearStart: data.financialYearStart ? parseInt(data.financialYearStart) : null,
       financialYearEnd: data.financialYearEnd ? parseInt(data.financialYearEnd) : null,
       payrollEffectiveFrom: data.payrollEffectiveFrom ? parseInt(data.payrollEffectiveFrom) : null,
+      legalName: data.legalName || null, displayName: data.displayName || null,
+      city: data.city || null, state: data.state || null, country: data.country || null, pincode: data.pincode || null,
+      tanNumber: data.tanNumber || null, cinNumber: data.cinNumber || null,
+      pfNumber: data.pfNumber || null, esiNumber: data.esiNumber || null,
+      professionalTaxNumber: data.professionalTaxNumber || null,
+      labourWelfareFundNumber: data.labourWelfareFundNumber || null,
+      bankName: data.bankName || null, bankAccountName: data.bankAccountName || null,
+      bankAccountNumber: data.bankAccountNumber || null, ifsc: data.ifsc || null,
     }),
     onSuccess: () => {
       toastSuccess('Company profile updated');
@@ -268,6 +312,25 @@ export default function OrganizationPage() {
     },
     onError: (e: any) => toastError(e.message || 'Failed to update profile')
   });
+
+  // Multi-company: list accessible companies + create a sub-company
+  const { data: companies } = useQuery({
+    queryKey: ['companies-list'],
+    queryFn: () => companiesApi.list(),
+  });
+
+  const createCompanyMutation = useMutation({
+    mutationFn: (data: { name: string; displayName?: string; legalName?: string; gstNumber?: string; panNumber?: string; address?: string; city?: string; state?: string; country?: string; pincode?: string }) =>
+      companiesApi.create(data),
+    onSuccess: () => {
+      toastSuccess('Sub-company created');
+      setNewCompanyForm({ name: '', displayName: '', legalName: '', gstNumber: '', panNumber: '', address: '', city: '', state: '', country: 'India', pincode: '' });
+      queryClient.invalidateQueries({ queryKey: ['companies-list'] });
+    },
+    onError: (e: any) => toastError(e.message || 'Failed to create company')
+  });
+
+  const [newCompanyForm, setNewCompanyForm] = useState({ name: '', displayName: '', legalName: '', gstNumber: '', panNumber: '', address: '', city: '', state: '', country: 'India', pincode: '' });
 
   const [seeding, setSeeding] = useState(false);
 
@@ -476,6 +539,82 @@ export default function OrganizationPage() {
                 </div>
 
                 <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-4">Statutory & Registration Numbers</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Legal Name</label>
+                      <input {...profileForm.register('legalName')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="Registered legal name" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Display Name</label>
+                      <input {...profileForm.register('displayName')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="Display name used in UI" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">TAN Number</label>
+                      <input {...profileForm.register('tanNumber')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. CHNR12345A" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">CIN Number</label>
+                      <input {...profileForm.register('cinNumber')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. U72900TN2022PTC123456" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">PF Number</label>
+                      <input {...profileForm.register('pfNumber')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. TN/CHN/12345" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">ESI Number</label>
+                      <input {...profileForm.register('esiNumber')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. 12000345678901234" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Professional Tax Number</label>
+                      <input {...profileForm.register('professionalTaxNumber')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. PT/CHN/123456" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Labour Welfare Fund Number</label>
+                      <input {...profileForm.register('labourWelfareFundNumber')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. TN/LWF/12345" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">City</label>
+                      <input {...profileForm.register('city')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Chennai" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">State</label>
+                      <input {...profileForm.register('state')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Tamil Nadu" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Country</label>
+                      <input {...profileForm.register('country')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. India" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Pincode</label>
+                      <input {...profileForm.register('pincode')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. 600001" />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-4">Bank Details (Company)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Bank Name</label>
+                      <input {...profileForm.register('bankName')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. HDFC Bank" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Account Name</label>
+                      <input {...profileForm.register('bankAccountName')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Lords And Kings Pvt Ltd" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">Account Number</label>
+                      <input {...profileForm.register('bankAccountNumber')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. 50100234567890" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-[var(--text-primary)]">IFSC Code</label>
+                      <input {...profileForm.register('ifsc')} className="w-full px-4 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. HDFC0001234" />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
                   <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-4">Financial Year</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
                     <div className="space-y-2">
@@ -589,6 +728,99 @@ export default function OrganizationPage() {
                   <span className="text-[var(--text-primary)]">{profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : '—'}</span>
                 </div>
               </div>
+            </div>
+
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center justify-between">
+                <span>Sub-Companies</span>
+                <span className="text-[10px] font-mono text-purple-500">{companies?.length ?? 0}</span>
+              </h4>
+              <div className="space-y-2">
+                {(companies ?? []).filter((c) => c.id !== profile?.id).length === 0 && (
+                  <p className="text-xs text-[var(--text-muted)]">No sub-companies yet. Create one below to assign employees and run separate payroll cycles.</p>
+                )}
+                {(companies ?? [])
+                  .filter((c) => c.id !== profile?.id)
+                  .map((c) => (
+                    <div key={c.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl" style={{ background: 'var(--surface-alt)', border: '1px solid var(--border)' }}>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-[var(--text-primary)] truncate">{c.displayName || c.name}</p>
+                        <p className="text-[10px] text-[var(--text-muted)] font-mono truncate">{c.gstNumber || c.legalName || c.id.slice(0, 8)}</p>
+                      </div>
+                      <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--surface-active)', color: 'var(--text-muted)' }}>
+                        {c._count?.employees ?? 0} emp
+                      </span>
+                    </div>
+                  ))}
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (newCompanyForm.name.trim()) createCompanyMutation.mutate(newCompanyForm);
+                }}
+                className="space-y-3 pt-2 border-t"
+                style={{ borderColor: 'var(--border)' }}
+              >
+                <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Create Sub-Company</p>
+                <input
+                  value={newCompanyForm.name}
+                  onChange={(e) => setNewCompanyForm({ ...newCompanyForm, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
+                  placeholder="Company name (required)"
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    value={newCompanyForm.displayName}
+                    onChange={(e) => setNewCompanyForm({ ...newCompanyForm, displayName: e.target.value })}
+                    className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
+                    placeholder="Display name"
+                  />
+                  <input
+                    value={newCompanyForm.legalName}
+                    onChange={(e) => setNewCompanyForm({ ...newCompanyForm, legalName: e.target.value })}
+                    className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
+                    placeholder="Legal name"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    value={newCompanyForm.gstNumber}
+                    onChange={(e) => setNewCompanyForm({ ...newCompanyForm, gstNumber: e.target.value })}
+                    className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
+                    placeholder="GST number"
+                  />
+                  <input
+                    value={newCompanyForm.panNumber}
+                    onChange={(e) => setNewCompanyForm({ ...newCompanyForm, panNumber: e.target.value })}
+                    className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
+                    placeholder="PAN number"
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <input
+                    value={newCompanyForm.city}
+                    onChange={(e) => setNewCompanyForm({ ...newCompanyForm, city: e.target.value })}
+                    className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
+                    placeholder="City"
+                  />
+                  <input
+                    value={newCompanyForm.state}
+                    onChange={(e) => setNewCompanyForm({ ...newCompanyForm, state: e.target.value })}
+                    className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
+                    placeholder="State"
+                  />
+                  <input
+                    value={newCompanyForm.country}
+                    onChange={(e) => setNewCompanyForm({ ...newCompanyForm, country: e.target.value })}
+                    className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500"
+                    placeholder="Country"
+                  />
+                </div>
+                <button type="submit" disabled={!newCompanyForm.name.trim() || createCompanyMutation.isPending} className="w-full py-2 bg-purple-500 text-white rounded-xl text-sm font-bold hover:bg-purple-600 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">
+                  {createCompanyMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Create Sub-Company
+                </button>
+              </form>
             </div>
           </div>
         </div>

@@ -142,6 +142,7 @@ export class SeederService {
             data: {
               employeeId: empId,
               payrollCycleId: cycle.id,
+              companyId,
               grossPay: 77850,
               totalDeductions: 2450,
               netPay: 75400,

@@ -111,7 +111,7 @@ describe('AttendanceService.markMissingCheckouts', () => {
     expect(prisma.attendanceLog.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: { attendanceStatus: 'INCOMPLETE' } }),
     );
-    expect(result).toEqual({ date: new Date('2026-09-06'), marked: 2 });
+    expect(result).toEqual({ date: new Date(2026, 8, 6), marked: 2 });
   });
 
   it('is a no-op when there are no open sessions', async () => {

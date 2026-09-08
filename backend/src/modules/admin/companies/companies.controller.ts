@@ -15,6 +15,30 @@ export class CompaniesController {
     return this.companiesService.getProfile(user.companyId);
   }
 
+  /** Multi-company: companies the caller can access (primary + memberships). */
+  @Get('companies')
+  listCompanies(@CurrentUser() user: AuthUser) {
+    return this.companiesService.listAccessible(user.userId, user.companyId);
+  }
+
+  /** Multi-company: create a sub-company under the caller's group. */
+  @Post('companies')
+  @Permissions({ module: 'organization', action: 'create' })
+  createCompany(@CurrentUser() user: AuthUser, @Body() body: {
+    name: string; displayName?: string; legalName?: string; timezone?: string; currency?: string;
+    address?: string; city?: string; state?: string; country?: string; pincode?: string;
+    gstNumber?: string; panNumber?: string;
+  }) {
+    return this.companiesService.create(user.userId, user.companyId, body);
+  }
+
+  /** Multi-company: update a company within the caller's access scope. */
+  @Patch('companies/:id')
+  updateCompany(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: any) {
+    return this.companiesService.update(user.userId, user.companyId, id, body);
+  }
+
+
   @Patch('settings/company')
   @Permissions({ module: 'settings', action: 'edit' })
   updateProfile(@CurrentUser() user: AuthUser, @Body() body: any) {

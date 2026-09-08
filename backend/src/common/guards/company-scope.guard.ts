@@ -19,6 +19,23 @@ export class CompanyScopeGuard implements CanActivate {
     const user = request.user;
     if (!user?.companyId) throw new ForbiddenException('Missing company context');
 
+    // In multi-company mode the client can switch its viewing context by
+    // sending X-Company-Id. It is only a viewing scope switch — it must be
+    // within the set of companies the user is a member of. Never changes real
+    // assignment. Defaults to the token's companyId.
+    const requested = request.headers?.['x-company-id'];
+    const companyIds: string[] = user.companyIds ?? [user.companyId];
+    if (requested) {
+      if (!companyIds.includes(requested)) {
+        throw new ForbiddenException('Company not in your access scope');
+      }
+      user.activeCompanyId = requested;
+      user.companyId = requested;
+    } else {
+      user.activeCompanyId = user.activeCompanyId ?? user.companyId;
+      user.companyId = user.activeCompanyId;
+    }
+
     const employeeIds = this.collectEmployeeIds(request);
     if (employeeIds.length > 0) {
       await this.assertEmployeesInCompany(employeeIds, user.companyId);

@@ -28,6 +28,31 @@ export interface PayslipData {
 
 type Row = { label: string; amount?: number; text?: string; isTotal?: boolean; bold?: boolean };
 
+/** Resolves the company identity for a payslip, preferring the historical
+ *  snapshot stored on the payslip at generation time over the live company. */
+function resolveCompany(data: PayslipData): any {
+  const snapshot = data.payslip?.companySnapshot;
+  const company = data.company || {};
+  if (snapshot && typeof snapshot === 'object') {
+    return {
+      name: snapshot.legalName || snapshot.displayName || snapshot.name || company?.name,
+      address: snapshot.address || company?.address || '',
+      gst: snapshot.gstNumber || company?.gstNumber || company?.gst || '',
+      pan: snapshot.panNumber || company?.panNumber || company?.pan || '',
+      cin: snapshot.cinNumber || company?.cinNumber || company?.cin || '',
+      displayName: snapshot.displayName || snapshot.name || company?.name,
+    };
+  }
+  return {
+    name: company?.legalName || company?.displayName || company?.name,
+    address: company?.address || '',
+    gst: company?.gstNumber || company?.gst || '',
+    pan: company?.panNumber || company?.pan || '',
+    cin: company?.cinNumber || company?.cin || '',
+    displayName: company?.displayName || company?.name,
+  };
+}
+
 /** Loads the company logo once; resolves to a data URL plus natural dimensions, or null if it can't load. */
 let logoPromise: Promise<{ dataUrl: string; width: number; height: number } | null> | null = null;
 export function getLogo() {
@@ -158,7 +183,8 @@ function pctOf(amount: number | undefined, base: number | undefined): string {
 }
 
 export async function generatePayslipPDF(data: PayslipData, opts?: { save?: boolean }): Promise<Blob> {
-  const { payslip, employee, company, generatedBy, generatedAt } = data;
+  const { payslip, employee, generatedBy, generatedAt } = data;
+  const company = resolveCompany(data);
 
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageWidth = 210;

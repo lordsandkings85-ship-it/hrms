@@ -41,6 +41,9 @@ function mockPrisma(opts: {
     refreshToken: {
       create: jest.fn(async () => ({})),
     },
+    userCompany: {
+      findMany: jest.fn(async () => []),
+    },
   };
 }
 
@@ -109,6 +112,9 @@ describe('AuthService.refresh employee-status gate', () => {
       },
       employee: {
         findUnique: jest.fn(async () => (found ? { status, isSystem } : null)),
+      },
+      userCompany: {
+        findMany: jest.fn(async () => []),
       },
     };
   }

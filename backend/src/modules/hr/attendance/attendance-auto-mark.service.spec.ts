@@ -191,7 +191,7 @@ describe('AttendanceAutoMarkService', () => {
     expect(attendance.markAbsentForDate).toHaveBeenCalledTimes(2);
     expect(attendance.markAbsentForDate.mock.calls[0]).toEqual(['c-1', today]);
     expect(attendance.markMissingCheckouts).toHaveBeenCalledTimes(2); // once per company
-    expect(attendance.markMissingCheckouts.mock.calls[0][0]).toBe('c-1');
+    expect((attendance.markMissingCheckouts as jest.Mock).mock.calls[0][0]).toBe('c-1');
   });
 
   it('continues past a failing company instead of aborting', async () => {
@@ -209,6 +209,8 @@ describe('AttendanceAutoMarkService', () => {
 
     await expect(svc.runBackfill(new Date(2026, 8, 1), new Date(2026, 8, 1))).resolves.toBeUndefined();
     expect(attendance.markAbsentForDate).toHaveBeenCalledTimes(2);
-    expect(attendance.markMissingCheckouts).toHaveBeenCalledTimes(2);
+    // The failing company aborts before reaching the missing-checkout pass; only
+    // the healthy company runs it.
+    expect(attendance.markMissingCheckouts).toHaveBeenCalledTimes(1);
   });
 });

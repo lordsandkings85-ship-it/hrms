@@ -32,21 +32,50 @@ export interface UserProfile {
     gstNumber?: string;
     address?: string;
   };
+  companies?: {
+    id: string;
+    name: string;
+    displayName?: string | null;
+    legalName?: string | null;
+    label?: string;
+    status?: string;
+  }[];
+  activeCompanyId?: string;
 }
 
 interface AuthState {
   user: UserProfile | null;
   isLoading: boolean;
+  activeCompanyId?: string;
   setUser: (user: UserProfile | null) => void;
   setLoading: (loading: boolean) => void;
+  switchCompany: (companyId: string) => void;
   logout: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+const ACTIVE_COMPANY_KEY = 'activeCompanyId';
+
+export function getActiveCompanyId(user: UserProfile | null): string | null {
+  if (!user) return localStorage.getItem(ACTIVE_COMPANY_KEY);
+  const stored = localStorage.getItem(ACTIVE_COMPANY_KEY);
+  const companies = user.companies ?? [];
+  if (stored && companies.some((c) => c.id === stored)) return stored;
+  return user.activeCompanyId ?? user.companyId ?? companies[0]?.id ?? null;
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isLoading: true,
-  setUser: (user) => set({ user }),
+  setUser: (user) => {
+    const active = getActiveCompanyId(user);
+    set({ user, activeCompanyId: active ?? undefined });
+  },
   setLoading: (isLoading) => set({ isLoading }),
+  switchCompany: (companyId) => {
+    localStorage.setItem(ACTIVE_COMPANY_KEY, companyId);
+    set({ activeCompanyId: companyId });
+    queryClient.clear();
+  },
   logout: () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');

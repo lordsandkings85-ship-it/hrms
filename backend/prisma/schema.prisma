@@ -8,17 +8,17 @@ datasource db {
 }
 
 model Announcement {
-  id         String   @id @default(uuid())
-  companyId  String
-  title      String
-  body       String
-  category   String   @default("Company")
-  author     String   @default("HR Team")
-  isPinned   Boolean  @default(false)
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  company    Company  @relation(fields: [companyId], references: [id])
+  id        String   @id @default(uuid())
+  companyId String
+  title     String
+  body      String
+  category  String   @default("Company")
+  author    String   @default("HR Team")
+  isPinned  Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  company   Company  @relation(fields: [companyId], references: [id])
 
   @@index([companyId])
 }
@@ -43,7 +43,6 @@ model Notification {
   @@index([companyId])
   @@index([recipientUserId])
   @@index([isRead, createdAt])
-
   @@map("Notification")
 }
 
@@ -246,17 +245,34 @@ model Company {
   geofenceLng    Float?
   geofenceRadius Float?   @default(500)
 
-  address              String?
-  phone                String?
-  email                String?
-  website              String?
-  gstNumber            String?
-  panNumber            String?
-  industry             String?
-  companyType          String?
-  financialYearStart   Int?
-  financialYearEnd     Int?
-  payrollEffectiveFrom Int?
+  address                 String?
+  phone                   String?
+  email                   String?
+  website                 String?
+  gstNumber               String?
+  panNumber               String?
+  industry                String?
+  companyType             String?
+  financialYearStart      Int?
+  financialYearEnd        Int?
+  payrollEffectiveFrom    Int?
+  legalName               String?
+  displayName             String?
+  city                    String?
+  state                   String?
+  country                 String?
+  pincode                 String?
+  tanNumber               String?
+  cinNumber               String?
+  pfNumber                String?
+  esiNumber               String?
+  professionalTaxNumber   String?
+  labourWelfareFundNumber String?
+  bankName                String?
+  bankAccountName         String?
+  bankAccountNumber       String?
+  ifsc                    String?
+  status                  String  @default("active")
 
   announcements           Announcement[]
   assets                  Asset[]
@@ -280,6 +296,8 @@ model Company {
   reviewCycle             ReviewCycle[]
   subscription            Subscription[]
   users                   User[]
+  userCompanies           UserCompany[]
+  employeeCompanyHistory  EmployeeCompanyHistory[]
   tickets                 HelpdeskTicket[]
   loanRequests            LoanRequest[]
   shiftChangeRequests     ShiftChangeRequest[]
@@ -314,6 +332,7 @@ model Company {
   attendanceAudits        AttendanceAudit[]
   compOffBalances         CompOffBalance[]
   leaveMonthlyBalances    LeaveMonthlyBalance[]
+  Payslip                 Payslip[]
 }
 
 model CourseEnrollment {
@@ -451,9 +470,26 @@ model Employee {
   attendanceAudits        AttendanceAudit[]
   compOffBalances         CompOffBalance[]
   leaveMonthlyBalances    LeaveMonthlyBalance[]
+  companyHistory          EmployeeCompanyHistory[]
 
   @@unique([companyId, employeeCode])
   @@index([companyId, status])
+}
+
+model EmployeeCompanyHistory {
+  id            String    @id @default(uuid())
+  employeeId    String
+  companyId     String
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+  reason        String?
+  changedBy     String?
+  createdAt     DateTime  @default(now())
+  employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company       Company   @relation(fields: [companyId], references: [id])
+
+  @@index([employeeId])
+  @@index([companyId])
 }
 
 model EmployeeDocument {
@@ -622,29 +658,29 @@ model LeaveRequest {
 }
 
 model LeaveType {
-  id                     String         @id @default(uuid())
+  id                     String                @id @default(uuid())
   companyId              String
   code                   String?
   name                   String
-  paid                   Boolean        @default(true)
-  accrualRate            Float          @default(0)
-  annualAllocation       Float          @default(0)
+  paid                   Boolean               @default(true)
+  accrualRate            Float                 @default(0)
+  annualAllocation       Float                 @default(0)
   maxConsecutiveDays     Float?
-  halfDayAllowed         Boolean        @default(true)
-  carryForward           Boolean        @default(false)
+  halfDayAllowed         Boolean               @default(true)
+  carryForward           Boolean               @default(false)
   carryForwardLimit      Float?
-  encashment             Boolean        @default(false)
-  negativeBalanceAllowed Boolean        @default(false)
-  attachmentRequired     Boolean        @default(false)
+  encashment             Boolean               @default(false)
+  negativeBalanceAllowed Boolean               @default(false)
+  attachmentRequired     Boolean               @default(false)
   applicableAfterDays    Float?
-  approvalRequired       Boolean        @default(true)
+  approvalRequired       Boolean               @default(true)
   gender                 String?
-  isActive               Boolean        @default(true)
+  isActive               Boolean               @default(true)
   leaveBalances          LeaveBalance[]
   leaveRequest           LeaveRequest[]
   leaveTransactions      LeaveTransaction[]
   monthlyBalances        LeaveMonthlyBalance[]
-  company                Company        @relation(fields: [companyId], references: [id])
+  company                Company               @relation(fields: [companyId], references: [id])
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -674,15 +710,19 @@ model Payslip {
   id              String       @id @default(uuid())
   employeeId      String
   payrollCycleId  String
+  companyId       String
   grossPay        Decimal      @db.Decimal(10, 2)
   totalDeductions Decimal      @db.Decimal(10, 2)
   netPay          Decimal      @db.Decimal(10, 2)
   breakdown       Json
+  companySnapshot Json?
   generatedAt     DateTime     @default(now())
   employee        Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   payrollCycle    PayrollCycle @relation(fields: [payrollCycleId], references: [id])
+  company         Company      @relation(fields: [companyId], references: [id])
 
   @@index([employeeId, payrollCycleId])
+  @@index([companyId])
 }
 
 model AdditionalPayout {
@@ -753,13 +793,14 @@ model RefreshToken {
 }
 
 model Role {
-  id          String       @id @default(uuid())
+  id          String        @id @default(uuid())
   companyId   String
   name        String
-  isSystem    Boolean      @default(false)
+  isSystem    Boolean       @default(false)
   permissions Permission[]
-  company     Company      @relation(fields: [companyId], references: [id])
+  company     Company       @relation(fields: [companyId], references: [id])
   users       User[]
+  UserCompany UserCompany[]
 }
 
 model SalaryStructure {
@@ -888,21 +929,37 @@ model TravelRequest {
 }
 
 model User {
-  id           String         @id @default(uuid())
-  companyId    String
-  email        String         @unique
-  passwordHash String
-  mfaEnabled   Boolean        @default(false)
-  mfaSecret    String?
-  roleId       String?
-  employeeId   String?        @unique
-  isSuperAdmin Boolean        @default(false)
-  createdAt    DateTime       @default(now())
-  lastLoginAt  DateTime?
-  refreshToken RefreshToken[]
-  company      Company        @relation(fields: [companyId], references: [id])
-  employee     Employee?      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  role         Role?          @relation(fields: [roleId], references: [id])
+  id            String         @id @default(uuid())
+  companyId     String
+  email         String         @unique
+  passwordHash  String
+  mfaEnabled    Boolean        @default(false)
+  mfaSecret     String?
+  roleId        String?
+  employeeId    String?        @unique
+  isSuperAdmin  Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  lastLoginAt   DateTime?
+  refreshToken  RefreshToken[]
+  company       Company        @relation(fields: [companyId], references: [id])
+  employee      Employee?      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  role          Role?          @relation(fields: [roleId], references: [id])
+  userCompanies UserCompany[]
+}
+
+model UserCompany {
+  id        String   @id @default(uuid())
+  userId    String
+  companyId String
+  roleId    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   Company  @relation(fields: [companyId], references: [id])
+  role      Role?    @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, companyId])
+  @@index([companyId])
 }
 
 model HelpdeskTicket {
@@ -1488,7 +1545,7 @@ model LeaveTransaction {
   year           Int
   type           String
   amount         Float
-  uniqueKey      String?   @unique
+  uniqueKey      String?       @unique
   reason         String?
   approvedBy     String?
   createdAt      DateTime      @default(now())
@@ -1503,16 +1560,16 @@ model LeaveTransaction {
 }
 
 model LeaveYear {
-  id                       String   @id @default(uuid())
-  companyId                String
-  name                     String
-  startDate                DateTime
-  endDate                  DateTime
-  isActive                 Boolean  @default(false)
-  carryForwardProcessed    Boolean  @default(false)
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
-  company                  Company  @relation(fields: [companyId], references: [id])
+  id                    String   @id @default(uuid())
+  companyId             String
+  name                  String
+  startDate             DateTime
+  endDate               DateTime
+  isActive              Boolean  @default(false)
+  carryForwardProcessed Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  company               Company  @relation(fields: [companyId], references: [id])
 
   @@unique([companyId, name])
   @@index([companyId])

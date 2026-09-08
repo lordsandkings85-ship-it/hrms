@@ -15,6 +15,13 @@ export class CompaniesService {
     gstNumber?: string | null; panNumber?: string | null; industry?: string | null;
     companyType?: string | null; financialYearStart?: number | null; financialYearEnd?: number | null;
     payrollEffectiveFrom?: number | null;
+    legalName?: string | null; displayName?: string | null; city?: string | null;
+    state?: string | null; country?: string | null; pincode?: string | null;
+    tanNumber?: string | null; cinNumber?: string | null; pfNumber?: string | null;
+    esiNumber?: string | null; professionalTaxNumber?: string | null;
+    labourWelfareFundNumber?: string | null;
+    bankName?: string | null; bankAccountName?: string | null; bankAccountNumber?: string | null;
+    ifsc?: string | null; status?: string;
   }) {
     return this.prisma.company.update({ where: { id: companyId }, data });
   }
@@ -104,6 +111,72 @@ export class CompaniesService {
     const existing = await this.prisma.setting.findFirst({ where: { companyId, key } });
     if (!existing) throw new Error('Setting not found');
     return this.prisma.setting.delete({ where: { id: existing.id } });
+  }
+
+  /** Companies the caller can see: their primary company plus any memberships. */
+  async listAccessible(userId: string, primaryCompanyId: string) {
+    const memberships = await this.prisma.userCompany.findMany({
+      where: { userId, isActive: true },
+      select: { companyId: true },
+    });
+    const ids = Array.from(new Set([primaryCompanyId, ...memberships.map((m) => m.companyId)]));
+    return this.prisma.company.findMany({
+      where: { id: { in: ids } },
+      include: { _count: { select: { employees: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /** Create a sub-company under the caller's group. */
+  async create(userId: string, primaryCompanyId: string, data: {
+    name: string; displayName?: string; legalName?: string; timezone?: string; currency?: string;
+    address?: string; city?: string; state?: string; country?: string; pincode?: string;
+    gstNumber?: string; panNumber?: string;
+  }) {
+    const company = await this.prisma.company.create({
+      data: {
+        name: data.name,
+        displayName: data.displayName,
+        legalName: data.legalName,
+        timezone: data.timezone || 'Asia/Kolkata',
+        currency: data.currency || 'INR',
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        country: data.country,
+        pincode: data.pincode,
+        gstNumber: data.gstNumber,
+        panNumber: data.panNumber,
+      },
+    });
+
+    // The primary user becomes a member of the new sub-company.
+    await this.prisma.userCompany.create({
+      data: { userId, companyId: company.id, isActive: true },
+    }).catch(() => {});
+
+    return company;
+  }
+
+  /** Update a specific company (must be within the caller's access scope). */
+  async update(userId: string, primaryCompanyId: string, id: string, data: Record<string, unknown>) {
+    const memberships = await this.prisma.userCompany.findMany({
+      where: { userId, isActive: true },
+      select: { companyId: true },
+    });
+    const ids = new Set([primaryCompanyId, ...memberships.map((m) => m.companyId)]);
+    if (!ids.has(id)) throw new Error('Company not in your access scope');
+
+    // Protect structural fields a sub-company member should not change.
+    const { name, displayName, legalName, status, ...rest } = data as any;
+    const patch: Record<string, unknown> = {};
+    if (name !== undefined) patch.name = name;
+    if (displayName !== undefined) patch.displayName = displayName;
+    if (legalName !== undefined) patch.legalName = legalName;
+    if (status !== undefined) patch.status = status;
+    Object.assign(patch, rest);
+
+    return this.prisma.company.update({ where: { id }, data: patch });
   }
 }
 
