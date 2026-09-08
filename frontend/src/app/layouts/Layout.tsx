@@ -18,7 +18,6 @@ import { useTheme, type ThemeMode } from '../../components/ui/ThemeProvider';
 import CommandPalette from '../../components/ui/CommandPalette';
 import TitleBar, { isElectron } from '../../components/ui/TitleBar';
 import UpdateBanner from '../../components/ui/UpdateBanner';
-import CompanySelector from '../../components/ui/CompanySelector';
 import workoraIcon from '../../assets/brand/workora-icon.png';
 
 type NavChild = {
@@ -1123,14 +1122,6 @@ export default function Layout() {
 
           <div className="flex-1" />
 
-          {/* Company selector (multi-company) — shown when the user has access to more than one company */}
-          {user?.companies && user.companies.length > 1 && (
-            <CompanySelector
-              companies={user.companies}
-              activeId={useAuthStore((s) => s.activeCompanyId) ?? user.companyId}
-              onSwitch={(id) => useAuthStore.getState().switchCompany(id)}
-            />
-          )}
 
           {isElectron() && window.electronAPI && (
             <button
