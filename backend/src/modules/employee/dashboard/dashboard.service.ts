@@ -51,12 +51,13 @@ export class DashboardService {
       const allCompanies = await this.prisma.company.findMany({ select: { id: true } });
       targetCompanyIds = allCompanies.map((c) => c.id);
     } else if (user?.userId) {
-      const emp = await this.prisma.employee.findFirst({
-        where: { userId: user.userId },
-        select: { companyId: true },
+      const empUser = await this.prisma.user.findUnique({
+        where: { id: user.userId },
+        select: { companyId: true, employee: { select: { companyId: true } } },
       });
-      if (emp?.companyId) {
-        targetCompanyIds = [emp.companyId];
+      const resolvedCompanyId = empUser?.employee?.companyId || empUser?.companyId || companyId;
+      if (resolvedCompanyId) {
+        targetCompanyIds = [resolvedCompanyId];
       }
     }
 
