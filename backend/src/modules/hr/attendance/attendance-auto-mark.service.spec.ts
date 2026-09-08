@@ -163,19 +163,26 @@ describe('AttendanceAutoMarkService', () => {
     const prisma = {
       employee: { findMany: jest.fn(async () => [{ companyId: 'c-1' }, { companyId: 'c-2' }]) },
     };
-    const attendance = { markAbsentForDate: jest.fn(async () => ({ marked: 1, skipped: 0 })) };
+    const attendance = {
+      markAbsentForDate: jest.fn(async () => ({ marked: 1, skipped: 0 })),
+      markMissingCheckouts: jest.fn(async () => ({ marked: 0 })),
+    };
     const svc = new AttendanceAutoMarkService(prisma as any, attendance as any);
 
     await svc.runBackfill(new Date(2026, 8, 1), new Date(2026, 8, 3));
 
     expect(attendance.markAbsentForDate).toHaveBeenCalledTimes(6); // 3 days x 2 companies
+    expect(attendance.markMissingCheckouts).toHaveBeenCalledTimes(2); // once per company
   });
 
   it('markToday marks today once per company', async () => {
     const prisma = {
       employee: { findMany: jest.fn(async () => [{ companyId: 'c-1' }, { companyId: 'c-2' }]) },
     };
-    const attendance = { markAbsentForDate: jest.fn(async () => ({ marked: 0 })) };
+    const attendance = {
+      markAbsentForDate: jest.fn(async () => ({ marked: 0 })),
+      markMissingCheckouts: jest.fn(async () => ({ marked: 0 })),
+    };
     const svc = new AttendanceAutoMarkService(prisma as any, attendance as any);
     const today = new Date();
 
@@ -183,6 +190,8 @@ describe('AttendanceAutoMarkService', () => {
 
     expect(attendance.markAbsentForDate).toHaveBeenCalledTimes(2);
     expect(attendance.markAbsentForDate.mock.calls[0]).toEqual(['c-1', today]);
+    expect(attendance.markMissingCheckouts).toHaveBeenCalledTimes(2); // once per company
+    expect(attendance.markMissingCheckouts.mock.calls[0][0]).toBe('c-1');
   });
 
   it('continues past a failing company instead of aborting', async () => {
@@ -194,10 +203,12 @@ describe('AttendanceAutoMarkService', () => {
         if (cid === 'c-bad') throw new Error('boom');
         return { marked: 1 };
       }),
+      markMissingCheckouts: jest.fn(async () => ({ marked: 0 })),
     };
     const svc = new AttendanceAutoMarkService(prisma as any, attendance as any);
 
     await expect(svc.runBackfill(new Date(2026, 8, 1), new Date(2026, 8, 1))).resolves.toBeUndefined();
     expect(attendance.markAbsentForDate).toHaveBeenCalledTimes(2);
+    expect(attendance.markMissingCheckouts).toHaveBeenCalledTimes(2);
   });
 });

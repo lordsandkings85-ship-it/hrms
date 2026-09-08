@@ -254,6 +254,11 @@ export default function EmployeeDashboard() {
                         Late by {fmtMin(todayStatus.lateMinutes ?? 0)}
                      </span>
                   )}
+                  {todayStatus.checkOutMissing && (
+                     <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ background: 'var(--warning-bg)', color: 'var(--warning-text)' }}>
+                        Check-out pending
+                     </span>
+                  )}
                   {todayStatus.attendanceStatus && (
                      <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ background: 'var(--surface-active)', color: 'var(--text-secondary)' }}>
                         {String(todayStatus.attendanceStatus).replace(/_/g, ' ')}

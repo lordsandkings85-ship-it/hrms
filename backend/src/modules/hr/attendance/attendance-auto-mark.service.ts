@@ -18,6 +18,7 @@ export class AttendanceAutoMarkService implements OnModuleInit {
   @Cron(CronExpression.EVERY_DAY_AT_11PM, { name: 'attendance-auto-mark-absent' })
   async markToday() {
     await this.markAllCompanies(new Date());
+    await this.markAllMissingCheckouts();
   }
 
   async onModuleInit() {
@@ -46,8 +47,27 @@ export class AttendanceAutoMarkService implements OnModuleInit {
             this.logger.log(`Backfill: ${companyId} ${d.toISOString().slice(0, 10)} marked ${marked}`);
           }
         }
+        const { marked: markedCheckouts } = await this.attendance.markMissingCheckouts(companyId, to);
+        if (markedCheckouts > 0) {
+          this.logger.log(`Backfill: ${companyId} ${to.toISOString().slice(0, 10)} flagged ${markedCheckouts} missing check-out`);
+        }
       } catch (err) {
         this.logger.error(`Backfill failed for company ${companyId}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  }
+
+  private async markAllMissingCheckouts() {
+    for (const { companyId } of await this.activeCompanies()) {
+      try {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const { marked } = await this.attendance.markMissingCheckouts(companyId, yesterday);
+        if (marked > 0) {
+          this.logger.log(`Auto-flag missing check-out: ${companyId} ${yesterday.toISOString().slice(0, 10)} flagged ${marked}`);
+        }
+      } catch (err) {
+        this.logger.error(`Auto-flag missing check-out failed for company ${companyId}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
   }

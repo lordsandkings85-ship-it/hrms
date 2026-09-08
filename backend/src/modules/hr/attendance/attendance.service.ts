@@ -349,8 +349,10 @@ export class AttendanceService {
     }
 
     const workedMinutes = log?.checkIn
-      ? Math.round(((log.checkOut?.getTime() ?? now.getTime()) - log.checkIn.getTime()) / 60000)
+      ? Math.max(0, Math.round(((log.checkOut?.getTime() ?? now.getTime()) - log.checkIn.getTime()) / 60000))
       : null;
+
+    const checkOutMissing = Boolean(log?.checkIn && !log?.checkOut);
 
     return {
       date: startOfDay,
@@ -374,6 +376,7 @@ export class AttendanceService {
       attendanceStatus: log?.attendanceStatus ?? null,
       checkIn: log?.checkIn ?? null,
       checkOut: log?.checkOut ?? null,
+      checkOutMissing,
       status: log?.status ?? null,
       overtimeMinutes: log?.overtimeMinutes ?? 0,
       regularizationStatus: log?.regularizationStatus ?? null,
@@ -402,6 +405,11 @@ export class AttendanceService {
     const diffMin = Math.abs(h * 60 + m - (wall.hh * 60 + wall.mm));
     if (diffMin > 5) {
       throw new BadRequestException('Submitted time deviates from server time by more than 5 minutes');
+    }
+    // Defensive guard — a future wall-clock date/time (e.g. a month offset bug in a
+    // client) would make worked-hours negative and corrupt reports. Reject it.
+    if (ts.getTime() > Date.now() + 6 * 60 * 1000) {
+      throw new BadRequestException('Punch time cannot be in the future');
     }
     const dayStart = zonedDateTime(tz, y, mo, d, 0, 0);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
@@ -684,6 +692,38 @@ export class AttendanceService {
     }
 
     return { date: startOfDay, marked, skipped };
+  }
+
+  /** Flag open sessions from a past date: logs that have a check-in but no check-out
+   *  are marked attendanceStatus = INCOMPLETE so they're not silently treated as full
+   *  presence nor left as ambiguous "0 hr" rows. Idempotent and additive (never touches
+   *  logs that were already completed or marked OFF_DAY). */
+  async markMissingCheckouts(companyId: string, day: Date) {
+    const startOfDay = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+    const open = await this.prisma.attendanceLog.findMany({
+      where: {
+        employee: { companyId },
+        date: { gte: startOfDay, lt: endOfDay },
+        checkIn: { not: null },
+        checkOut: null,
+      },
+      select: { id: true },
+    });
+
+    let marked = 0;
+    if (open.length > 0) {
+      await this.prisma.$transaction(async (tx) => {
+        for (const l of open) {
+          await tx.attendanceLog.update({
+            where: { id: l.id },
+            data: { attendanceStatus: 'INCOMPLETE' },
+          });
+          marked++;
+        }
+      });
+    }
+    return { date: startOfDay, marked };
   }
 
   async listAbsent(companyId: string, date?: string) {
@@ -994,6 +1034,14 @@ async listPendingRegularizations(companyId: string) {
     // correction renders correctly (worked/OT, late, incomplete vs FULL_DAY_PRESENT).
     const newCheckIn = req.requestedCheckIn ?? req.attendanceLog?.checkIn ?? null;
     const newCheckOut = req.requestedCheckOut ?? null; // null clears a mistaken punch
+    // Defensive guard — reject corrected punches that land in the future (a client month
+    // offset would otherwise make worked-hours negative). Allow a small clock-skew grace.
+    if (newCheckIn && newCheckIn.getTime() > Date.now() + 6 * 60 * 1000) {
+      throw new BadRequestException('Correction check-in cannot be in the future');
+    }
+    if (newCheckOut && newCheckOut.getTime() > Date.now() + 6 * 60 * 1000) {
+      throw new BadRequestException('Correction check-out cannot be in the future');
+    }
     const ctx = await this.resolveShiftContext(companyId, req.employeeId, newCheckIn ?? new Date());
     const policyMap = ctx ? ctx.policyMap : new Map<string, string>();
     const otThreshold = ctx?.shift.shiftType?.overtimeThresholdMinutes

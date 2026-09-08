@@ -77,3 +77,55 @@ describe('AttendanceService.listRegularizations', () => {
     expect(prisma.user.findMany).not.toHaveBeenCalled();
   });
 });
+
+describe('AttendanceService.markMissingCheckouts', () => {
+  const build = () => {
+    const prisma: any = {
+      attendanceLog: {
+        findMany: jest.fn(async () => [
+          { id: 'l-1' },
+          { id: 'l-2' },
+        ]),
+        update: jest.fn(async ({ data }) => ({ id: 'x', ...data })),
+      },
+      $transaction: jest.fn(async (fn: (tx: any) => Promise<any>) => fn(prisma)),
+    };
+    const notifications = { notifyApprover: jest.fn(async () => {}), notifyEmployee: jest.fn(async () => {}) };
+    const service = new AttendanceService(prisma as any, notifications as any);
+    return { service, prisma };
+  };
+
+  it('flags open sessions (check-in but no check-out) as INCOMPLETE', async () => {
+    const { service, prisma } = build();
+    const result = await service.markMissingCheckouts('c-1', new Date('2026-09-06'));
+    expect(prisma.attendanceLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          employee: { companyId: 'c-1' },
+          checkIn: { not: null },
+          checkOut: null,
+        }),
+      }),
+    );
+    expect(prisma.attendanceLog.update).toHaveBeenCalledTimes(2);
+    expect(prisma.attendanceLog.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { attendanceStatus: 'INCOMPLETE' } }),
+    );
+    expect(result).toEqual({ date: new Date('2026-09-06'), marked: 2 });
+  });
+
+  it('is a no-op when there are no open sessions', async () => {
+    const prisma = {
+      attendanceLog: {
+        findMany: jest.fn(async () => []),
+        update: jest.fn(),
+      },
+      $transaction: jest.fn(async (fn: (tx: any) => Promise<any>) => fn(prisma)),
+    };
+    const notifications = { notifyApprover: jest.fn(async () => {}), notifyEmployee: jest.fn(async () => {}) };
+    const service = new AttendanceService(prisma as any, notifications as any);
+    const result = await service.markMissingCheckouts('c-1', new Date('2026-09-06'));
+    expect(prisma.attendanceLog.update).not.toHaveBeenCalled();
+    expect(result.marked).toBe(0);
+  });
+});
