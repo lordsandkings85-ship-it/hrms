@@ -401,43 +401,45 @@ export default function OrganizationPage() {
     },
   });
 
-  // Update profile form when activeEntity changes
+  // Update profile form when active company changes
+  const activeCompanyData = activeEntity?.companyData;
+  const activeEntityKey = activeEntity?.key;
+
   useEffect(() => {
-    const c = activeEntity?.companyData;
-    if (c) {
+    if (activeCompanyData) {
       profileForm.reset({
-        name: c.name || activeEntity.defaultName,
-        logoUrl: c.logoUrl || '',
-        timezone: c.timezone || 'Asia/Kolkata',
-        currency: c.currency || 'INR',
-        address: c.address || '',
-        phone: c.phone || '',
-        email: c.email || '',
-        website: c.website || '',
-        gstNumber: c.gstNumber || '',
-        panNumber: c.panNumber || '',
-        industry: c.industry || activeEntity.industry,
-        companyType: c.companyType || activeEntity.type,
-        financialYearStart: c.financialYearStart ? String(c.financialYearStart) : '',
-        financialYearEnd: c.financialYearEnd ? String(c.financialYearEnd) : '',
-        payrollEffectiveFrom: c.payrollEffectiveFrom ? String(c.payrollEffectiveFrom) : '',
-        legalName: c.legalName || activeEntity.defaultName,
-        displayName: c.displayName || activeEntity.defaultName,
-        city: c.city || '',
-        state: c.state || '',
-        country: c.country || 'India',
-        pincode: c.pincode || '',
-        tanNumber: c.tanNumber || '',
-        cinNumber: c.cinNumber || '',
-        pfNumber: c.pfNumber || '',
-        esiNumber: c.esiNumber || '',
-        professionalTaxNumber: c.professionalTaxNumber || '',
-        labourWelfareFundNumber: c.labourWelfareFundNumber || '',
-        bankName: c.bankName || '',
-        bankAccountName: c.bankAccountName || '',
-        bankAccountNumber: c.bankAccountNumber || '',
-        ifsc: c.ifsc || '',
-        status: c.status || 'active',
+        name: activeCompanyData.name || activeEntity?.defaultName || '',
+        logoUrl: activeCompanyData.logoUrl || '',
+        timezone: activeCompanyData.timezone || 'Asia/Kolkata',
+        currency: activeCompanyData.currency || 'INR',
+        address: activeCompanyData.address || '',
+        phone: activeCompanyData.phone || '',
+        email: activeCompanyData.email || '',
+        website: activeCompanyData.website || '',
+        gstNumber: activeCompanyData.gstNumber || '',
+        panNumber: activeCompanyData.panNumber || '',
+        industry: activeCompanyData.industry || activeEntity?.industry || '',
+        companyType: activeCompanyData.companyType || activeEntity?.type || 'Private Limited',
+        financialYearStart: activeCompanyData.financialYearStart ? String(activeCompanyData.financialYearStart) : '',
+        financialYearEnd: activeCompanyData.financialYearEnd ? String(activeCompanyData.financialYearEnd) : '',
+        payrollEffectiveFrom: activeCompanyData.payrollEffectiveFrom ? String(activeCompanyData.payrollEffectiveFrom) : '',
+        legalName: activeCompanyData.legalName || activeEntity?.defaultName || '',
+        displayName: activeCompanyData.displayName || activeEntity?.defaultName || '',
+        city: activeCompanyData.city || '',
+        state: activeCompanyData.state || '',
+        country: activeCompanyData.country || 'India',
+        pincode: activeCompanyData.pincode || '',
+        tanNumber: activeCompanyData.tanNumber || '',
+        cinNumber: activeCompanyData.cinNumber || '',
+        pfNumber: activeCompanyData.pfNumber || '',
+        esiNumber: activeCompanyData.esiNumber || '',
+        professionalTaxNumber: activeCompanyData.professionalTaxNumber || '',
+        labourWelfareFundNumber: activeCompanyData.labourWelfareFundNumber || '',
+        bankName: activeCompanyData.bankName || '',
+        bankAccountName: activeCompanyData.bankAccountName || '',
+        bankAccountNumber: activeCompanyData.bankAccountNumber || '',
+        ifsc: activeCompanyData.ifsc || '',
+        status: activeCompanyData.status || 'active',
       });
     } else if (activeEntity) {
       profileForm.reset({
@@ -450,9 +452,32 @@ export default function OrganizationPage() {
         currency: 'INR',
         country: 'India',
         status: 'active',
+        logoUrl: '',
+        address: '',
+        phone: '',
+        email: '',
+        website: '',
+        gstNumber: '',
+        panNumber: '',
+        tanNumber: '',
+        cinNumber: '',
+        pfNumber: '',
+        esiNumber: '',
+        professionalTaxNumber: '',
+        labourWelfareFundNumber: '',
+        bankName: '',
+        bankAccountName: '',
+        bankAccountNumber: '',
+        ifsc: '',
+        financialYearStart: '',
+        financialYearEnd: '',
+        payrollEffectiveFrom: '',
+        city: '',
+        state: '',
+        pincode: '',
       });
     }
-  }, [activeEntity, profileForm]);
+  }, [activeEntityKey, activeCompanyData?.id, activeCompanyData?.updatedAt]);
 
   // Mutations
   const updateCompanyMutation = useMutation({

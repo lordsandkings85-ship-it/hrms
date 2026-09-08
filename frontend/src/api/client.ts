@@ -131,6 +131,7 @@ export interface Company {
   bankAccountNumber?: string | null;
   ifsc?: string | null;
   createdAt?: string;
+  updatedAt?: string;
   _count?: { employees?: number };
 }
 
