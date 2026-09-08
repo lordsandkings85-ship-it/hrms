@@ -4,6 +4,7 @@ let syncPromise: Promise<void> | null = null;
 let retryCount = 0;
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 2000;
+const SYNC_TIMEOUT_MS = 5000;
 
 const API_BASE = (() => {
   const raw = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000/api/v1';
@@ -15,15 +16,21 @@ export async function syncServerTime(): Promise<void> {
   syncPromise = (async () => {
     try {
       const t0 = Date.now();
-      const res = await fetch(`${API_BASE}/time`);
-      const t1 = Date.now();
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      const roundTrip = t1 - t0;
-      const serverTime = data.unix;
-      offset = serverTime - t0 - roundTrip / 2;
-      synced = true;
-      retryCount = 0;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), SYNC_TIMEOUT_MS);
+      try {
+        const res = await fetch(`${API_BASE}/time`, { signal: controller.signal });
+        const t1 = Date.now();
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const roundTrip = t1 - t0;
+        const serverTime = data.unix;
+        offset = serverTime - t0 - roundTrip / 2;
+        synced = true;
+        retryCount = 0;
+      } finally {
+        clearTimeout(timer);
+      }
     } catch {
       synced = false;
       retryCount++;
