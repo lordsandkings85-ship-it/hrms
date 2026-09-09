@@ -1155,14 +1155,6 @@ export class AttendanceService {
     // correction renders correctly (worked/OT, late, incomplete vs FULL_DAY_PRESENT).
     const newCheckIn = req.requestedCheckIn ?? req.attendanceLog?.checkIn ?? null;
     const newCheckOut = req.requestedCheckOut ?? null; // null clears a mistaken punch
-    // Defensive guard — reject corrected punches that land in the future (a client month
-    // offset would otherwise make worked-hours negative). Allow a small clock-skew grace.
-    if (newCheckIn && newCheckIn.getTime() > Date.now() + 6 * 60 * 1000) {
-      throw new BadRequestException('Correction check-in cannot be in the future');
-    }
-    if (newCheckOut && newCheckOut.getTime() > Date.now() + 6 * 60 * 1000) {
-      throw new BadRequestException('Correction check-out cannot be in the future');
-    }
     const ctx = await this.resolveShiftContext(targetCompanyId, req.employeeId, newCheckIn ?? new Date());
     const policyMap = ctx ? ctx.policyMap : new Map<string, string>();
     const otThreshold = ctx?.shift.shiftType?.overtimeThresholdMinutes
