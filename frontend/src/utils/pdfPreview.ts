@@ -6,14 +6,7 @@ let workerInit: Promise<void> | null = null;
 async function initWorker(): Promise<void> {
   if (workerInit) return workerInit;
   workerInit = (async () => {
-    try {
-      GlobalWorkerOptions.workerSrc = workerSrc;
-      return;
-    } catch {
-      const res = await fetch(workerSrc);
-      const code = await res.text();
-      GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
-    }
+    GlobalWorkerOptions.workerSrc = workerSrc;
   })();
   return workerInit;
 }
@@ -22,6 +15,8 @@ async function initWorker(): Promise<void> {
  * Renders every page of a PDF (blob / http URL) onto canvases sized to `targetWidth`.
  * Works identically in browser and Electron, without relying on Chromium's embedded
  * PDF viewer (which is blocked inside iframes by the desktop app sandbox/CSP).
+ * Uses pdfjs-dist 4.x, which does not require newer `Uint8Array` APIs that the
+ * Electron 33 runtime (Chromium 130) doesn't provide.
  */
 export async function renderPdfPagesToCanvas(pdfUrl: string, targetWidth: number): Promise<HTMLCanvasElement[]> {
   await initWorker();
@@ -46,7 +41,7 @@ export async function renderPdfPagesToCanvas(pdfUrl: string, targetWidth: number
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('Canvas rendering is not supported here.');
 
-      await page.render({ canvas, viewport }).promise;
+      await page.render({ canvasContext: ctx, viewport }).promise;
       canvases.push(canvas);
     }
   } finally {
