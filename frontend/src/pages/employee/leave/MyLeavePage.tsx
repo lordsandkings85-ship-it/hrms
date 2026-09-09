@@ -77,9 +77,10 @@ export default function MyLeavePage() {
     enabled: !!myEmpId,
     refetchInterval: 30_000,
   });
+  const currentYear = new Date().getFullYear();
   const { data: balances, isLoading: isLoadingBalances } = useQuery({ 
-    queryKey: ['leave-balances', myEmpId], 
-    queryFn: () => leaveApi.balances(myEmpId), 
+    queryKey: ['leave-balances', myEmpId, currentYear], 
+    queryFn: () => leaveApi.balances(myEmpId, currentYear), 
     enabled: !!myEmpId 
   });
 
@@ -90,10 +91,6 @@ export default function MyLeavePage() {
       const key = (bal.leaveType?.name || bal.leaveType?.code || bal.id || '').toLowerCase().trim();
       if (!map.has(key)) {
         map.set(key, { ...bal });
-      } else {
-        const prev = map.get(key);
-        prev.used = Math.max(prev.used ?? 0, bal.used ?? 0);
-        prev.allotted = Math.max(prev.allotted ?? 0, bal.allotted ?? 0);
       }
     }
     return Array.from(map.values());

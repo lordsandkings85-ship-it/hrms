@@ -5,7 +5,7 @@ import {
   Building2, Award, Plus, Trash2, MapPin, Users, Layers, Loader2, Download,
   Check, Settings, Pencil, X, Crown, Sprout, Building, Home, Search,
   UserPlus, ArrowRightLeft, ShieldCheck, Sparkles, Mail, Phone, Globe,
-  Briefcase, CheckCircle2, UserCheck, AlertCircle, ArrowUpRight, Upload, Image as ImageIcon
+  Briefcase, CheckCircle2, UserCheck, AlertCircle, ArrowUpRight, Upload, Image as ImageIcon, Eye
 } from 'lucide-react';
 import { organizationApi, settingsApi, orgMastersApi, companiesApi, Company } from '../../../api/client';
 import { DataTable, Column } from '../../../components/ui/DataTable';
@@ -16,6 +16,7 @@ import { useToast } from '../../../components/ui/ToastProvider';
 import { Modal } from '../../../components/ui/Modal';
 import { CompanyFormModal } from '../../../components/company/CompanyFormModal';
 import { compressImage, compressDataUrl } from '../../../utils/imageCompressor';
+import { PayslipPreviewModal } from '../../../components/payroll/PayslipPreviewModal';
 
 const DEFAULT_DESIGNATIONS = [
   'Accounts Manager', 'Operations Associate', 'IT Associate', 'Accounts Associate',
@@ -83,8 +84,11 @@ const EXTRA_THEMES = [
 const GROUP_ENTITIES = [
   {
     key: 'enterprises',
-    matchNames: ['lordsandkings enterprises', 'lords and kings enterprises'],
-    defaultName: 'Lordsandkings Enterprises',
+    matcher: (name: string, display: string) => {
+      const n = (name + ' ' + display).toLowerCase();
+      return n.includes('enterprises') && !n.includes('pvt') && !n.includes('private');
+    },
+    defaultName: 'Lords And Kings Enterprises',
     tagline: 'TRADING | SERVICES | GROWTH',
     industry: 'Trading & Services',
     type: 'Proprietary',
@@ -103,8 +107,11 @@ const GROUP_ENTITIES = [
   },
   {
     key: 'agro',
-    matchNames: ['lordsandkings agro', 'lords and kings agro'],
-    defaultName: 'Lordsandkings Agro',
+    matcher: (name: string, display: string) => {
+      const n = (name + ' ' + display).toLowerCase();
+      return n.includes('agro');
+    },
+    defaultName: 'Lords And Kings Agro',
     tagline: 'AGRICULTURE | FOOD | SUSTAINABILITY',
     industry: 'Agriculture & Food',
     type: 'Private Limited',
@@ -123,8 +130,11 @@ const GROUP_ENTITIES = [
   },
   {
     key: 'enterprises-pvt-ltd',
-    matchNames: ['lordsandkings enterprises pvt ltd', 'lords and kings enterprises pvt ltd', 'lords and kings enterprises private limited'],
-    defaultName: 'Lordsandkings Enterprises Pvt Ltd',
+    matcher: (name: string, display: string) => {
+      const n = (name + ' ' + display).toLowerCase();
+      return n.includes('enterprises') && (n.includes('pvt') || n.includes('private'));
+    },
+    defaultName: 'Lords And Kings Enterprises Pvt Ltd',
     tagline: 'BUSINESS | INNOVATION | EXCELLENCE',
     industry: 'Business & Technology',
     type: 'Private Limited',
@@ -143,8 +153,11 @@ const GROUP_ENTITIES = [
   },
   {
     key: 'estates-llp',
-    matchNames: ['lordsandkings estates llp', 'lords and kings estates llp', 'lords and kings estates'],
-    defaultName: 'Lordsandkings Estates LLP',
+    matcher: (name: string, display: string) => {
+      const n = (name + ' ' + display).toLowerCase();
+      return n.includes('estates');
+    },
+    defaultName: 'Lords And Kings Estates LLP',
     tagline: 'REAL ESTATE | DEVELOPMENT | VALUE',
     industry: 'Real Estate & Infrastructure',
     type: 'LLP',
@@ -246,6 +259,7 @@ export default function OrganizationPage() {
   const [selectedCompanyKey, setSelectedCompanyKey] = useState<string>('enterprises');
   const [companyWorkspaceTab, setCompanyWorkspaceTab] = useState<'details' | 'employees'>('details');
   const [addCompanyModalOpen, setAddCompanyModalOpen] = useState(false);
+  const [payslipPreviewOpen, setPayslipPreviewOpen] = useState(false);
 
   // Employee Assignment Modal State
   const [assignModalOpen, setAssignModalOpen] = useState(false);
@@ -315,9 +329,9 @@ export default function OrganizationPage() {
   const matchedEntities = useMemo(() => {
     const standardEntities = GROUP_ENTITIES.map((entity) => {
       const found = companies.find((c) => {
-        const lowerName = (c.name || '').toLowerCase().trim();
-        const lowerDisplay = (c.displayName || '').toLowerCase().trim();
-        return entity.matchNames.some((m) => lowerName.includes(m) || lowerDisplay.includes(m));
+        const name = c.name || '';
+        const display = c.displayName || '';
+        return entity.matcher(name, display);
       });
       return {
         ...entity,
@@ -340,7 +354,7 @@ export default function OrganizationPage() {
       const themeConfig = EXTRA_THEMES[index % EXTRA_THEMES.length];
       return {
         key: `custom-${c.id}`,
-        matchNames: [(c.name || '').toLowerCase(), (c.displayName || '').toLowerCase()],
+        matcher: () => true,
         defaultName: c.displayName || c.name,
         tagline: `${(c.industry || 'BUSINESS').toUpperCase()} | ${(c.companyType || 'ENTERPRISE').toUpperCase()}`,
         industry: c.industry || 'Business & Enterprise',
@@ -360,6 +374,7 @@ export default function OrganizationPage() {
         companyData: c,
         companyId: c.id,
         employeeCount: c._count?.employees ?? 0,
+        isCustom: true,
       };
     });
 
@@ -511,6 +526,18 @@ export default function OrganizationPage() {
       queryClient.invalidateQueries({ queryKey: ['companies-list'] });
     },
     onError: (e: any) => toastError(e.message || 'Failed to update company details')
+  });
+
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const deleteCompanyMutation = useMutation({
+    mutationFn: (companyId: string) => companiesApi.delete(companyId),
+    onSuccess: (res) => {
+      toastSuccess(res.message || 'Company deleted successfully');
+      setDeleteConfirmOpen(false);
+      setSelectedCompanyKey('enterprises');
+      queryClient.invalidateQueries({ queryKey: ['companies-list'] });
+    },
+    onError: (e: any) => toastError(e.message || 'Failed to delete company'),
   });
 
   const assignEmployeesMutation = useMutation({
@@ -883,7 +910,7 @@ export default function OrganizationPage() {
 
                   {/* Icon / Brand Logo Emblem */}
                   <div className="flex flex-col items-center pt-2">
-                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${entity.companyData?.logoUrl ? 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-md p-1.5' : entity.theme.iconBg} transition-transform duration-300 ${isSelected ? 'scale-110' : ''} overflow-hidden`}>
+                    <div className={`w-22 h-22 rounded-2xl flex items-center justify-center mb-4 ${entity.companyData?.logoUrl ? 'p-1 bg-transparent' : entity.theme.iconBg} transition-transform duration-300 ${isSelected ? 'scale-110' : ''} overflow-hidden`}>
                       {entity.companyData?.logoUrl ? (
                         <img src={entity.companyData.logoUrl} alt={entity.defaultName} className="w-full h-full object-contain" />
                       ) : (
@@ -951,7 +978,7 @@ export default function OrganizationPage() {
             {/* Header of the Selected Company Workspace */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-[var(--border)]">
               <div className="flex items-center gap-4">
-                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${activeEntity.companyData?.logoUrl ? 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-md p-1.5' : activeEntity.theme.iconBg} overflow-hidden`}>
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${activeEntity.companyData?.logoUrl ? 'p-1 bg-transparent' : activeEntity.theme.iconBg} overflow-hidden`}>
                   {activeEntity.companyData?.logoUrl ? (
                     <img src={activeEntity.companyData.logoUrl} alt={activeEntity.defaultName} className="w-full h-full object-contain" />
                   ) : (
@@ -1010,7 +1037,7 @@ export default function OrganizationPage() {
                 {/* 0. Brand Logo Uploader Section */}
                 <div className="bg-[var(--surface-alt)] border border-[var(--border)] rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center gap-6 shadow-xs">
                   {/* Live Logo Preview Box */}
-                  <div className="relative w-24 h-24 rounded-2xl bg-white dark:bg-slate-900 border-2 border-dashed border-[var(--border)] flex items-center justify-center p-2 shadow-inner shrink-0 overflow-hidden">
+                  <div className="relative w-24 h-24 rounded-2xl bg-[var(--surface)] border-2 border-dashed border-[var(--border)] flex items-center justify-center p-2 shadow-inner shrink-0 overflow-hidden">
                     {profileForm.watch('logoUrl') ? (
                       <img
                         src={profileForm.watch('logoUrl')}
@@ -1066,6 +1093,15 @@ export default function OrganizationPage() {
                         />
                       </label>
 
+                      {/* Preview Payslip Button */}
+                      <button
+                        type="button"
+                        onClick={() => setPayslipPreviewOpen(true)}
+                        className="px-4 py-2 bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
+                      >
+                        <Eye size={14} /> Preview Payslip Format
+                      </button>
+
                       {profileForm.watch('logoUrl') && (
                         <button
                           type="button"
@@ -1096,7 +1132,7 @@ export default function OrganizationPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-[var(--text-primary)]">Company Name <span className="text-rose-500">*</span></label>
-                      <input {...profileForm.register('name')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Lordsandkings Enterprises" />
+                      <input {...profileForm.register('name')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Lords And Kings Enterprises" />
                       {profileForm.formState.errors.name && <p className="text-xs text-rose-500">{profileForm.formState.errors.name.message}</p>}
                     </div>
                     <div className="space-y-1.5">
@@ -1215,7 +1251,7 @@ export default function OrganizationPage() {
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-[var(--text-primary)]">Account Holder Name</label>
-                      <input {...profileForm.register('bankAccountName')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Lordsandkings Enterprises" />
+                      <input {...profileForm.register('bankAccountName')} className="w-full px-3.5 py-2.5 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm focus:outline-none focus:border-purple-500" placeholder="e.g. Lords And Kings Enterprises" />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-[var(--text-primary)]">Account Number</label>
@@ -1273,8 +1309,19 @@ export default function OrganizationPage() {
                   </div>
                 </div>
 
-                {/* Save Button */}
-                <div className="pt-6 border-t border-[var(--border)] flex justify-end gap-3">
+                {/* Save & Delete Buttons */}
+                <div className="pt-6 border-t border-[var(--border)] flex items-center justify-between gap-3">
+                  <div>
+                    {activeCompanyId && (activeEntity.employeeCount === 0 || (activeEntity as any).isCustom) && (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteConfirmOpen(true)}
+                        className="px-4 py-2.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 border border-rose-500/30 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+                      >
+                        <Trash2 size={15} /> Delete Company
+                      </button>
+                    )}
+                  </div>
                   <button
                     type="submit"
                     disabled={updateCompanyMutation.isPending}
@@ -1728,6 +1775,60 @@ export default function OrganizationPage() {
         open={addCompanyModalOpen}
         mode="add"
         onClose={() => setAddCompanyModalOpen(false)}
+      />
+
+      {/* Delete Company Confirmation Modal */}
+      <Modal
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        title={`Delete Company: ${activeEntity.defaultName}`}
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-[var(--text-secondary)]">
+            Are you sure you want to delete <strong>{activeEntity.defaultName}</strong>? This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border)]">
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmOpen(false)}
+              className="px-4 py-2 rounded-xl border border-[var(--border)] text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={deleteCompanyMutation.isPending || !activeCompanyId}
+              onClick={() => {
+                if (activeCompanyId) {
+                  deleteCompanyMutation.mutate(activeCompanyId);
+                }
+              }}
+              className="px-4 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold hover:bg-rose-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              {deleteCompanyMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+              Confirm Delete
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Payslip Format Live Preview Modal */}
+      <PayslipPreviewModal
+        open={payslipPreviewOpen}
+        onClose={() => setPayslipPreviewOpen(false)}
+        sampleCompany={{
+          ...activeEntity.companyData,
+          ...profileForm.getValues(),
+          name: profileForm.watch('name') || activeEntity.defaultName,
+          displayName: profileForm.watch('displayName') || activeEntity.defaultName,
+          legalName: profileForm.watch('legalName') || activeEntity.defaultName,
+          logoUrl: profileForm.watch('logoUrl') || activeEntity.companyData?.logoUrl,
+          address: profileForm.watch('address') || activeEntity.companyData?.address,
+          gstNumber: profileForm.watch('gstNumber') || activeEntity.companyData?.gstNumber,
+          panNumber: profileForm.watch('panNumber') || activeEntity.companyData?.panNumber,
+        }}
+        title={`${activeEntity.defaultName} — Payslip Preview`}
       />
 
     </div>

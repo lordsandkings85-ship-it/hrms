@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileText, Award, History, Loader2, Download } from 'lucide-react';
+import { FileText, Award, History, Loader2, Download, Eye } from 'lucide-react';
 import { payrollApi, payrollApiExt } from '../../../../api/client';
 import { DataTable, Column } from '../../../../components/ui/DataTable';
 import { useToast } from '../../../../components/ui/ToastProvider';
@@ -9,6 +9,7 @@ import { MONTHS } from './shared';
 import { generatePayslipPDF } from '../../../../utils/payslipPDF';
 import { useAuthStore } from '../../../../store/useAuthStore';
 import { fmtDate } from '../../../../utils/formatDate';
+import { PayslipPreviewModal } from '../../../../components/payroll/PayslipPreviewModal';
 
 async function downloadPayslip(payslip: any) {
   const { user } = useAuthStore.getState();
@@ -22,6 +23,7 @@ async function downloadPayslip(payslip: any) {
 
 export function PayslipSection() {
   const [employeeId, setEmployeeId] = useState('');
+  const [previewingPayslipId, setPreviewingPayslipId] = useState<string | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ['admin-payslips', employeeId],
     queryFn: () => payrollApi.getPayslips(employeeId),
@@ -33,17 +35,30 @@ export function PayslipSection() {
     { key: 'net', header: 'Net Pay', render: (r: any) => <span className="font-mono font-bold text-emerald-500">{fmtINR(r.netPay)}</span> },
     { key: 'tds', header: 'TDS', render: (r: any) => <span className="font-mono text-[var(--text-muted)]">{fmtINR(r.breakdown?.tdsMonthly)}</span> },
     {
-      key: 'actions', header: '', render: (r: any) => (
-        <button onClick={() => downloadPayslip(r)} className="p-1.5 text-[var(--text-muted)] hover:text-indigo-500 hover:bg-indigo-500/10 rounded-lg transition-colors">
-          <Download size={14} />
-        </button>
+      key: 'actions', header: 'Actions', render: (r: any) => (
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => setPreviewingPayslipId(r.id)} className="p-1.5 text-[var(--text-muted)] hover:text-slate-900 dark:hover:text-white hover:bg-slate-500/10 rounded-lg transition-colors" title="View Payslip">
+            <Eye size={14} />
+          </button>
+          <button onClick={() => downloadPayslip(r)} className="p-1.5 text-[var(--text-muted)] hover:text-indigo-500 hover:bg-indigo-500/10 rounded-lg transition-colors" title="Download PDF">
+            <Download size={14} />
+          </button>
+        </div>
       ),
     },
   ];
   return (
     <SectionCard title="Employee Payslips" icon={FileText} right={<div className="w-72"><EmployeeSelect value={employeeId} onChange={setEmployeeId} label="Select employee to view payslips…" /></div>}>
       {employeeId ? (
-        <DataTable columns={columns} data={data ?? []} loading={isLoading} keyField="id" emptyTitle="No payslips" emptyMessage="No payslips generated for this employee." />
+        <>
+          <DataTable columns={columns} data={data ?? []} loading={isLoading} keyField="id" emptyTitle="No payslips" emptyMessage="No payslips generated for this employee." />
+          <PayslipPreviewModal
+            open={!!previewingPayslipId}
+            onClose={() => setPreviewingPayslipId(null)}
+            payslipId={previewingPayslipId}
+            title="Employee Salary Slip"
+          />
+        </>
       ) : (
         <div className="h-48 flex items-center justify-center text-[var(--text-muted)] text-sm font-medium border border-dashed border-[var(--border)] rounded-xl bg-[var(--surface-alt)]">
           Select an employee to view their payslips

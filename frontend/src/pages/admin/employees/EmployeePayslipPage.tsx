@@ -6,12 +6,14 @@ import { DataTable, Column } from '../../../components/ui/DataTable';
 import { StatusBadge } from '../../../components/ui/Badge';
 import { generatePayslipPDF } from '../../../utils/payslipPDF';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { PayslipPreviewModal } from '../../../components/payroll/PayslipPreviewModal';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export default function EmployeePayslipPage() {
   const [employeeId, setEmployeeId] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [previewingPayslipId, setPreviewingPayslipId] = useState<string | null>(null);
   const { error } = useToast();
 
   const { data: employees } = useQuery({
@@ -60,7 +62,7 @@ export default function EmployeePayslipPage() {
       header: 'Gross Salary',
       render: (row: any) => (
         <span className="font-mono text-[var(--text-primary)]">
-          ₹{Number(row.grossPay || 0).toLocaleString('en-IN')}
+          ₹{Math.round(Number(row.grossPay || 0)).toLocaleString('en-IN')}
         </span>
       ),
     },
@@ -69,7 +71,7 @@ export default function EmployeePayslipPage() {
       header: 'Deductions',
       render: (row: any) => (
         <span className="font-mono text-red-500">
-          - ₹{Number(row.totalDeductions || 0).toLocaleString('en-IN')}
+          - ₹{Math.round(Number(row.totalDeductions || 0)).toLocaleString('en-IN')}
         </span>
       ),
     },
@@ -78,7 +80,7 @@ export default function EmployeePayslipPage() {
       header: 'Net Pay',
       render: (row: any) => (
         <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-          ₹{Number(row.netPay || 0).toLocaleString('en-IN')}
+          ₹{Math.round(Number(row.netPay || 0)).toLocaleString('en-IN')}
         </span>
       ),
     },
@@ -98,15 +100,23 @@ export default function EmployeePayslipPage() {
     },
     {
       key: 'actions',
-      header: 'Download PDF',
+      header: 'Actions',
       render: (row: any) => (
-        <button
-          onClick={() => handleDownload(row)}
-          disabled={downloadingId === row.id}
-          className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-        >
-          <Download size={13} /> {downloadingId === row.id ? 'Generating...' : 'Download'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPreviewingPayslipId(row.id)}
+            className="px-3 py-1.5 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+          >
+            <Eye size={13} /> View
+          </button>
+          <button
+            onClick={() => handleDownload(row)}
+            disabled={downloadingId === row.id}
+            className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+          >
+            <Download size={13} /> {downloadingId === row.id ? 'Generating...' : 'Download'}
+          </button>
+        </div>
       ),
     },
   ];
@@ -190,6 +200,15 @@ export default function EmployeePayslipPage() {
           </div>
         )}
       </div>
+
+      {/* Payslip Interactive View Modal */}
+      <PayslipPreviewModal
+        open={!!previewingPayslipId}
+        onClose={() => setPreviewingPayslipId(null)}
+        payslipId={previewingPayslipId}
+        title={selectedEmployee ? `${selectedEmployee.firstName} ${selectedEmployee.lastName} — Salary Slip` : 'Employee Payslip'}
+      />
     </div>
   );
 }
+

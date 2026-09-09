@@ -48,12 +48,11 @@ export async function generateForm16PDF(data: Form16Data, employee: { name: stri
   const logo = await getLogo();
   let leftTextX = 14;
   if (logo) {
-    const logoBoxH = 12;
+    const logoBoxH = 14;
     let logoW = logoBoxH * (logo.width / logo.height);
     if (logoW > 40) logoW = 40;
-    doc.setFillColor(255, 255, 255);
-    doc.roundedRect(11, (24 - logoBoxH - 3) / 2, logoW + 2, logoBoxH + 3, 1, 1, 'F');
-    doc.addImage(logo.dataUrl, 'PNG', 12, (24 - logoBoxH) / 2, logoW, logoBoxH, undefined, 'FAST');
+    if (logoW < 10) logoW = 10;
+    doc.addImage(logo.dataUrl, 'PNG', 14, (24 - logoBoxH) / 2, logoW, logoBoxH);
     leftTextX = 14 + logoW + 4;
   }
 

@@ -6,12 +6,14 @@ import { PageHeader } from '../../../components/ui/PageHeader';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { 
   User, Briefcase, Mail, Phone, Calendar, ShieldCheck, 
-  MapPin, Landmark, Users, Award, FileText, Info, Building, Edit3
+  MapPin, Landmark, Users, Award, FileText, Info, Building, Edit3,
+  Camera, Trash2, Loader2
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { getServerNow } from '../../../utils/serverTime';
 import { fmt24To12 } from '../../../utils/formatDate';
 import { EditProfileModal } from '../../../features/employee/EditProfileModal';
+import { compressImage } from '../../../utils/imageCompressor';
 
 export default function MyProfilePage() {
   const { user } = useAuthStore();
@@ -24,6 +26,59 @@ export default function MyProfilePage() {
   const [complianceDraft, setComplianceDraft] = useState<{ uan: string; pfNumber: string; esic: string; pan: string; aadhaar: string }>({
     uan: '', pfNumber: '', esic: '', pan: '', aadhaar: '',
   });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  const photoMutation = useMutation({
+    mutationFn: (photoUrl: string) => employeesApi.updateMyCompliance({ photoUrl }),
+    onSuccess: (_, photoUrl) => {
+      toastSuccess(photoUrl ? 'Profile picture updated' : 'Profile picture removed');
+      queryClient.invalidateQueries({ queryKey: ['my-profile', empId] });
+      if (user && user.employee) {
+        useAuthStore.getState().setUser({
+          ...user,
+          employee: {
+            ...user.employee,
+            photoUrl: photoUrl || null,
+          }
+        });
+      }
+    },
+    onError: (e: any) => toastError(e.message || 'Failed to update profile picture'),
+    onSettled: () => setIsUploadingPhoto(false),
+  });
+
+  const handlePhotoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toastError('Please select a valid image file (PNG, JPG, WebP)');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toastError('Image file is too large. Please select an image under 5MB.');
+      return;
+    }
+    try {
+      setIsUploadingPhoto(true);
+      const base64 = await compressImage(file, 400, 0.88);
+      photoMutation.mutate(base64);
+    } catch (err) {
+      toastError('Failed to process image');
+      setIsUploadingPhoto(false);
+    } finally {
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleRemovePhoto = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm('Are you sure you want to remove your profile picture?')) {
+      setIsUploadingPhoto(true);
+      photoMutation.mutate('');
+    }
+  };
 
   const complianceMutation = useMutation({
     mutationFn: () => employeesApi.updateMyCompliance({
@@ -154,12 +209,56 @@ export default function MyProfilePage() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-500/10 via-transparent to-transparent pointer-events-none" />
         <div className="absolute inset-0 opacity-5 bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
 
-        {/* Profile Avatar Wrapper with Gradient Ring */}
+        {/* Profile Avatar Wrapper with Gradient Ring & Photo Upload */}
         <div className="relative shrink-0 group">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/jpg"
+            className="hidden"
+            onChange={handlePhotoFileChange}
+          />
           <div className="absolute -inset-1 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 opacity-75 blur-sm group-hover:opacity-100 transition-opacity duration-300" />
-          <div className="relative w-24 h-24 rounded-2xl bg-slate-900 flex items-center justify-center text-white text-3xl font-black font-display shadow-2xl shrink-0 select-none border border-slate-700/50">
-            {emp.firstName[0]}{emp.lastName?.[0] ?? ''}
+          <div className="relative w-24 h-24 rounded-2xl bg-slate-900 flex items-center justify-center text-white text-3xl font-black font-display shadow-2xl shrink-0 select-none border border-slate-700/50 overflow-hidden">
+            {emp.photoUrl ? (
+              <img
+                src={emp.photoUrl}
+                alt={`${emp.firstName} ${emp.lastName}`}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span>{emp.firstName[0]}{emp.lastName?.[0] ?? ''}</span>
+            )}
+
+            {/* Hover overlay with Camera trigger */}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute inset-0 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white"
+              title="Click to upload or change profile picture"
+            >
+              {isUploadingPhoto ? (
+                <Loader2 size={20} className="animate-spin text-indigo-400" />
+              ) : (
+                <>
+                  <Camera size={20} className="text-indigo-300 hover:scale-110 transition-transform" />
+                  <span className="text-[9px] font-bold tracking-tight text-slate-200">
+                    {emp.photoUrl ? 'Change' : 'Upload'}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
+
+          {/* Quick Remove Button if Photo Exists */}
+          {emp.photoUrl && !isUploadingPhoto && (
+            <button
+              onClick={handleRemovePhoto}
+              title="Remove profile picture"
+              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-md transition-transform hover:scale-110 opacity-0 group-hover:opacity-100 z-20 cursor-pointer"
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
         </div>
 
         {/* Passport details */}

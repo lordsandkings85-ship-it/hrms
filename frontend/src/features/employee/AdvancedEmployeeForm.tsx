@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { employeesApi, organizationApi } from '../../api/client';
-import { Save, RefreshCw } from 'lucide-react';
+import { Save, RefreshCw, Camera, Trash2, User, Upload } from 'lucide-react';
+import { compressImage } from '../../utils/imageCompressor';
 import { useToast } from '../../components/ui/ToastProvider';
 import { useNavigate } from 'react-router-dom';
 import { getServerNow } from '../../utils/serverTime';
@@ -133,6 +134,7 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
   const [formData, setFormData] = useState<any>(initialData || {
     // Contact / Basic Info
     employeeCode: '',
+    photoUrl: '',
     firstName: '',
     lastName: '',
     companyEmail: '',
@@ -221,6 +223,7 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
 
     const payload: any = {
       employeeCode: formData.employeeCode || `EMP${crypto.randomUUID().slice(0, 8)}`,
+      photoUrl: formData.photoUrl || null,
       firstName: formData.firstName || 'Unknown',
       middleName: formData.middleName,
       lastName: formData.lastName || '.',
@@ -268,7 +271,7 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
       return;
     }
     setFormData({
-      employeeCode: '', firstName: '', middleName: '', lastName: '',
+      employeeCode: '', photoUrl: '', firstName: '', middleName: '', lastName: '',
       companyEmail: '', status: 'active', isExEmployee: false,
       paymentInfo: {}, adminInfo: {}, personalInfo: {},
       contactInfo: {},
@@ -1261,7 +1264,85 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
                                        <input type="checkbox" checked={formData.isExEmployee || false} onChange={e => updateRoot('isExEmployee', e.target.checked)} /> Ex employee
                  </label>
               </div>
-              <div className="h-40"></div> {/* Spacer to align with State field below dates */}
+
+              {/* Employee Picture Upload Widget */}
+              <div className="flex items-center gap-4 p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs mb-2">
+                <div className="relative group w-24 h-24 rounded-2xl bg-slate-100 dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                  {formData.photoUrl ? (
+                    <img
+                      src={formData.photoUrl}
+                      alt="Employee"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-slate-400">
+                      <User size={32} className="stroke-[1.5]" />
+                      <span className="text-[9px] font-bold mt-1 uppercase tracking-wider text-slate-400">No Photo</span>
+                    </div>
+                  )}
+
+                  {/* Hover overlay button */}
+                  <label
+                    htmlFor="emp-photo-input"
+                    className="absolute inset-0 bg-slate-950/60 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-[10px] font-bold gap-1"
+                  >
+                    <Camera size={18} />
+                    <span>{formData.photoUrl ? 'Change' : 'Upload'}</span>
+                  </label>
+                </div>
+
+                <div className="space-y-1.5 flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Employee Picture</span>
+                    {formData.photoUrl && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                        Uploaded
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-tight">
+                    JPG, PNG or WebP. Optimized for directory, profile & ID badges.
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      id="emp-photo-input"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/jpg"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const compressed = await compressImage(file, 400, 0.88);
+                            updateRoot('photoUrl', compressed);
+                          } catch (err) {
+                            console.error('Failed to compress image:', err);
+                          }
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor="emp-photo-input"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-500 hover:bg-teal-600 text-white text-xs font-semibold rounded-lg cursor-pointer shadow-xs transition-colors"
+                    >
+                      <Camera size={13} />
+                      <span>{formData.photoUrl ? 'Change Picture' : 'Upload Picture'}</span>
+                    </label>
+
+                    {formData.photoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => updateRoot('photoUrl', '')}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/30 dark:hover:bg-rose-900/50 dark:text-rose-400 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                        title="Remove Picture"
+                      >
+                        <Trash2 size={13} />
+                        <span>Remove</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
 
                <div className="grid grid-cols-3 items-center gap-2">
                  <label className="text-xs text-gray-600 col-span-1">Branch <span className="text-red-500">*</span></label>

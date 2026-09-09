@@ -11,7 +11,7 @@ export function currentMonthYear() {
 }
 
 export function fmtINR(n?: number) {
-  return `₹${(n ?? 0).toLocaleString('en-IN')}`;
+  return `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}`;
 }
 
 export function useEmployeeList(): any[] {

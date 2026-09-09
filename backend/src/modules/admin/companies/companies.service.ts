@@ -216,30 +216,30 @@ export class CompaniesService {
   async ensureGroupDefaults(userId: string) {
     const DEFAULT_COMPANIES = [
       {
-        name: 'Lordsandkings Enterprises',
-        displayName: 'Lordsandkings Enterprises',
-        legalName: 'Lordsandkings Enterprises',
+        name: 'Lords And Kings Enterprises',
+        displayName: 'Lords And Kings Enterprises',
+        legalName: 'Lords And Kings Enterprises',
         industry: 'Trading & Services',
         companyType: 'Proprietary',
       },
       {
-        name: 'Lordsandkings Agro',
-        displayName: 'Lordsandkings Agro',
-        legalName: 'Lordsandkings Agro',
+        name: 'Lords And Kings Agro',
+        displayName: 'Lords And Kings Agro',
+        legalName: 'Lords And Kings Agro Private Limited',
         industry: 'Agriculture & Food',
         companyType: 'Private Limited',
       },
       {
-        name: 'Lordsandkings Enterprises Pvt Ltd',
-        displayName: 'Lordsandkings Enterprises Pvt Ltd',
-        legalName: 'Lordsandkings Enterprises Pvt Ltd',
+        name: 'Lords And Kings Enterprises Pvt Ltd',
+        displayName: 'Lords And Kings Enterprises Pvt Ltd',
+        legalName: 'Lords And Kings Enterprises Pvt Ltd',
         industry: 'Business & Innovation',
         companyType: 'Private Limited',
       },
       {
-        name: 'Lordsandkings Estates LLP',
-        displayName: 'Lordsandkings Estates LLP',
-        legalName: 'Lordsandkings Estates LLP',
+        name: 'Lords And Kings Estates LLP',
+        displayName: 'Lords And Kings Estates LLP',
+        legalName: 'Lords And Kings Estates LLP',
         industry: 'Real Estate & Development',
         companyType: 'LLP',
       },
@@ -492,6 +492,50 @@ export class CompaniesService {
       after: { name: updated.name, status: updated.status, gstNumber: updated.gstNumber, panNumber: updated.panNumber },
     });
     return updated;
+  }
+
+  /** Delete a sub-company (group-wide managers only). */
+  async deleteCompany(userId: string, primaryCompanyId: string, id: string) {
+    const isManager = await this.isGroupWide(userId);
+    if (!isManager) {
+      throw new ForbiddenException('Only administrators can delete companies');
+    }
+
+    if (id === primaryCompanyId) {
+      throw new BadRequestException('Cannot delete your primary company');
+    }
+
+    const company = await this.prisma.company.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { employees: true, users: true },
+        },
+      },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+
+    if (company.status === 'group_parent') {
+      throw new BadRequestException('Cannot delete the root group company');
+    }
+
+    if (company._count.employees > 0) {
+      throw new BadRequestException(
+        `Cannot delete "${company.displayName || company.name}" because it currently has ${company._count.employees} assigned employee(s). Please transfer them first.`
+      );
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.userCompany.deleteMany({ where: { companyId: id } }),
+      this.prisma.company.delete({ where: { id } }),
+    ]);
+
+    await this.audit(primaryCompanyId, userId, 'delete', 'company', id, {
+      deletedCompany: company.name,
+      displayName: company.displayName,
+    });
+
+    return { success: true, message: `Company "${company.displayName || company.name}" deleted successfully` };
   }
 
   /** Group-wide managers can access every company under the group. */

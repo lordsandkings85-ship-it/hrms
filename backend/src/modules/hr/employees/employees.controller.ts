@@ -52,7 +52,7 @@ export class EmployeesController {
   }
 
   @Patch('me/compliance')
-  updateMyCompliance(@CurrentUser() user: AuthUser, @Body() dto: { uan?: string; pfNumber?: string; esic?: string; pan?: string; aadhaar?: string }) {
+  updateMyCompliance(@CurrentUser() user: AuthUser, @Body() dto: { uan?: string; pfNumber?: string; esic?: string; pan?: string; aadhaar?: string; photoUrl?: string }) {
     return this.employeesService.updateMyCompliance(user.companyId, user.userId, dto);
   }
 

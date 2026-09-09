@@ -2,9 +2,10 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { payrollApi, payrollApiExt, attendanceApiExt, leaveApi, dashboardApi, dashboardSummaryKey, attendanceApi, announcementsApi } from '../../../api/client';
-import { Fingerprint, Calendar, Download, Shield, ArrowRight, TrendingUp, Megaphone, Bell, Clock, User, Banknote, CalendarDays, Receipt, Headphones, Target, ChevronRight, UserMinus, AlertTriangle } from 'lucide-react';
+import { Fingerprint, Calendar, Download, Eye, Shield, ArrowRight, TrendingUp, Megaphone, Bell, Clock, User, Banknote, CalendarDays, Receipt, Headphones, Target, ChevronRight, UserMinus, AlertTriangle } from 'lucide-react';
 import { Spinner } from '../../../components/ui/Spinner';
 import { generatePayslipPDF } from '../../../utils/payslipPDF';
+import { PayslipPreviewModal } from '../../../components/payroll/PayslipPreviewModal';
 import { StatusBadge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/ToastProvider';
 import React, { useState, useEffect, useMemo } from 'react';
@@ -47,6 +48,7 @@ export default function EmployeeDashboard() {
 
    const currentYear = getServerYear();
    const currentMonth = getServerMonth();
+   const [previewingPayslipId, setPreviewingPayslipId] = useState<string | null>(null);
 
    const { data: salaryStructure } = useQuery({
       queryKey: ['salary-structure', emp?.id],
@@ -157,10 +159,11 @@ export default function EmployeeDashboard() {
    }
 
    const latestPayslip = payslips?.[0];
+   const latestBreakdown = latestPayslip?.breakdown || {};
    const grossMonthly = salaryStructure
-      ? (salaryStructure.basic + salaryStructure.hra + salaryStructure.da +
-         salaryStructure.conveyance + salaryStructure.medical + salaryStructure.specialAllowance)
-      : 0;
+      ? (Number(salaryStructure.basic || 0) + Number(salaryStructure.hra || 0) + Number(salaryStructure.da || 0) +
+         Number(salaryStructure.conveyance || 0) + Number(salaryStructure.medical || 0) + Number(salaryStructure.specialAllowance || 0))
+      : (latestPayslip ? Number(latestPayslip.grossPay || 0) : 0);
 
    const presentDays = summary ? summary.present + summary.late + (summary.halfDay * 0.5) : 0;
    const totalExpected = summary ? summary.totalDays : 0;
@@ -405,36 +408,46 @@ export default function EmployeeDashboard() {
                   <div className="p-4 rounded-xl mb-3" style={{ background: 'var(--surface-active)', border: '1px solid var(--border)' }}>
                      <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Monthly Gross</p>
                      <p className="font-mono text-2xl font-bold mt-0.5" style={{ color: 'var(--text-primary)' }}>
-                        ₹{grossMonthly.toLocaleString('en-IN')}
+                        ₹{Math.round(grossMonthly).toLocaleString('en-IN')}
                      </p>
-                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Annual CTC: ₹{(grossMonthly * 12).toLocaleString('en-IN')}</p>
+                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Annual CTC: ₹{Math.round(grossMonthly * 12).toLocaleString('en-IN')}</p>
                   </div>
                )}
                {latestPayslip ? (
-                  <div className="flex items-center justify-between p-3 rounded-xl transition-colors group" style={{ border: '1px solid var(--border)', background: 'var(--surface-hover)' }}>
-                     <div>
-                        <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-                           Payslip — {latestPayslip.payrollCycle?.month}/{latestPayslip.payrollCycle?.year}
-                        </p>
-                        <p className="font-mono text-sm font-bold mt-0.5" style={{ color: 'var(--success)' }}>
-                           ₹{latestPayslip.netPay?.toLocaleString('en-IN')} net
-                        </p>
-                     </div>
-                     <button
-                         onClick={async () => {
-                            const { user } = useAuthStore.getState();
-                            const full = await payrollApiExt.getPayslipDetail(latestPayslip.id);
-                            await generatePayslipPDF({
-                              payslip: full,
-                              employee: full.employee || user?.employee,
-                              company: full.employee?.company || user?.company,
-                            });
-                         }}
-                        className="btn-ghost text-xs gap-1.5"
-                     >
-                        <Download size={13} /> Download
-                     </button>
-                  </div>
+                   <div className="flex items-center justify-between p-3 rounded-xl transition-colors group" style={{ border: '1px solid var(--border)', background: 'var(--surface-hover)' }}>
+                      <div>
+                         <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+                            Payslip — {latestPayslip.payrollCycle?.month}/{latestPayslip.payrollCycle?.year}
+                         </p>
+                         <p className="font-mono text-sm font-bold mt-0.5" style={{ color: 'var(--success)' }}>
+                            ₹{Math.round(Number(latestPayslip.netPay || 0)).toLocaleString('en-IN')} net
+                         </p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                         <button
+                            onClick={() => setPreviewingPayslipId(latestPayslip.id)}
+                            className="btn-ghost text-xs gap-1 py-1.5 px-2.5"
+                            title="Preview Payslip"
+                         >
+                            <Eye size={13} /> View
+                         </button>
+                         <button
+                            onClick={async () => {
+                               const { user } = useAuthStore.getState();
+                               const full = await payrollApiExt.getPayslipDetail(latestPayslip.id);
+                               await generatePayslipPDF({
+                                 payslip: full,
+                                 employee: full.employee || user?.employee,
+                                 company: full.employee?.company || user?.company,
+                               });
+                            }}
+                            className="btn-ghost text-xs gap-1 py-1.5 px-2.5"
+                            title="Download PDF"
+                         >
+                            <Download size={13} /> Download
+                         </button>
+                      </div>
+                   </div>
                ) : (
                   <p className="text-xs text-center py-4 border border-dashed rounded-xl" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
                      No payslips generated yet.
@@ -509,6 +522,13 @@ export default function EmployeeDashboard() {
             </div>
 
          </div>
+
+         {/* Interactive Payslip Preview Modal */}
+         <PayslipPreviewModal
+            open={!!previewingPayslipId}
+            onClose={() => setPreviewingPayslipId(null)}
+            payslipId={previewingPayslipId}
+         />
       </div>
    );
 }

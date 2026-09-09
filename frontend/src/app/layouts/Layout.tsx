@@ -534,8 +534,17 @@ const LiveClock = React.memo(function LiveClock() {
   );
 });
 
-function UserAvatar({ name }: { name: string }) {
+function UserAvatar({ name, photoUrl }: { name: string; photoUrl?: string | null }) {
   const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  if (photoUrl) {
+    return (
+      <img
+        src={photoUrl}
+        alt={name}
+        className="w-8 h-8 rounded-full object-cover flex-shrink-0 select-none ring-1 ring-white/20"
+      />
+    );
+  }
   return (
     <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 select-none"
       style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}>
@@ -1049,7 +1058,7 @@ export default function Layout() {
         <div className="flex-shrink-0" style={{ borderTop: '1px solid var(--sidebar-separator)', background: 'var(--sidebar-footer)' }}>
           {!collapsed && (
             <div className="flex items-center gap-3 px-4 py-3">
-              <UserAvatar name={fullName} />
+              <UserAvatar name={fullName} photoUrl={user?.employee?.photoUrl} />
               <div className="overflow-hidden flex-1">
                 <div className="text-[13px] font-semibold text-white truncate">{fullName}</div>
                 <div className="text-[11px] truncate mt-0.5" style={{ color: 'var(--sidebar-text)' }}>{roleName}</div>
@@ -1209,13 +1218,22 @@ export default function Layout() {
           </div>
 
           {/* Avatar (topbar) */}
-          <div
-            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold select-none cursor-default ml-1"
-            style={{ background: 'var(--action-primary)', color: 'var(--action-primary-text)' }}
-            title={fullName}
-          >
-            {fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-          </div>
+          {user?.employee?.photoUrl ? (
+            <img
+              src={user.employee.photoUrl}
+              alt={fullName}
+              className="w-7 h-7 rounded-full object-cover select-none cursor-default ml-1 ring-1 ring-slate-200 dark:ring-slate-700"
+              title={fullName}
+            />
+          ) : (
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold select-none cursor-default ml-1"
+              style={{ background: 'var(--action-primary)', color: 'var(--action-primary-text)' }}
+              title={fullName}
+            >
+              {fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+            </div>
+          )}
         </header>
 
         {/* Page content */}

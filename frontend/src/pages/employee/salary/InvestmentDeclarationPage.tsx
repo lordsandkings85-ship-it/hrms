@@ -89,8 +89,8 @@ export default function InvestmentDeclarationPage() {
   });
 
   const monthlyCtc = salaryStructure
-    ? (salaryStructure.basic || 0) + (salaryStructure.hra || 0) + (salaryStructure.da || 0)
-      + (salaryStructure.conveyance || 0) + (salaryStructure.medical || 0) + (salaryStructure.specialAllowance || 0)
+    ? Number(salaryStructure.basic || 0) + Number(salaryStructure.hra || 0) + Number(salaryStructure.da || 0)
+      + Number(salaryStructure.conveyance || 0) + Number(salaryStructure.medical || 0) + Number(salaryStructure.specialAllowance || 0)
     : 0;
   const grossSalary = monthlyCtc > 0 ? Math.round(monthlyCtc * 12) : 0;
 

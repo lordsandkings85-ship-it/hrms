@@ -155,6 +155,7 @@ export class CreateEmployeeDto {
   @IsOptional() @IsString() middleName?: string;
   @IsString() lastName: string;
   @IsEmail() email: string;
+  @IsOptional() @IsString() photoUrl?: string;
 
   @IsOptional() @IsString() status?: string;
   @IsOptional() @IsString() phone?: string;

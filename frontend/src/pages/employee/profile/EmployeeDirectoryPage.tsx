@@ -64,9 +64,17 @@ export default function EmployeeDirectoryPage() {
           <div className="h-28 bg-gradient-to-r from-indigo-600/20 to-purple-600/10" />
           <div className="px-6 pb-6">
             <div className="flex items-end gap-4 -mt-10 mb-4">
-              <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getAvatarColor(selectedEmp.id)} flex items-center justify-center text-2xl font-bold text-white shadow-lg border-4 border-[var(--surface)]`}>
-                {getInitials(selectedEmp)}
-              </div>
+              {selectedEmp.photoUrl ? (
+                <img
+                  src={selectedEmp.photoUrl}
+                  alt={`${selectedEmp.firstName} ${selectedEmp.lastName}`}
+                  className="w-20 h-20 rounded-2xl object-cover shadow-lg border-4 border-[var(--surface)] shrink-0"
+                />
+              ) : (
+                <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getAvatarColor(selectedEmp.id)} flex items-center justify-center text-2xl font-bold text-white shadow-lg border-4 border-[var(--surface)] shrink-0`}>
+                  {getInitials(selectedEmp)}
+                </div>
+              )}
               <div className="pb-2">
                 <h2 className="text-xl font-bold text-[var(--text-primary)]">{selectedEmp.firstName} {selectedEmp.lastName}</h2>
                 <p className="text-sm text-[var(--text-muted)]">{selectedEmp.designation?.title || 'Employee'}</p>
@@ -137,9 +145,17 @@ export default function EmployeeDirectoryPage() {
           {filtered.map(emp => (
             <button key={emp.id} onClick={() => setSelectedEmp(emp)}
               className="flex flex-col items-center gap-3 p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:border-indigo-500/40 hover:shadow-lg hover:shadow-indigo-500/5 transition-all group text-center">
-              <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${getAvatarColor(emp.id)} flex items-center justify-center text-lg font-bold text-white shadow-md group-hover:scale-105 transition-transform`}>
-                {getInitials(emp)}
-              </div>
+              {emp.photoUrl ? (
+                <img
+                  src={emp.photoUrl}
+                  alt={`${emp.firstName} ${emp.lastName}`}
+                  className="w-14 h-14 rounded-2xl object-cover shadow-md group-hover:scale-105 transition-transform shrink-0"
+                />
+              ) : (
+                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${getAvatarColor(emp.id)} flex items-center justify-center text-lg font-bold text-white shadow-md group-hover:scale-105 transition-transform shrink-0`}>
+                  {getInitials(emp)}
+                </div>
+              )}
               <div>
                 <div className="font-semibold text-sm text-[var(--text-primary)]">{emp.firstName} {emp.lastName}</div>
                 <div className="text-xs text-[var(--text-muted)] mt-0.5">{emp.designation?.title || 'Employee'}</div>
@@ -155,9 +171,17 @@ export default function EmployeeDirectoryPage() {
           {filtered.map(emp => (
             <button key={emp.id} onClick={() => setSelectedEmp(emp)}
               className="w-full flex items-center gap-4 px-4 py-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-indigo-500/30 transition-all text-left group">
-              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${getAvatarColor(emp.id)} flex items-center justify-center text-sm font-bold text-white flex-shrink-0`}>
-                {getInitials(emp)}
-              </div>
+              {emp.photoUrl ? (
+                <img
+                  src={emp.photoUrl}
+                  alt={`${emp.firstName} ${emp.lastName}`}
+                  className="w-10 h-10 rounded-xl object-cover flex-shrink-0"
+                />
+              ) : (
+                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${getAvatarColor(emp.id)} flex items-center justify-center text-sm font-bold text-white flex-shrink-0`}>
+                  {getInitials(emp)}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-sm text-[var(--text-primary)]">{emp.firstName} {emp.lastName}</div>
                 <div className="text-xs text-[var(--text-muted)] mt-0.5">{emp.designation?.title} · {emp.department?.name || 'No Department'}</div>

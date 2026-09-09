@@ -117,8 +117,8 @@ describe('PayrollService', () => {
       expect(breakdown.totalWorkingDays).toBe(21);
       expect(breakdown.lopDays).toBe(21 - 5 - 1);
       expect(breakdown.lopAmount).toBe(Math.round((10000 / 21) * 15));
-      // net = gross - pf(1200) - esi(75) - lopAmount
-      expect(createArgs.data.netPay).toBeCloseTo(10000 - 1200 - 75 - (10000 / 21) * 15, 2);
+      // net = gross - pf(1200) - esi(75) - lopAmount (rounded to nearest rupee)
+      expect(createArgs.data.netPay).toBe(10000 - 1200 - 75 - Math.round((10000 / 21) * 15));
     });
 
     it('pays full shift allowance for assignments active the whole month and prorates mid-month starts', async () => {

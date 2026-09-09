@@ -71,10 +71,23 @@ export class PayrollService {
       where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
     });
     if (!employee) throw new NotFoundException('Employee not found in this company');
-    return this.prisma.salaryStructure.findFirst({
+    const s = await this.prisma.salaryStructure.findFirst({
       where: { employeeId },
       orderBy: [{ effectiveFrom: 'desc' }, { createdAt: 'desc' }],
     });
+    if (!s) return null;
+    return {
+      ...s,
+      basic: Number(s.basic || 0),
+      hra: Number(s.hra || 0),
+      da: Number(s.da || 0),
+      conveyance: Number(s.conveyance || 0),
+      medical: Number(s.medical || 0),
+      specialAllowance: Number(s.specialAllowance || 0),
+      pfDeduction: Number(s.pfDeduction || 0),
+      esiDeduction: Number(s.esiDeduction || 0),
+      ptDeduction: Number(s.ptDeduction || 0),
+    };
   }
 
   async openCycle(companyId: string, month: number, year: number) {
@@ -110,9 +123,10 @@ export class PayrollService {
 
     if (cycle.status === 'locked') throw new BadRequestException('Payroll cycle is locked');
 
-const employees = await this.prisma.employee.findMany({
+    const employees = await this.prisma.employee.findMany({
       where: { companyId, status: 'active', isSystem: false, ...(employeeIds?.length ? { id: { in: employeeIds } } : {}) },
       include: { 
+        company: true,
         salaryStructures: { orderBy: { effectiveFrom: 'desc' }, take: 1 },
         adminInfo: true,
         attendanceLog: {
@@ -206,10 +220,10 @@ let payslipCount = 0;
         ).size;
         const holidayDays = holidays.filter((h) => isWorkingDay(h.date, wdPerWeek)).length;
         const lopDays = Math.max(0, totalWorkingDays - loggedDays - holidayDays);
-        let lopAmount = (gross / totalWorkingDays) * lopDays;
+        let lopAmount = totalWorkingDays > 0 ? (gross / totalWorkingDays) * lopDays : 0;
         
-        // Safety Clamp: LOP cannot exceed gross salary
-        lopAmount = Math.min(lopAmount, gross);
+        // Safety Clamp: LOP cannot exceed gross salary & rounded to nearest rupee
+        lopAmount = Math.round(Math.min(lopAmount, gross));
 
         // Shift Allowance: per-day allowance × working days the assignment covers in the month
         let totalShiftAllowance = 0;
@@ -222,24 +236,25 @@ let payslipCount = 0;
             }
           }
         }
+        totalShiftAllowance = Math.round(totalShiftAllowance);
 
         // Add shift allowance to gross
         const grossWithAllowance = gross + totalShiftAllowance;
 
         // H1: Include additional payouts (bonus, overtime pay, etc.)
-        const additionalPay = payoutsByEmployee.get(emp.id) || 0;
+        const additionalPay = Math.round(payoutsByEmployee.get(emp.id) || 0);
 
         // H2: Auto-compute statutory deductions only when enabled
         const adminInfo = emp.adminInfo;
         const useManualPf = adminInfo?.pfAsPerGovt === false;
         const useManualEsi = adminInfo?.esicApplicable === false;
-        const pfDeduction = useManualPf
+        const pfDeduction = Math.round(useManualPf
           ? Number(structure.pfDeduction || 0)
-          : computePF(Number(structure.basic));
-        const esiDeduction = useManualEsi
+          : computePF(Number(structure.basic)));
+        const esiDeduction = Math.round(useManualEsi
           ? Number(structure.esiDeduction || 0)
-          : computeESI(gross);
-        const pt = Number(structure.ptDeduction);
+          : computeESI(gross));
+        const pt = Math.round(Number(structure.ptDeduction));
 
         // Income tax (TDS)
         const taxInput: TaxInput = {
@@ -252,12 +267,12 @@ let payslipCount = 0;
           regime,
         };
         const taxResult = computeIncomeTax(taxInput);
-        const tdsMonthly = taxResult.tdsPerMonth;
+        const tdsMonthly = Math.round(taxResult.tdsPerMonth);
 
-        const totalDeductions = pfDeduction + esiDeduction + pt + tdsMonthly + lopAmount;
+        const totalDeductions = Math.round(pfDeduction + esiDeduction + pt + tdsMonthly + lopAmount);
         // H1: Gross includes additional payouts; net cannot go below zero
-        const grossTotal = grossWithAllowance + additionalPay;
-        const net = Math.max(0, grossTotal - totalDeductions);
+        const grossTotal = Math.round(grossWithAllowance + additionalPay);
+        const net = Math.round(Math.max(0, grossTotal - totalDeductions));
 
         // Upsert payslip for this cycle
         const existing = await tx.payslip.findFirst({
@@ -285,18 +300,46 @@ let payslipCount = 0;
           totalWorkingDays,
         };
 
+        const empComp = emp.company;
+        const empCompanySnapshot = empComp ? {
+          id: empComp.id,
+          name: empComp.name,
+          legalName: empComp.legalName,
+          displayName: empComp.displayName,
+          logoUrl: empComp.logoUrl,
+          gstNumber: empComp.gstNumber,
+          panNumber: empComp.panNumber,
+          tanNumber: empComp.tanNumber,
+          cinNumber: empComp.cinNumber,
+          address: empComp.address,
+          city: empComp.city,
+          state: empComp.state,
+          pincode: empComp.pincode,
+          country: empComp.country,
+          phone: empComp.phone,
+          email: empComp.email,
+          website: empComp.website,
+        } : companySnapshot;
+
         if (existing) {
           await tx.payslip.update({
             where: { id: existing.id },
-            data: { grossPay: grossTotal, totalDeductions, netPay: net, breakdown: breakdown as any },
+            data: {
+              companyId: emp.companyId || companyId,
+              companySnapshot: (empCompanySnapshot as any) ?? undefined,
+              grossPay: grossTotal,
+              totalDeductions,
+              netPay: net,
+              breakdown: breakdown as any,
+            },
           });
         } else {
           await tx.payslip.create({
             data: {
               employeeId: emp.id,
               payrollCycleId: cycle.id,
-              companyId,
-              companySnapshot: (companySnapshot as any) ?? undefined,
+              companyId: emp.companyId || companyId,
+              companySnapshot: (empCompanySnapshot as any) ?? undefined,
               grossPay: grossTotal,
               totalDeductions,
               netPay: net,
@@ -317,11 +360,17 @@ let payslipCount = 0;
       where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
     });
     if (!employee) throw new NotFoundException('Employee not found in this company');
-    return this.prisma.payslip.findMany({
+    const items = await this.prisma.payslip.findMany({
       where: { employeeId },
       include: { payrollCycle: true },
       orderBy: { generatedAt: 'desc' },
     });
+    return items.map(p => ({
+      ...p,
+      grossPay: Math.round(Number(p.grossPay || 0)),
+      totalDeductions: Math.round(Number(p.totalDeductions || 0)),
+      netPay: Math.round(Number(p.netPay || 0)),
+    }));
   }
 
   async getPayslipDetail(companyId: string, payslipId: string, userId?: string) {
@@ -367,7 +416,12 @@ let payslipCount = 0;
       payslip.employee = decryptPiiFields(payslip.employee);
       payslip.employee.paymentInfo = decryptNestedPii(payslip.employee.paymentInfo as any, 'paymentInfo');
     }
-    return payslip;
+    return {
+      ...payslip,
+      grossPay: Math.round(Number(payslip.grossPay || 0)),
+      totalDeductions: Math.round(Number(payslip.totalDeductions || 0)),
+      netPay: Math.round(Number(payslip.netPay || 0)),
+    };
   }
 
   /** Compute tax preview without running payroll — used by frontend calculator */

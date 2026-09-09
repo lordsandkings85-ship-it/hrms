@@ -1,16 +1,20 @@
 import { jsPDF } from 'jspdf';
 import defaultCompanyLogoUrl from '../assets/logo.png';
 
-const BRAND_NAVY: [number, number, number] = [11, 35, 71]; // Lords & Kings Deep Royal Navy #0B2347
-const BRAND_GOLD: [number, number, number] = [212, 175, 55]; // Royal Gold #D4AF37
-const DARK: [number, number, number] = [30, 41, 59];
-const MUTED: [number, number, number] = [100, 116, 139];
-const FAINT: [number, number, number] = [148, 163, 184];
-const BORDER: [number, number, number] = [226, 232, 240];
-const ROW_BG: [number, number, number] = [248, 250, 252];
+// Refined, executive Deep Wine / Crimson palette — professional, high contrast, elegant (not neon red)
+const BRAND_PRIMARY: [number, number, number] = [188, 38, 38  ]; // Deep Crimson/Burgundy rgba(188, 38, 38, 1) (Red-900)
+const BRAND_ACCENT: [number, number, number] = [185, 28, 28]; // Rich Red Accent #B91C1C
+const BRAND_LIGHT: [number, number, number] = [254, 226, 226]; // Soft Warm White #FEE2E2
+const BRAND_TINT: [number, number, number] = [254, 242, 242]; // Gentle soft tint #FEF2F2
+const DARK: [number, number, number] = [15, 23, 42]; // Slate 900 #0F172A
+const SLATE_DARK: [number, number, number] = [30, 41, 59]; // Slate 800 #1E293B
+const MUTED: [number, number, number] = [100, 116, 139]; // Slate 500 #64748B
+const FAINT: [number, number, number] = [148, 163, 184]; // Slate 400 #94A3B8
+const BORDER: [number, number, number] = [226, 232, 240]; // Slate 200 #E2E8F0
+const ROW_BG: [number, number, number] = [248, 250, 252]; // Slate 50 #F8FAFC
 
 const fmt = (n?: number) => {
-  const v = Math.round(n ?? 0);
+  const v = Math.round(Number(n) ?? 0);
   return 'Rs. ' + v.toLocaleString('en-IN');
 };
 
@@ -29,52 +33,39 @@ export interface PayslipData {
 
 type Row = { label: string; amount?: number; text?: string; isTotal?: boolean; bold?: boolean };
 
-/** Resolves the company identity for a payslip, preferring the historical
- *  snapshot stored on the payslip at generation time over the live company. */
+/** Resolves the company identity for a payslip, prioritizing the employee's assigned working company */
 export function resolveCompany(data: PayslipData): any {
-  const snapshot = data.payslip?.companySnapshot;
   const empCompany = data.employee?.company || data.payslip?.employee?.company;
+  const snapshot = data.payslip?.companySnapshot;
   const directCompany = data.company;
 
-  if (snapshot && typeof snapshot === 'object' && (snapshot.name || snapshot.legalName || snapshot.displayName)) {
-    const fullAddress = snapshot.address || [snapshot.city, snapshot.state, snapshot.pincode].filter(Boolean).join(', ');
-    return {
-      name: snapshot.legalName || snapshot.displayName || snapshot.name || empCompany?.legalName || empCompany?.name || directCompany?.name || 'Company Name',
-      displayName: snapshot.displayName || snapshot.name || empCompany?.displayName || empCompany?.name || directCompany?.displayName || directCompany?.name || 'Company',
-      legalName: snapshot.legalName || empCompany?.legalName || directCompany?.legalName || snapshot.name,
-      address: fullAddress || empCompany?.address || directCompany?.address || '',
-      city: snapshot.city || empCompany?.city || directCompany?.city || '',
-      state: snapshot.state || empCompany?.state || directCompany?.state || '',
-      pincode: snapshot.pincode || empCompany?.pincode || directCompany?.pincode || '',
-      gst: snapshot.gstNumber || snapshot.gst || empCompany?.gstNumber || empCompany?.gst || directCompany?.gstNumber || directCompany?.gst || '',
-      pan: snapshot.panNumber || snapshot.pan || empCompany?.panNumber || empCompany?.pan || directCompany?.panNumber || directCompany?.pan || '',
-      cin: snapshot.cinNumber || snapshot.cin || empCompany?.cinNumber || empCompany?.cin || directCompany?.cinNumber || directCompany?.cin || '',
-      tan: snapshot.tanNumber || snapshot.tan || empCompany?.tanNumber || empCompany?.tan || directCompany?.tanNumber || directCompany?.tan || '',
-      phone: snapshot.phone || empCompany?.phone || directCompany?.phone || '',
-      email: snapshot.email || empCompany?.email || directCompany?.email || '',
-      website: snapshot.website || empCompany?.website || directCompany?.website || '',
-      logoUrl: snapshot.logoUrl || empCompany?.logoUrl || directCompany?.logoUrl || null,
-    };
-  }
+  // Prioritize the employee's working company; fallback to snapshot, then directCompany
+  const src = empCompany || snapshot || directCompany || {};
 
-  const src = empCompany || directCompany || {};
-  const fullAddress = src.address || [src.city, src.state, src.pincode].filter(Boolean).join(', ');
+  const fullAddress =
+    src.address ||
+    [src.city, src.state, src.pincode].filter(Boolean).join(', ') ||
+    snapshot?.address ||
+    empCompany?.address ||
+    directCompany?.address ||
+    '';
+
   return {
-    name: src.legalName || src.displayName || src.name || 'Company Name',
-    displayName: src.displayName || src.name || 'Company',
-    legalName: src.legalName || src.name,
-    address: fullAddress || '',
-    city: src.city || '',
-    state: src.state || '',
-    pincode: src.pincode || '',
-    gst: src.gstNumber || src.gst || '',
-    pan: src.panNumber || src.pan || '',
-    cin: src.cinNumber || src.cin || '',
-    tan: src.tanNumber || src.tan || '',
-    phone: src.phone || '',
-    email: src.email || '',
-    website: src.website || '',
-    logoUrl: src.logoUrl || null,
+    name: src.legalName || src.displayName || src.name || snapshot?.legalName || snapshot?.displayName || snapshot?.name || directCompany?.legalName || directCompany?.displayName || directCompany?.name || 'Company Name',
+    displayName: src.displayName || src.name || snapshot?.displayName || directCompany?.displayName || directCompany?.name || 'Company',
+    legalName: src.legalName || src.displayName || src.name || snapshot?.legalName || directCompany?.legalName || 'Company Name',
+    address: fullAddress,
+    city: src.city || snapshot?.city || empCompany?.city || directCompany?.city || '',
+    state: src.state || snapshot?.state || empCompany?.state || directCompany?.state || '',
+    pincode: src.pincode || snapshot?.pincode || empCompany?.pincode || directCompany?.pincode || '',
+    gst: src.gstNumber || src.gst || snapshot?.gstNumber || snapshot?.gst || directCompany?.gstNumber || directCompany?.gst || '',
+    pan: src.panNumber || src.pan || snapshot?.panNumber || snapshot?.pan || directCompany?.panNumber || directCompany?.pan || '',
+    cin: src.cinNumber || src.cin || snapshot?.cinNumber || snapshot?.cin || directCompany?.cinNumber || directCompany?.cin || '',
+    tan: src.tanNumber || src.tan || snapshot?.tanNumber || snapshot?.tan || directCompany?.tanNumber || directCompany?.tan || '',
+    phone: src.phone || snapshot?.phone || directCompany?.phone || '',
+    email: src.email || snapshot?.email || directCompany?.email || '',
+    website: src.website || snapshot?.website || directCompany?.website || '',
+    logoUrl: src.logoUrl || snapshot?.logoUrl || directCompany?.logoUrl || null,
   };
 }
 
@@ -88,13 +79,22 @@ export async function getLogo(customLogoUrl?: string | null): Promise<{ dataUrl:
     img.crossOrigin = 'Anonymous';
     img.onload = () => {
       try {
+        const width = img.naturalWidth || 400;
+        const height = img.naturalHeight || 200;
+
+        // If already a valid PNG or SVG data URL, preserve it directly with zero canvas artifacts
+        if (targetSrc.startsWith('data:image/png') || targetSrc.startsWith('data:image/svg+xml')) {
+          return resolve({ dataUrl: targetSrc, width, height });
+        }
+
         const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
+        canvas.width = width;
+        canvas.height = height;
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          ctx.drawImage(img, 0, 0);
-          resolve({ dataUrl: canvas.toDataURL('image/png'), width: img.naturalWidth, height: img.naturalHeight });
+          ctx.clearRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve({ dataUrl: canvas.toDataURL('image/png'), width, height });
         } else {
           resolve(null);
         }
@@ -108,13 +108,19 @@ export async function getLogo(customLogoUrl?: string | null): Promise<{ dataUrl:
         const fallbackImg = new Image();
         fallbackImg.onload = () => {
           try {
+            const width = fallbackImg.naturalWidth || 400;
+            const height = fallbackImg.naturalHeight || 200;
+            if (defaultCompanyLogoUrl.startsWith('data:image/png')) {
+              return resolve({ dataUrl: defaultCompanyLogoUrl, width, height });
+            }
             const canvas = document.createElement('canvas');
-            canvas.width = fallbackImg.naturalWidth;
-            canvas.height = fallbackImg.naturalHeight;
+            canvas.width = width;
+            canvas.height = height;
             const ctx = canvas.getContext('2d');
             if (ctx) {
-              ctx.drawImage(fallbackImg, 0, 0);
-              resolve({ dataUrl: canvas.toDataURL('image/png'), width: fallbackImg.naturalWidth, height: fallbackImg.naturalHeight });
+              ctx.clearRect(0, 0, width, height);
+              ctx.drawImage(fallbackImg, 0, 0, width, height);
+              resolve({ dataUrl: canvas.toDataURL('image/png'), width, height });
             } else {
               resolve(null);
             }
@@ -139,16 +145,16 @@ function monthYear(payslip: any): { month: string; year: string | number } {
   return { month, year };
 }
 
-/** Section heading with an underline rule, left-aligned within the given column. */
-function heading(doc: jsPDF, x: number, y: number, title: string) {
-  doc.setFontSize(8.5);
+/** Section heading with a clean underline rule spanning the exact column width. */
+function heading(doc: jsPDF, x: number, y: number, title: string, width = 88): number {
+  doc.setFontSize(8.2);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...DARK);
   doc.text(title.toUpperCase(), x, y);
   doc.setDrawColor(...BORDER);
-  doc.setLineWidth(0.3);
-  doc.line(x, y + 1.5, x + 82, y + 1.5);
-  return y + 6;
+  doc.setLineWidth(0.35);
+  doc.line(x, y + 1.8, x + width, y + 1.8);
+  return y + 6.5;
 }
 
 /** Label / value row for the two-column detail grids. */
@@ -159,15 +165,16 @@ function detailRow(
   label: string,
   value: string,
   bold = false,
-) {
-  doc.setFontSize(7);
+  labelWidth = 36,
+): number {
+  doc.setFontSize(7.2);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...MUTED);
   doc.text(label, x, y);
   doc.setFont('helvetica', bold ? 'bold' : 'normal');
   doc.setTextColor(...DARK);
-  doc.text(value || '-', x + 34, y);
-  return y + 4.4;
+  doc.text(String(value || '-'), x + labelWidth, y);
+  return y + 4.8;
 }
 
 /** A titled, boxed table used for EARNINGS / DEDUCTIONS / STATUTORY blocks. */
@@ -178,61 +185,73 @@ function drawTable(
   width: number,
   title: string,
   rows: Row[],
-  opts: { showHeader?: boolean } = {},
+  opts: { showHeader?: boolean; headerLeft?: string; headerRight?: string } = {},
 ): number {
-  const left = x + 2;
-  const right = x + width - 2;
-  const rowH = 4.6;
+  const left = x + 2.5;
+  const right = x + width - 2.5;
+  const rowH = 5.0;
 
-  let cursor = heading(doc, x, y, title);
+  let cursor = y;
+  if (title) {
+    cursor = heading(doc, x, y, title, width);
+  }
 
-  // Table header
   const showHeader = opts.showHeader ?? false;
+  const totalH = (showHeader ? rowH : 0) + rows.length * rowH;
+
+  // Table container box
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(...BORDER);
-  doc.setLineWidth(0.2);
-  doc.roundedRect(x, cursor - 1, width, 4 + rows.length * rowH + (showHeader ? rowH : 0), 1.5, 1.5, 'S');
+  doc.setLineWidth(0.3);
+  doc.roundedRect(x, cursor - 1, width, totalH + 2, 1.5, 1.5, 'S');
 
   if (showHeader) {
     doc.setFillColor(...ROW_BG);
+    doc.rect(x + 0.3, cursor - 0.7, width - 0.6, rowH - 0.3, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
+    doc.setFontSize(6.8);
     doc.setTextColor(...MUTED);
-    doc.text('Component', left + 1, cursor + 2.5);
-    doc.text('Amount', right - 1, cursor + 2.5, { align: 'right' });
+    doc.text(opts.headerLeft || 'Component', left + 1, cursor + 2.6);
+    doc.text(opts.headerRight || 'Amount', right - 1, cursor + 2.6, { align: 'right' });
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.2);
+    doc.line(x, cursor + rowH - 1, x + width, cursor + rowH - 1);
     cursor += rowH;
   }
 
   rows.forEach((row, idx) => {
     if (row.isTotal) {
-      doc.setFillColor(245, 247, 250);
-      doc.rect(x + 0.4, cursor - 0.4, width - 0.8, rowH, 'F');
+      doc.setFillColor(...BRAND_TINT);
+      doc.rect(x + 0.3, cursor - 0.7, width - 0.6, rowH - 0.3, 'F');
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...BRAND_NAVY);
+      doc.setTextColor(...BRAND_PRIMARY);
+      doc.setDrawColor(252, 165, 165);
+      doc.setLineWidth(0.3);
+      doc.line(x, cursor - 1, x + width, cursor - 1);
     } else {
       if (idx % 2 === 0) {
         doc.setFillColor(...ROW_BG);
-        doc.rect(x + 0.4, cursor - 0.4, width - 0.8, rowH, 'F');
+        doc.rect(x + 0.3, cursor - 0.7, width - 0.6, rowH - 0.3, 'F');
       }
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...DARK);
+      doc.setTextColor(...SLATE_DARK);
     }
 
-    doc.setFontSize(7);
-    doc.text(row.label, left + 1, cursor + 2.5);
+    doc.setFontSize(7.2);
+    doc.text(row.label, left + 1, cursor + 2.6);
     const value = row.text ?? fmt(row.amount);
-    doc.setFont(row.isTotal || row.bold ? 'helvetica' : 'helvetica', row.isTotal || row.bold ? 'bold' : 'normal');
-    doc.text(value, right - 1, cursor + 2.5, { align: 'right' });
+    doc.setFont('helvetica', row.isTotal || row.bold ? 'bold' : 'normal');
+    doc.text(value, right - 1, cursor + 2.6, { align: 'right' });
     cursor += rowH;
   });
 
-  return cursor + 2;
+  return cursor + 3;
 }
 
 /** Percentage derived from an amount over a base, formatted to 1 decimal. */
 function pctOf(amount: number | undefined, base: number | undefined): string {
   if (!amount || !base || base <= 0) return '—';
-  const pct = Math.round((amount / base) * 1000) / 10;
+  const pct = Math.round((Number(amount) / Number(base)) * 1000) / 10;
   return `${pct.toFixed(1)}%`;
 }
 
@@ -246,38 +265,37 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   const companyName = company?.name || company?.displayName || 'Company Name';
   const { month, year } = monthYear(payslip);
 
-  // ── Header band (Royal Navy with Gold accent) ───────────────────
-  doc.setFillColor(...BRAND_NAVY);
-  doc.rect(0, 0, pageWidth, 26, 'F');
+  // ── Header band (Refined Executive Burgundy/Crimson) ───────────────
+  doc.setFillColor(...BRAND_PRIMARY);
+  doc.rect(0, 0, pageWidth, 27, 'F');
 
-  // Gold accent bar below header
-  doc.setFillColor(...BRAND_GOLD);
-  doc.rect(0, 25.5, pageWidth, 0.8, 'F');
+  // Accent bar below header
+  doc.setFillColor(...BRAND_ACCENT);
+  doc.rect(0, 26.2, pageWidth, 0.8, 'F');
 
-  // Company logo (clean white chip container)
+  // Company logo (transparent, blended directly into header)
   const logo = await getLogo(company?.logoUrl);
   let leftTextX = 14;
   if (logo) {
-    const logoBoxH = 14;
+    const logoBoxH = 16;
     let logoW = logoBoxH * (logo.width / logo.height);
     if (logoW > 48) logoW = 48;
-    if (logoW < 14) logoW = 14;
-    doc.setFillColor(255, 255, 255);
-    doc.roundedRect(11, (26 - logoBoxH - 2) / 2, logoW + 2, logoBoxH + 2, 1, 1, 'F');
-    doc.addImage(logo.dataUrl, 'PNG', 12, (26 - logoBoxH) / 2, logoW, logoBoxH, undefined, 'FAST');
+    if (logoW < 10) logoW = 10;
+    const logoY = (27 - logoBoxH) / 2;
+    doc.addImage(logo.dataUrl, 'PNG', 14, logoY, logoW, logoBoxH);
     leftTextX = 14 + logoW + 4;
   }
 
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(11);
+  doc.setFontSize(11.5);
   doc.setFont('helvetica', 'bold');
-  doc.text(companyName, leftTextX, 10);
+  doc.text(companyName, leftTextX, 9.5);
 
   doc.setFontSize(6.8);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(226, 232, 240);
+  doc.setTextColor(...BRAND_LIGHT);
   const addressText = company?.address ? String(company.address).split('\n')[0] : '';
-  doc.text(addressText, leftTextX, 15.5);
+  doc.text(addressText, leftTextX, 15);
 
   const idParts = [
     company?.gst ? `GST: ${company.gst}` : null,
@@ -285,35 +303,35 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
     company?.cin ? `CIN: ${company.cin}` : null,
   ].filter(Boolean);
 
-  doc.setFontSize(6);
-  doc.setTextColor(212, 175, 55); // Gold text for statutory tax numbers
+  doc.setFontSize(6.2);
+  doc.setTextColor(255, 255, 255); // Clean white text for statutory tax numbers
   doc.text(idParts.length ? idParts.join('  |  ') : (company?.email || company?.phone || ''), leftTextX, 20.5);
 
   // Right-aligned salary slip titles
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(9);
+  doc.setFontSize(9.5);
   doc.setFont('helvetica', 'bold');
-  doc.text('MONTHLY SALARY SLIP', pageWidth - 14, 10, { align: 'right' });
-  
+  doc.text('MONTHLY SALARY SLIP', pageWidth - 14, 9.5, { align: 'right' });
+
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(212, 175, 55);
+  doc.setFontSize(8);
+  doc.setTextColor(255, 255, 255);
   doc.text(`${month} ${year}`, pageWidth - 14, 15.5, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6);
-  doc.setTextColor(203, 213, 225);
+  doc.setFontSize(6.2);
+  doc.setTextColor(...BRAND_LIGHT);
   doc.text(`Period: ${month} ${year}`, pageWidth - 14, 20.5, { align: 'right' });
 
   // ── Body: two-column layout ─────────────────────────────────────
   const colLeft = 14;
   const colRight = 108;
   const colWidth = 88;
-  let y = 33;
+  let y = 34;
 
   // Row 1 — Employee details | Statutory details
-  y = heading(doc, colLeft, y, 'Employee Details');
-  y = heading(doc, colRight, y - 6, 'Statutory & Tax Identifiers');
+  y = heading(doc, colLeft, y, 'Employee Details', colWidth);
+  heading(doc, colRight, y - 6.5, 'Statutory & Tax Identifiers', colWidth);
 
   const empName = employee
     ? `${employee.firstName || ''} ${employee.middleName || ''} ${employee.lastName || ''}`.trim()
@@ -321,155 +339,166 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   const empCode = employee?.employeeCode || employee?.code || 'N/A';
   const department = employee?.department?.name || '-';
   const designation = employee?.designation?.title || '-';
-  const doj = employee?.joiningDate ? new Date(employee.joiningDate).toLocaleDateString('en-IN') : '-';
+  const doj = employee?.joiningDate || employee?.dateOfJoining ? new Date(employee.joiningDate || employee.dateOfJoining).toLocaleDateString('en-IN') : '-';
 
   let ly = y;
-  ly = detailRow(doc, colLeft, ly, 'Name', empName, true);
+  ly = detailRow(doc, colLeft, ly, 'Employee Name', empName, true);
   ly = detailRow(doc, colLeft, ly, 'Employee Code', empCode);
   ly = detailRow(doc, colLeft, ly, 'Designation', designation);
   ly = detailRow(doc, colLeft, ly, 'Department', department);
-  detailRow(doc, colLeft, ly, 'Date of Joining', String(doj));
+  ly = detailRow(doc, colLeft, ly, 'Date of Joining', String(doj));
 
   let ry = y;
-  ry = detailRow(doc, colRight, ry, 'PAN', employee?.pan || '-', true);
-  ry = detailRow(doc, colRight, ry, 'UAN', employee?.uan || '-');
+  ry = detailRow(doc, colRight, ry, 'PAN Number', employee?.pan || employee?.panNumber || '-', true);
+  ry = detailRow(doc, colRight, ry, 'UAN Number', employee?.uan || employee?.uanNumber || '-');
   ry = detailRow(doc, colRight, ry, 'PF Number', employee?.pfNumber || '-');
-  ry = detailRow(doc, colRight, ry, 'ESIC Number', employee?.esic || '-');
-  detailRow(doc, colRight, ry, 'Aadhaar', employee?.aadhaar || '-');
+  ry = detailRow(doc, colRight, ry, 'ESIC Number', employee?.esic || employee?.esiNumber || '-');
+  ry = detailRow(doc, colRight, ry, 'Aadhaar / ID', employee?.aadhaar ? `XXXX-XXXX-${String(employee.aadhaar).slice(-4)}` : '-');
 
   y = Math.max(ly, ry) + 4;
 
   // Row 2 — Earnings (left) | Deductions (right), side by side
   const b = payslip?.breakdown || {};
   const earnings: Row[] = [
-    { label: 'Basic Salary', amount: b.basic },
-    { label: 'House Rent Allowance (HRA)', amount: b.hra },
-    { label: 'Dearness Allowance (DA)', amount: b.da },
-    { label: 'Conveyance Allowance', amount: b.conveyance },
-    { label: 'Medical Allowance', amount: b.medical },
-    { label: 'Special Allowance', amount: b.specialAllowance },
-    { label: 'Shift Allowance', amount: b.shiftAllowance },
+    { label: 'Basic Salary', amount: Number(b.basic || 0) },
+    { label: 'House Rent Allowance (HRA)', amount: Number(b.hra || 0) },
+    { label: 'Dearness Allowance (DA)', amount: Number(b.da || 0) },
+    { label: 'Conveyance Allowance', amount: Number(b.conveyance || 0) },
+    { label: 'Medical Allowance', amount: Number(b.medical || 0) },
+    { label: 'Special Allowance', amount: Number(b.specialAllowance || 0) },
+    { label: 'Shift Allowance', amount: Number(b.shiftAllowance || 0) },
   ].filter(e => (e.amount ?? 0) > 0 || e.label === 'Basic Salary');
 
   const deductions: Row[] = [
-    { label: 'Provident Fund (PF - Employee)', amount: b.pfDeduction },
-    { label: 'Employee State Insurance (ESI)', amount: b.esiDeduction },
-    { label: 'Professional Tax (PT)', amount: b.ptDeduction },
-    { label: 'Income Tax (TDS)', amount: b.tdsMonthly },
-    { label: 'Loss of Pay (LOP)', amount: b.lopAmount },
+    { label: 'Provident Fund (PF - Employee)', amount: Number(b.pfDeduction || b.epfEmployee || 0) },
+    { label: 'Employee State Insurance (ESI)', amount: Number(b.esiDeduction || b.esiEmployee || 0) },
+    { label: 'Professional Tax (PT)', amount: Number(b.ptDeduction || b.professionalTax || 0) },
+    { label: 'Income Tax (TDS)', amount: Number(b.tdsMonthly || 0) },
+    { label: 'Loss of Pay (LOP)', amount: Number(b.lopAmount || 0) },
   ];
 
-  const grossPay = payslip?.grossPay || 0;
-  const totalDeductions = payslip?.totalDeductions || 0;
+  const grossPay = Number(payslip?.grossPay || 0);
+  const totalDeductions = Number(payslip?.totalDeductions || 0);
 
-  const endEarn = drawTable(doc, colLeft, y, colWidth, 'Earnings', [
+  const endEarn = drawTable(doc, colLeft, y, colWidth, 'Earnings Breakdown', [
     ...earnings,
     { label: 'Total Gross Pay', amount: grossPay, isTotal: true },
-  ]);
-  const endDed = drawTable(doc, colRight, y, colWidth, 'Deductions', [
+  ], { showHeader: true });
+
+  const endDed = drawTable(doc, colRight, y, colWidth, 'Deductions Breakdown', [
     ...deductions,
     { label: 'Total Deductions', amount: totalDeductions, isTotal: true },
-  ]);
-  y = Math.max(endEarn, endDed) + 5;
+  ], { showHeader: true });
+
+  y = Math.max(endEarn, endDed) + 3.5;
 
   // Row 3 — Payment details (left) | Days / Tax summary (right)
-  y = heading(doc, colLeft, y, 'Bank & Payment Details');
-  y = heading(doc, colRight, y - 6, 'Attendance & Tax Summary');
+  y = heading(doc, colLeft, y, 'Bank & Payment Details', colWidth);
+  heading(doc, colRight, y - 6.5, 'Attendance & Working Days', colWidth);
 
   const bankName = employee?.paymentInfo?.bankName || employee?.bankName || '-';
   const accountNo = employee?.bankAccountNumber || employee?.paymentInfo?.accountNo || '-';
-  const ifsc = employee?.bankIfsc || employee?.paymentInfo?.ifscCode || '-';
+  const ifsc = employee?.bankIfsc || employee?.ifsc || employee?.paymentInfo?.ifscCode || '-';
 
   ly = y;
   ly = detailRow(doc, colLeft, ly, 'Bank Name', bankName);
   ly = detailRow(doc, colLeft, ly, 'Account Number', accountNo);
   ly = detailRow(doc, colLeft, ly, 'IFSC Code', ifsc);
-  ly = detailRow(doc, colLeft, ly, 'Payment Mode', payslip?.paymentMode || 'Bank Transfer');
+  ly = detailRow(doc, colLeft, ly, 'Payment Mode', payslip?.paymentMode || 'Direct Bank Transfer');
 
-  const workingDays = b.totalWorkingDays || 30;
-  const lopDays = b.lopDays || 0;
-  const paidDays = Math.max(0, workingDays - lopDays);
+  const workingDays = payslip?.workingDays || b.totalWorkingDays || 30;
+  const lopDays = payslip?.lossOfPayDays || b.lopDays || 0;
+  const paidDays = payslip?.paidDays || Math.max(0, workingDays - lopDays);
 
   ry = y;
-  ry = detailRow(doc, colRight, ry, 'Total Working Days', String(workingDays));
-  ry = detailRow(doc, colRight, ry, 'Paid Days', String(paidDays));
-  ry = detailRow(doc, colRight, ry, 'Loss of Pay Days', String(lopDays));
-  ry = detailRow(doc, colRight, ry, 'Tax Regime', b.taxRegime || 'New');
+  ry = detailRow(doc, colRight, ry, 'Total Working Days', `${workingDays} Days`);
+  ry = detailRow(doc, colRight, ry, 'Paid Days', `${paidDays} Days`);
+  ry = detailRow(doc, colRight, ry, 'Loss of Pay (LOP)', `${lopDays} Days`);
+  ry = detailRow(doc, colRight, ry, 'Tax Regime', b.taxRegime ? `${b.taxRegime} Regime` : 'New Tax Regime');
 
-  y = Math.max(ly, ry) + 5;
+  y = Math.max(ly, ry) + 4.5;
 
   // ── Detailed Statutory Block (full width) ───────────────────────
-  const taxableAnnual = b.taxableAnnual || 0;
+  const taxableAnnual = Number(b.taxableAnnual || 0);
   const effectiveRate = Number(b.effectiveTaxRate || 0);
-  const basic = b.basic || grossPay || 0;
+  const basic = Number(b.basic || grossPay || 0);
 
-  y = heading(doc, colLeft, y, 'Statutory Contribution Breakdown');
+  y = heading(doc, colLeft, y, 'Statutory Contribution & Compliance', pageWidth - 28);
 
   const statutoryRows: Row[] = [
     {
       label: 'Provident Fund (Employee Share)',
-      text: `${pctOf(b.pfDeduction, basic)} of Basic  (${fmt(b.pfDeduction)})`,
-      amount: b.pfDeduction,
+      text: `${pctOf(b.pfDeduction || b.epfEmployee, basic)} of Basic  (${fmt(b.pfDeduction || b.epfEmployee)})`,
+      amount: Number(b.pfDeduction || b.epfEmployee || 0),
     },
     {
       label: 'Employee State Insurance (ESI)',
-      text: `${pctOf(b.esiDeduction, grossPay)} of Gross  (${fmt(b.esiDeduction)})`,
-      amount: b.esiDeduction,
+      text: `${pctOf(b.esiDeduction || b.esiEmployee, grossPay)} of Gross  (${fmt(b.esiDeduction || b.esiEmployee)})`,
+      amount: Number(b.esiDeduction || b.esiEmployee || 0),
     },
-    { label: 'Professional Tax', text: `As per state statutory slab  (${fmt(b.ptDeduction)})`, amount: b.ptDeduction },
+    { label: 'Professional Tax (PT)', text: `As per state statutory slab  (${fmt(b.ptDeduction || b.professionalTax)})`, amount: Number(b.ptDeduction || b.professionalTax || 0) },
     {
       label: 'Income Tax (TDS)',
-      text: `${effectiveRate ? effectiveRate.toFixed(2) + '% ' : ''}computed on ${fmt(taxableAnnual)} annual income`,
-      amount: b.tdsMonthly,
+      text: `${effectiveRate ? effectiveRate.toFixed(2) + '% ' : ''}computed on annual taxable income`,
+      amount: Number(b.tdsMonthly || 0),
     },
-    { label: 'Loss of Pay Adjustment', text: `${lopDays} day(s)  (${fmt(b.lopAmount)})`, amount: b.lopAmount },
+    { label: 'Loss of Pay Adjustment', text: `${lopDays} day(s)  (${fmt(b.lopAmount || 0)})`, amount: Number(b.lopAmount || 0) },
   ];
-  y = drawTable(doc, colLeft, y, pageWidth - 28, '', statutoryRows, { showHeader: true });
-  y += 1;
+  y = drawTable(doc, colLeft, y, pageWidth - 28, '', statutoryRows, {
+    showHeader: true,
+    headerLeft: 'Statutory Component',
+    headerRight: 'Description / Monthly Contribution'
+  });
+
+  doc.setFontSize(6.8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...MUTED);
+  doc.text(
+    `Tax Regime: ${b.taxRegime || 'New'}   |   Annual Gross CTC: ${fmt((grossPay || 0) * 12)}   |   Taxable Income: ${fmt(taxableAnnual)}`,
+    colLeft + 1,
+    y,
+  );
+  y += 5.5;
+
+  // ── NET SALARY PAYABLE HIGHLIGHT (Gentle Tint with Ruby & Slate text) ────────
+  const netPay = Number(payslip?.netPay || 0);
+  doc.setFillColor(...BRAND_TINT);
+  doc.roundedRect(colLeft, y, pageWidth - 28, 14.5, 2, 2, 'F');
+  doc.setDrawColor(...BRAND_ACCENT);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(colLeft, y, pageWidth - 28, 14.5, 2, 2, 'S');
+
+  doc.setTextColor(...BRAND_PRIMARY);
+  doc.setFontSize(10.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('NET SALARY PAYABLE', colLeft + 5, y + 6.5);
 
   doc.setFontSize(6.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...MUTED);
-  doc.text(
-    `Regime: ${b.taxRegime || 'New'}   |   Taxable Annual Income: ${fmt(taxableAnnual)}   |   Effective Tax Rate: ${effectiveRate || 0}%`,
-    colLeft,
-    y,
-  );
-  y += 5;
+  doc.text(`(Gross Earnings ${fmt(grossPay)} - Total Deductions ${fmt(totalDeductions)})`, colLeft + 5, y + 11);
 
-  // ── NET SALARY PAYABLE HIGHLIGHT ────────────────────────────────
-  const netPay = payslip?.netPay || 0;
-  doc.setFillColor(...BRAND_NAVY);
-  doc.roundedRect(14, y, pageWidth - 28, 14, 2, 2, 'F');
-  doc.setDrawColor(...BRAND_GOLD);
-  doc.setLineWidth(0.4);
-  doc.roundedRect(14, y, pageWidth - 28, 14, 2, 2, 'S');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(10);
+  doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text('NET SALARY PAYABLE', 20, y + 9);
-
-  doc.setFontSize(13);
-  doc.setTextColor(255, 215, 0); // Gold text for Net Pay amount
-  doc.text(fmt(netPay), pageWidth - 20, y + 9, { align: 'right' });
+  doc.setTextColor(...BRAND_PRIMARY);
+  doc.text(fmt(netPay), pageWidth - 14 - 5, y + 9.5, { align: 'right' });
 
   y += 19;
 
   // ── Footer ──────────────────────────────────────────────────────
-  doc.setFontSize(6);
+  doc.setFontSize(6.2);
   doc.setFont('helvetica', 'italic');
   doc.setTextColor(...FAINT);
   const generatedByText = generatedBy ? `Generated by: ${generatedBy}` : '';
   const generatedAtText = generatedAt ? ` | Generated: ${generatedAt}` : '';
   doc.text(
     `${generatedByText}${generatedAtText} | This is a computer-generated document and does not require a physical signature.`,
-    14,
-    y + 2,
+    colLeft,
+    y,
   );
 
   doc.setFont('helvetica', 'normal');
-  doc.text(`Page 1 of 1 | ${companyName}`, 14, 285);
+  doc.text(`Page 1 of 1 | ${companyName}`, colLeft, 287);
 
   if (opts?.save !== false) doc.save(`${month}_${year}_${empCode}_SalarySlip.pdf`);
 

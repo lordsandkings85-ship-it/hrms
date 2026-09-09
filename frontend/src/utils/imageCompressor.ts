@@ -1,11 +1,11 @@
 /**
  * Downscales and compresses an image file to a lightweight, crisp Base64 data URL.
- * Keeps file size under ~50KB while preserving maximum visual sharpness for logos and PDFs.
+ * Always exports as image/png for logos to preserve full alpha channel transparency without white backgrounds.
  */
 export async function compressImage(
   file: File,
   maxDimension = 400,
-  quality = 0.82,
+  _quality = 0.92,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -42,14 +42,16 @@ export async function compressImage(
           return resolve(src);
         }
 
+        // Clear canvas with transparent pixels before drawing
+        ctx.clearRect(0, 0, width, height);
+
         // Enable high-quality image smoothing
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Export as PNG for transparency if PNG, else JPEG / WebP
-        const format = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-        const dataUrl = canvas.toDataURL(format, quality);
+        // Always export as PNG to preserve transparent background
+        const dataUrl = canvas.toDataURL('image/png');
         resolve(dataUrl);
       };
       img.onerror = () => resolve(src);
@@ -62,18 +64,19 @@ export async function compressImage(
 
 /**
  * Compresses an existing Base64 data URL if it exceeds reasonable size limits.
+ * Always preserves transparency.
  */
 export async function compressDataUrl(
   dataUrl?: string | null,
   maxDimension = 400,
-  quality = 0.82,
+  _quality = 0.92,
 ): Promise<string> {
   if (!dataUrl || !dataUrl.startsWith('data:image/') || dataUrl.startsWith('data:image/svg+xml')) {
     return dataUrl || '';
   }
 
-  // If already under 60KB, return as-is
-  if (dataUrl.length < 80000) {
+  // If already under 120KB, return as-is
+  if (dataUrl.length < 120000) {
     return dataUrl;
   }
 
@@ -102,16 +105,16 @@ export async function compressDataUrl(
         return resolve(dataUrl);
       }
 
+      ctx.clearRect(0, 0, width, height);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, width, height);
 
-      const isPng = dataUrl.startsWith('data:image/png');
-      const format = isPng ? 'image/png' : 'image/jpeg';
-      const compressed = canvas.toDataURL(format, quality);
+      const compressed = canvas.toDataURL('image/png');
       resolve(compressed);
     };
     img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
   });
 }
+

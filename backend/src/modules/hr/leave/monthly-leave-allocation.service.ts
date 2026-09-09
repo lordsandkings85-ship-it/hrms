@@ -89,11 +89,16 @@ export class MonthlyLeaveAllocationService {
             { adminInfo: { is: null } },
           ],
         },
-        select: { id: true },
+        select: { id: true, joiningDate: true },
       });
 
       for (const monthMeta of months) {
+        const nextMonthStartDate = new Date(monthMeta.year, monthMeta.month, 1);
         for (const employee of employees) {
+          if (employee.joiningDate && new Date(employee.joiningDate) >= nextMonthStartDate) {
+            // Employee has not joined yet in this month — do not allocate
+            continue;
+          }
           try {
             const allocatedNow = await this.allocateMonthForEmployee(
               company.id,
@@ -102,6 +107,7 @@ export class MonthlyLeaveAllocationService {
               monthMeta.year,
               monthMeta.month,
               monthlyAmount,
+              employee.joiningDate,
             );
             if (allocatedNow) allocated++;
             else skipped++;
@@ -133,7 +139,13 @@ export class MonthlyLeaveAllocationService {
     year: number,
     month: number,
     amount: number,
+    employeeJoiningDate?: Date | null,
   ): Promise<boolean> {
+    const nextMonthStartDate = new Date(year, month, 1);
+    if (employeeJoiningDate && new Date(employeeJoiningDate) >= nextMonthStartDate) {
+      return false;
+    }
+
     const existing = await this.prisma.leaveMonthlyBalance.findUnique({
       where: {
         employeeId_leaveTypeId_year_month: { employeeId, leaveTypeId, year, month },
@@ -142,16 +154,19 @@ export class MonthlyLeaveAllocationService {
     if (existing && existing.allocated > 0) return false;
     if (!amount || amount <= 0) return false;
 
-    // Opening balance for this month = remaining of the previous month (if any)
-    const prevYear = month === 1 ? year - 1 : year;
-    const prevMonth = month === 1 ? 12 : month - 1;
-    const prev = await this.prisma.leaveMonthlyBalance.findUnique({
-      where: {
-        employeeId_leaveTypeId_year_month: { employeeId, leaveTypeId, year: prevYear, month: prevMonth },
-      },
-    });
-    const opening = prev ? prev.remaining : 0;
-    const carryForward = prev ? prev.remaining : 0;
+    // Opening balance for this month:
+    // If month === 1 (January), reset opening balance to 0 for a clean new annual cycle
+    let opening = 0;
+    let carryForward = 0;
+    if (month > 1) {
+      const prev = await this.prisma.leaveMonthlyBalance.findUnique({
+        where: {
+          employeeId_leaveTypeId_year_month: { employeeId, leaveTypeId, year, month: month - 1 },
+        },
+      });
+      opening = prev ? prev.remaining : 0;
+      carryForward = prev ? prev.remaining : 0;
+    }
 
     try {
       await this.prisma.$transaction(

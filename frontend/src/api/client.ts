@@ -152,6 +152,8 @@ export const companiesApi = {
       `/companies/${companyId}/assign-employees`,
       { method: 'POST', body: JSON.stringify(data) },
     ),
+  delete: (id: string) =>
+    api<{ success: boolean; message: string }>(`/companies/${id}`, { method: 'DELETE' }),
 };
 
 export const authApi = {
@@ -246,6 +248,7 @@ export const notificationApi = {
 export interface Employee {
   id: string;
   employeeCode: string;
+  photoUrl?: string | null;
   firstName: string;
   middleName?: string | null;
   lastName: string;
@@ -333,7 +336,7 @@ export const employeesApi = {
     api<Employee>('/employees', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Partial<Employee>) => 
     api<Employee>(`/employees/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  updateMyCompliance: (data: { uan?: string; pfNumber?: string; esic?: string; pan?: string; aadhaar?: string }) =>
+  updateMyCompliance: (data: { uan?: string; pfNumber?: string; esic?: string; pan?: string; aadhaar?: string; photoUrl?: string }) =>
     api<Employee>('/employees/me/compliance', { method: 'PATCH', body: JSON.stringify(data) }),
   remove: (id: string) =>
     api<void>(`/employees/${id}`, { method: 'DELETE' }),
@@ -564,6 +567,7 @@ export const documentsApi = {
 
 export const assetsApi = {
   list: () => api<any[]>('/assets'),
+  myAssets: () => api<any[]>('/assets/my'),
   create: (data: { type: string; identifier?: string }) =>
     api<any>('/assets', { method: 'POST', body: JSON.stringify(data) }),
   assign: (id: string, employeeId: string) =>

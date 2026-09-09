@@ -18,6 +18,7 @@ export interface UserProfile {
     firstName: string;
     lastName: string;
     employeeCode: string;
+    photoUrl?: string | null;
     uan?: string;
     esic?: string;
     pfNumber?: string;

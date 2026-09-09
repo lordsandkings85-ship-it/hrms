@@ -15,7 +15,16 @@ export class LeaveService {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     let types = await this.prisma.leaveType.findMany({ where: { companyId } });
     if (types.length === 0 || groupWide) {
-      types = await this.prisma.leaveType.findMany({});
+      const allTypes = await this.prisma.leaveType.findMany({});
+      // If groupWide, deduplicate by normalized name and code to prevent UI redundancy
+      const seen = new Map<string, typeof allTypes[0]>();
+      for (const t of allTypes) {
+        const key = `${(t.name || '').trim().toLowerCase()}_${(t.code || '').trim().toLowerCase()}`;
+        if (!seen.has(key) || t.companyId === companyId) {
+          seen.set(key, t);
+        }
+      }
+      types = Array.from(seen.values());
     }
     return types;
   }
@@ -622,10 +631,13 @@ export class LeaveService {
 
   async balances(employeeId: string, year: number, companyId: string, userId?: string) {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
-    const employee = await this.prisma.employee.findFirst({
+    let employee = await this.prisma.employee.findFirst({
       where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
     });
-    if (!employee) throw new NotFoundException('Employee not found in this company');
+    if (!employee) {
+      employee = await this.prisma.employee.findUnique({ where: { id: employeeId } });
+    }
+    if (!employee) throw new NotFoundException('Employee not found');
     const rows = await this.prisma.leaveBalance.findMany({
       where: { employeeId, year },
       include: { leaveType: true },
@@ -688,23 +700,41 @@ export class LeaveService {
       orderBy: { firstName: 'asc' },
     });
 
-    return employees.map((e) => ({
-      employeeId: e.id,
-      employeeCode: e.employeeCode,
-      name: `${e.firstName} ${e.lastName}`,
-      department: e.department?.name || '-',
-      company: e.company?.displayName || e.company?.name || '-',
-      balances: e.leaveBalances.map((b) => ({
-        id: b.id,
-        leaveType: b.leaveType.name,
-        allotted: b.allotted,
-        used: b.used,
-        carriedOver: b.carriedOver,
-        encashed: b.encashed,
-        pending: b.pending,
-        remaining: Math.max(0, b.allotted + b.carriedOver - b.used - b.encashed),
-      })),
-    }));
+    return employees.map((e) => {
+      // Deduplicate balances by leave type name
+      const seenBalances = new Map<string, any>();
+      for (const b of e.leaveBalances) {
+        const typeKey = (b.leaveType?.name || b.leaveType?.code || b.leaveTypeId || '').toLowerCase().trim();
+        const mapped = {
+          id: b.id,
+          leaveType: b.leaveType.name,
+          allotted: b.allotted,
+          used: b.used,
+          carriedOver: b.carriedOver,
+          encashed: b.encashed,
+          pending: b.pending,
+          remaining: Math.max(0, b.allotted + b.carriedOver - b.used - b.pending - b.encashed),
+        };
+        if (!seenBalances.has(typeKey)) {
+          seenBalances.set(typeKey, mapped);
+        } else {
+          const existing = seenBalances.get(typeKey);
+          existing.allotted = Math.max(existing.allotted, mapped.allotted);
+          existing.used = Math.max(existing.used, mapped.used);
+          existing.pending = Math.max(existing.pending, mapped.pending);
+          existing.remaining = Math.max(0, existing.allotted + existing.carriedOver - existing.used - existing.pending - existing.encashed);
+        }
+      }
+
+      return {
+        employeeId: e.id,
+        employeeCode: e.employeeCode,
+        name: `${e.firstName} ${e.lastName}`,
+        department: e.department?.name || '-',
+        company: e.company?.displayName || e.company?.name || '-',
+        balances: Array.from(seenBalances.values()),
+      };
+    });
   }
 
   // All leave requests for a company (used by the Reports tab), with optional filters.
@@ -1037,10 +1067,13 @@ export class LeaveService {
   /** Rule 4 — monthly balance ledger for an employee (optionally filtered by year) */
   async monthlyBalances(employeeId: string, companyId: string, year?: number, userId?: string) {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
-    const employee = await this.prisma.employee.findFirst({
+    let employee = await this.prisma.employee.findFirst({
       where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
     });
-    if (!employee) throw new NotFoundException('Employee not found in this company');
+    if (!employee) {
+      employee = await this.prisma.employee.findUnique({ where: { id: employeeId } });
+    }
+    if (!employee) throw new NotFoundException('Employee not found');
     return this.prisma.leaveMonthlyBalance.findMany({
       where: { employeeId, ...(year ? { year } : {}) },
       include: { leaveType: { select: { id: true, name: true, code: true } } },

@@ -365,7 +365,7 @@ export class EmployeesService {
     return { success: true };
   }
 
-  async updateMyCompliance(companyId: string, userId: string, dto: { uan?: string; pfNumber?: string; esic?: string; pan?: string; aadhaar?: string }) {
+  async updateMyCompliance(companyId: string, userId: string, dto: { uan?: string; pfNumber?: string; esic?: string; pan?: string; aadhaar?: string; photoUrl?: string }) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.employeeId) throw new Error('Employee ID required');
     
@@ -373,7 +373,7 @@ export class EmployeesService {
     if (!existing) throw new NotFoundException('Employee not found');
 
     const data: Record<string, string> = {};
-    for (const field of ['uan', 'pfNumber', 'esic', 'pan', 'aadhaar'] as const) {
+    for (const field of ['uan', 'pfNumber', 'esic', 'pan', 'aadhaar', 'photoUrl'] as const) {
       const value = dto[field];
       if (typeof value === 'string' && value.trim() !== '') data[field] = value.trim();
     }

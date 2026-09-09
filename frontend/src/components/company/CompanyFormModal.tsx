@@ -179,8 +179,8 @@ export function CompanyFormModal({
       {viewOnly && company ? (
         <div className="space-y-6">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-xl overflow-hidden bg-paperDim dark:bg-surface-hover border border-line flex items-center justify-center text-purple-500 font-bold text-lg">
-              {company.logoUrl ? <img src={company.logoUrl} alt="" className="w-full h-full object-cover" /> : (company.name || 'CO').slice(0, 2).toUpperCase()}
+            <div className="w-14 h-14 rounded-xl overflow-hidden bg-paperDim dark:bg-surface-hover border border-line flex items-center justify-center text-purple-500 font-bold text-lg p-1">
+              {company.logoUrl ? <img src={company.logoUrl} alt="" className="w-full h-full object-contain" /> : (company.name || 'CO').slice(0, 2).toUpperCase()}
             </div>
             <div>
               <h3 className="text-lg font-bold text-ink dark:text-white">{company.displayName || company.name}</h3>
@@ -270,7 +270,7 @@ export function CompanyFormModal({
                   )}
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-900 border border-line flex items-center justify-center shrink-0 overflow-hidden p-1">
+                  <div className="w-12 h-12 rounded-xl bg-paperDim dark:bg-surface-hover border border-line flex items-center justify-center shrink-0 overflow-hidden p-1">
                     {watch('logoUrl') ? (
                       <img src={watch('logoUrl')} alt="" className="w-full h-full object-contain" />
                     ) : (

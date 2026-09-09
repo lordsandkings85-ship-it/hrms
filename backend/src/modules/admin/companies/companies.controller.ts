@@ -65,6 +65,13 @@ export class CompaniesController {
     return this.companiesService.update(user.userId, user.companyId, id, body);
   }
 
+  /** Multi-company: delete a sub-company (Admin/Super Admin only). */
+  @Delete('companies/:id')
+  @Permissions({ module: 'organization', action: 'delete' })
+  deleteCompany(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.companiesService.deleteCompany(user.userId, user.companyId, id);
+  }
+
 
   @Patch('settings/company')
   @Permissions({ module: 'settings', action: 'edit' })

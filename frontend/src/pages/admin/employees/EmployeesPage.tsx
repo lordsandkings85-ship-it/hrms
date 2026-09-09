@@ -489,7 +489,20 @@ export default function EmployeesPage() {
                           </Link>
                         </td>
                         <td className="p-2 border-r border-slate-200 dark:border-slate-800 font-medium">
-                          {empNameText}
+                          <div className="flex items-center gap-2">
+                            {emp.photoUrl ? (
+                              <img
+                                src={emp.photoUrl}
+                                alt={empNameText}
+                                className="w-6 h-6 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0 shadow-xs"
+                              />
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-linear-to-tr from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[9px] flex items-center justify-center shrink-0 uppercase border border-slate-200/60 dark:border-slate-700/60">
+                                {(emp.firstName?.[0] || '') + (emp.lastName?.[0] || '') || 'E'}
+                              </div>
+                            )}
+                            <span className="truncate">{empNameText}</span>
+                          </div>
                         </td>
                         <td className="p-2 border-r border-slate-200 dark:border-slate-800">
                           {emp.state || 'Tamil Nadu'}
