@@ -80,6 +80,8 @@ export default function MyProfilePage() {
     ? `${emp.manager.firstName} ${emp.manager.lastName}`
     : '—';
 
+  const companyName = emp.company?.displayName || emp.company?.name || '';
+
   const formatAddress = (addr: any) => {
     if (!addr) return '—';
     const parts = [
@@ -181,11 +183,20 @@ export default function MyProfilePage() {
                 {emp.status}
               </span>
             </div>
-            <p className="text-sm font-bold text-slate-350 mt-1 flex items-center justify-center md:justify-start gap-1.5">
+            <p className="text-sm font-bold text-slate-350 mt-1 flex items-center justify-center md:justify-start gap-1.5 flex-wrap">
               <Building size={14} className="text-indigo-400" />
               <span>{emp.designation?.title ?? 'Associate'}</span>
               <span className="text-slate-500">•</span>
               <span>{emp.department?.name ?? 'General'}</span>
+              {companyName && (
+                <>
+                  <span className="text-slate-500">•</span>
+                  <span className="flex items-center gap-1">
+                    <Landmark size={13} className="text-indigo-400" />
+                    {companyName}
+                  </span>
+                </>
+              )}
             </p>
           </div>
 
@@ -253,6 +264,13 @@ export default function MyProfilePage() {
                 <span>Professional Details</span>
               </h3>
               <div className="grid grid-cols-2 gap-5">
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Company</span>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <Building size={14} className="text-indigo-500 dark:text-indigo-400" />
+                    {companyName || '—'}
+                  </p>
+                </div>
                 <div className="space-y-1">
                   <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Designation</span>
                   <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{emp.designation?.title ?? '—'}</p>

@@ -290,6 +290,7 @@ export interface Employee {
   experience?: any;
   department?: { name: string; id?: string } | null;
   designation?: { title: string; id?: string } | null;
+  company?: { id: string; name: string; displayName?: string | null } | null;
   manager?: Employee | null;
   joiningDate?: string | null;
   uan?: string | null;
