@@ -189,12 +189,23 @@ export default function EmployeeDashboard() {
             <div className="absolute -top-32 -right-32 w-96 h-96 bg-info/10 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '5s' }} />
 
             <div className="relative z-10 flex items-center gap-4">
-               <div className="w-14 h-14 rounded-2xl flex items-center justify-center font-display font-bold text-lg flex-shrink-0 shadow-sm" style={{ background: 'var(--action-primary)', color: 'var(--action-primary-text)' }}>
-                  {emp.firstName[0]}{emp.lastName?.[0] ?? ''}
-               </div>
+               {emp.photoUrl ? (
+                  <div className="relative shrink-0">
+                     <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 opacity-60 blur-xs" />
+                     <img
+                        src={emp.photoUrl}
+                        alt={`${emp.firstName} ${emp.lastName}`}
+                        className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover shadow-md border-2 border-white dark:border-slate-800 shrink-0"
+                     />
+                  </div>
+               ) : (
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center font-display font-black text-xl sm:text-2xl flex-shrink-0 shadow-md ring-2 ring-indigo-500/20" style={{ background: 'var(--action-primary)', color: 'var(--action-primary-text)' }}>
+                     {emp.firstName[0]}{emp.lastName?.[0] ?? ''}
+                  </div>
+               )}
                <div>
                   <div className="flex items-center gap-2">
-                     <h1 className="font-display text-2xl font-bold tracking-tight text-ink drop-shadow-sm">
+                     <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink drop-shadow-sm">
                         Welcome, {emp.firstName}!
                      </h1>
                      <StatusBadge status={emp.status} />

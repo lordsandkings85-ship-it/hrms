@@ -145,6 +145,18 @@ function monthYear(payslip: any): { month: string; year: string | number } {
   return { month, year };
 }
 
+/** Safely truncates and fits text within maxWidth mm using ellipsis if necessary. */
+function truncateText(doc: jsPDF, text: string | number | undefined | null, maxWidth: number): string {
+  if (text == null || text === '') return '-';
+  const str = String(text);
+  if (doc.getTextWidth(str) <= maxWidth) return str;
+  let len = str.length - 1;
+  while (len > 0 && doc.getTextWidth(str.slice(0, len) + '...') > maxWidth) {
+    len--;
+  }
+  return len > 0 ? str.slice(0, len) + '...' : '...';
+}
+
 /** Section heading with a clean underline rule spanning the exact column width. */
 function heading(doc: jsPDF, x: number, y: number, title: string, width = 88): number {
   doc.setFontSize(8.2);
@@ -157,7 +169,7 @@ function heading(doc: jsPDF, x: number, y: number, title: string, width = 88): n
   return y + 6.5;
 }
 
-/** Label / value row for the two-column detail grids. */
+/** Label / value row for the two-column detail grids with strict column boundary clipping. */
 function detailRow(
   doc: jsPDF,
   x: number,
@@ -165,19 +177,24 @@ function detailRow(
   label: string,
   value: string,
   bold = false,
-  labelWidth = 36,
+  labelWidth = 34,
+  colWidth = 88,
 ): number {
   doc.setFontSize(7.2);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...MUTED);
   doc.text(label, x, y);
+
+  const maxValueW = Math.max(10, colWidth - labelWidth - 1);
+  const fittedValue = truncateText(doc, value, maxValueW);
+
   doc.setFont('helvetica', bold ? 'bold' : 'normal');
   doc.setTextColor(...DARK);
-  doc.text(String(value || '-'), x + labelWidth, y);
+  doc.text(fittedValue, x + labelWidth, y);
   return y + 4.8;
 }
 
-/** A titled, boxed table used for EARNINGS / DEDUCTIONS / STATUTORY blocks. */
+/** A titled, boxed table used for EARNINGS / DEDUCTIONS / STATUTORY blocks with collision prevention. */
 function drawTable(
   doc: jsPDF,
   x: number,
@@ -238,14 +255,18 @@ function drawTable(
     }
 
     doc.setFontSize(7.2);
-    doc.text(row.label, left + 1, cursor + 2.6);
     const value = row.text ?? fmt(row.amount);
+    const valW = doc.getTextWidth(value);
+    const maxLabelW = Math.max(10, right - left - valW - 3);
+    const fittedLabel = truncateText(doc, row.label, maxLabelW);
+
+    doc.text(fittedLabel, left + 1, cursor + 2.6);
     doc.setFont('helvetica', row.isTotal || row.bold ? 'bold' : 'normal');
     doc.text(value, right - 1, cursor + 2.6, { align: 'right' });
     cursor += rowH;
   });
 
-  return cursor + 3;
+  return cursor + 3.5;
 }
 
 /** Percentage derived from an amount over a base, formatted to 1 decimal. */
@@ -286,16 +307,13 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
     leftTextX = 14 + logoW + 4;
   }
 
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(11.5);
-  doc.setFont('helvetica', 'bold');
-  doc.text(companyName, leftTextX, 9.5);
+  const rightTitlesW = 55;
+  const maxCompW = Math.max(30, pageWidth - 14 - rightTitlesW - leftTextX - 4);
 
-  doc.setFontSize(6.8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...BRAND_LIGHT);
-  const addressText = company?.address ? String(company.address).split('\n')[0] : '';
-  doc.text(addressText, leftTextX, 15);
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(truncateText(doc, companyName, maxCompW), leftTextX, 11.5);
 
   const idParts = [
     company?.gst ? `GST: ${company.gst}` : null,
@@ -303,9 +321,13 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
     company?.cin ? `CIN: ${company.cin}` : null,
   ].filter(Boolean);
 
-  doc.setFontSize(6.2);
-  doc.setTextColor(255, 255, 255); // Clean white text for statutory tax numbers
-  doc.text(idParts.length ? idParts.join('  |  ') : (company?.email || company?.phone || ''), leftTextX, 20.5);
+  const subLine = idParts.length ? idParts.join('  |  ') : (company?.email || company?.phone || '');
+  if (subLine) {
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...BRAND_LIGHT);
+    doc.text(truncateText(doc, subLine, maxCompW), leftTextX, 18);
+  }
 
   // Right-aligned salary slip titles
   doc.setTextColor(255, 255, 255);
@@ -453,8 +475,9 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   doc.setFontSize(6.8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...MUTED);
+  const taxSummaryLine = `Tax Regime: ${b.taxRegime || 'New'}   |   Annual Gross CTC: ${fmt((grossPay || 0) * 12)}   |   Taxable Income: ${fmt(taxableAnnual)}`;
   doc.text(
-    `Tax Regime: ${b.taxRegime || 'New'}   |   Annual Gross CTC: ${fmt((grossPay || 0) * 12)}   |   Taxable Income: ${fmt(taxableAnnual)}`,
+    truncateText(doc, taxSummaryLine, pageWidth - 28),
     colLeft + 1,
     y,
   );
@@ -491,14 +514,15 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   doc.setTextColor(...FAINT);
   const generatedByText = generatedBy ? `Generated by: ${generatedBy}` : '';
   const generatedAtText = generatedAt ? ` | Generated: ${generatedAt}` : '';
+  const fullFooterText = `${generatedByText}${generatedAtText} | This is a computer-generated document and does not require a physical signature.`;
   doc.text(
-    `${generatedByText}${generatedAtText} | This is a computer-generated document and does not require a physical signature.`,
+    truncateText(doc, fullFooterText, pageWidth - 28),
     colLeft,
     y,
   );
 
   doc.setFont('helvetica', 'normal');
-  doc.text(`Page 1 of 1 | ${companyName}`, colLeft, 287);
+  doc.text(`Page 1 of 1 | ${truncateText(doc, companyName, 80)}`, colLeft, 287);
 
   if (opts?.save !== false) doc.save(`${month}_${year}_${empCode}_SalarySlip.pdf`);
 

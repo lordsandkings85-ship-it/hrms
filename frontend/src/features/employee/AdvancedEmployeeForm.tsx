@@ -1267,7 +1267,7 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
 
               {/* Employee Picture Upload Widget */}
               <div className="flex items-center gap-4 p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs mb-2">
-                <div className="relative group w-24 h-24 rounded-2xl bg-slate-100 dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                <div className="relative group w-28 h-28 rounded-2xl bg-slate-100 dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
                   {formData.photoUrl ? (
                     <img
                       src={formData.photoUrl}
@@ -1276,7 +1276,7 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
                     />
                   ) : (
                     <div className="flex flex-col items-center justify-center text-slate-400">
-                      <User size={32} className="stroke-[1.5]" />
+                      <User size={36} className="stroke-[1.5]" />
                       <span className="text-[9px] font-bold mt-1 uppercase tracking-wider text-slate-400">No Photo</span>
                     </div>
                   )}
