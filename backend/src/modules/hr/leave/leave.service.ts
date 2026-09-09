@@ -65,20 +65,41 @@ export class LeaveService {
     userId?: string,
   ) {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
-    const employee = await this.prisma.employee.findFirst({
+    let employee = await this.prisma.employee.findFirst({
       where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
     });
+    if (!employee) {
+      employee = await this.prisma.employee.findUnique({ where: { id: employeeId } });
+    }
     if (!employee) throw new ForbiddenException('Employee not found');
     if (!leaveTypeId || !startDate || !endDate) throw new BadRequestException('leaveTypeId, startDate and endDate are required');
-    let type = await this.prisma.leaveType.findFirst({
-      where: groupWide ? { id: leaveTypeId } : { id: leaveTypeId, companyId },
-    });
-    if (!type && groupWide) {
-      type = await this.prisma.leaveType.findUnique({ where: { id: leaveTypeId } });
+
+    const targetCompanyId = employee.companyId || companyId;
+
+    let type = await this.prisma.leaveType.findUnique({ where: { id: leaveTypeId } });
+    if (!type) {
+      type = await this.prisma.leaveType.findFirst({
+        where: { companyId: targetCompanyId },
+      });
+    } else if (type.companyId !== targetCompanyId) {
+      // Find matching leave type by code or name in employee's company
+      const matchingType = await this.prisma.leaveType.findFirst({
+        where: {
+          companyId: targetCompanyId,
+          OR: [
+            ...(type.code ? [{ code: type.code }] : []),
+            { name: type.name },
+            { name: { contains: type.name } },
+          ],
+        },
+      });
+      if (matchingType) {
+        type = matchingType;
+        leaveTypeId = matchingType.id;
+      }
     }
     if (!type) throw new NotFoundException('Leave type not found');
 
-    const targetCompanyId = employee.companyId || companyId;
     const start = new Date(startDate);
     const year = start.getFullYear();
     const month = start.getMonth() + 1;
@@ -807,23 +828,32 @@ export class LeaveService {
   // --- Leave Balance Allocation ---
 
   async adjustBalance(companyId: string, data: { employeeId: string; leaveTypeId: string; year: number; amount: number; reason?: string }, approvedBy: string) {
-    const employee = await this.prisma.employee.findFirst({ where: { id: data.employeeId, companyId } });
+    let employee = await this.prisma.employee.findFirst({ where: { id: data.employeeId, companyId } });
+    if (!employee) {
+      employee = await this.prisma.employee.findUnique({ where: { id: data.employeeId } });
+    }
     if (!employee) throw new NotFoundException('Employee not found');
-    const type = await this.prisma.leaveType.findFirst({ where: { id: data.leaveTypeId, companyId } });
+    const targetCompanyId = employee.companyId || companyId;
+
+    let type = await this.prisma.leaveType.findFirst({ where: { id: data.leaveTypeId, companyId: targetCompanyId } });
+    if (!type) {
+      type = await this.prisma.leaveType.findUnique({ where: { id: data.leaveTypeId } });
+    }
     if (!type) throw new NotFoundException('Leave type not found');
+    const leaveTypeId = type.id;
 
     const upsert = this.prisma.leaveBalance.upsert({
       where: {
         employeeId_leaveTypeId_year: {
           employeeId: data.employeeId,
-          leaveTypeId: data.leaveTypeId,
+          leaveTypeId,
           year: data.year,
         },
       },
       update: { allotted: { increment: data.amount } },
       create: {
         employeeId: data.employeeId,
-        leaveTypeId: data.leaveTypeId,
+        leaveTypeId,
         year: data.year,
         allotted: data.amount,
         used: 0,
@@ -832,9 +862,9 @@ export class LeaveService {
 
     const transaction = this.prisma.leaveTransaction.create({
       data: {
-        companyId,
+        companyId: targetCompanyId,
         employeeId: data.employeeId,
-        leaveTypeId: data.leaveTypeId,
+        leaveTypeId,
         year: data.year,
         type: 'ALLOCATION',
         amount: data.amount,
