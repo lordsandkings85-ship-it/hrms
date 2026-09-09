@@ -159,14 +159,14 @@ function truncateText(doc: jsPDF, text: string | number | undefined | null, maxW
 
 /** Section heading with a clean underline rule spanning the exact column width. */
 function heading(doc: jsPDF, x: number, y: number, title: string, width = 88): number {
-  doc.setFontSize(8.2);
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...DARK);
   doc.text(title.toUpperCase(), x, y);
   doc.setDrawColor(...BORDER);
-  doc.setLineWidth(0.35);
-  doc.line(x, y + 1.8, x + width, y + 1.8);
-  return y + 6.5;
+  doc.setLineWidth(0.4);
+  doc.line(x, y + 2.2, x + width, y + 2.2);
+  return y + 8.5;
 }
 
 /** Label / value row for the two-column detail grids with strict column boundary clipping. */
@@ -177,21 +177,21 @@ function detailRow(
   label: string,
   value: string,
   bold = false,
-  labelWidth = 34,
+  labelWidth = 36,
   colWidth = 88,
 ): number {
-  doc.setFontSize(7.2);
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...MUTED);
   doc.text(label, x, y);
 
-  const maxValueW = Math.max(10, colWidth - labelWidth - 1);
+  const maxValueW = Math.max(10, colWidth - labelWidth - 2);
   const fittedValue = truncateText(doc, value, maxValueW);
 
   doc.setFont('helvetica', bold ? 'bold' : 'normal');
   doc.setTextColor(...DARK);
   doc.text(fittedValue, x + labelWidth, y);
-  return y + 4.8;
+  return y + 5.8;
 }
 
 /** A titled, boxed table used for EARNINGS / DEDUCTIONS / STATUTORY blocks with collision prevention. */
@@ -206,7 +206,7 @@ function drawTable(
 ): number {
   const left = x + 2.5;
   const right = x + width - 2.5;
-  const rowH = 5.0;
+  const rowH = 6.2;
 
   let cursor = y;
   if (title) {
@@ -226,10 +226,10 @@ function drawTable(
     doc.setFillColor(...ROW_BG);
     doc.rect(x + 0.3, cursor - 0.7, width - 0.6, rowH - 0.3, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.8);
+    doc.setFontSize(8);
     doc.setTextColor(...MUTED);
-    doc.text(opts.headerLeft || 'Component', left + 1, cursor + 2.6);
-    doc.text(opts.headerRight || 'Amount', right - 1, cursor + 2.6, { align: 'right' });
+    doc.text(opts.headerLeft || 'Component', left + 1, cursor + 3.2);
+    doc.text(opts.headerRight || 'Amount', right - 1, cursor + 3.2, { align: 'right' });
     doc.setDrawColor(...BORDER);
     doc.setLineWidth(0.2);
     doc.line(x, cursor + rowH - 1, x + width, cursor + rowH - 1);
@@ -254,19 +254,21 @@ function drawTable(
       doc.setTextColor(...SLATE_DARK);
     }
 
-    doc.setFontSize(7.2);
+    doc.setFontSize(8.5);
     const value = row.text ?? fmt(row.amount);
-    const valW = doc.getTextWidth(value);
-    const maxLabelW = Math.max(10, right - left - valW - 3);
+    const availW = right - left - 3;
+    const valW = Math.min(doc.getTextWidth(value), Math.max(28, availW - 62));
+    const fittedValue = truncateText(doc, value, valW);
+    const maxLabelW = Math.max(10, availW - doc.getTextWidth(fittedValue) - 2);
     const fittedLabel = truncateText(doc, row.label, maxLabelW);
 
-    doc.text(fittedLabel, left + 1, cursor + 2.6);
+    doc.text(fittedLabel, left + 1, cursor + 3.2);
     doc.setFont('helvetica', row.isTotal || row.bold ? 'bold' : 'normal');
-    doc.text(value, right - 1, cursor + 2.6, { align: 'right' });
+    doc.text(fittedValue, right - 1, cursor + 3.2, { align: 'right' });
     cursor += rowH;
   });
 
-  return cursor + 3.5;
+  return cursor + 4.5;
 }
 
 /** Percentage derived from an amount over a base, formatted to 1 decimal. */
@@ -311,7 +313,7 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   const maxCompW = Math.max(30, pageWidth - 14 - rightTitlesW - leftTextX - 4);
 
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(11);
+  doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
   doc.text(truncateText(doc, companyName, maxCompW), leftTextX, 11.5);
 
@@ -323,7 +325,7 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
 
   const subLine = idParts.length ? idParts.join('  |  ') : (company?.email || company?.phone || '');
   if (subLine) {
-    doc.setFontSize(6.5);
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...BRAND_LIGHT);
     doc.text(truncateText(doc, subLine, maxCompW), leftTextX, 18);
@@ -331,17 +333,17 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
 
   // Right-aligned salary slip titles
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(9.5);
+  doc.setFontSize(11.5);
   doc.setFont('helvetica', 'bold');
   doc.text('MONTHLY SALARY SLIP', pageWidth - 14, 9.5, { align: 'right' });
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(9.5);
   doc.setTextColor(255, 255, 255);
   doc.text(`${month} ${year}`, pageWidth - 14, 15.5, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.2);
+  doc.setFontSize(8);
   doc.setTextColor(...BRAND_LIGHT);
   doc.text(`Period: ${month} ${year}`, pageWidth - 14, 20.5, { align: 'right' });
 
@@ -353,7 +355,7 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
 
   // Row 1 — Employee details | Statutory details
   y = heading(doc, colLeft, y, 'Employee Details', colWidth);
-  heading(doc, colRight, y - 6.5, 'Statutory & Tax Identifiers', colWidth);
+  heading(doc, colRight, y - 8.5, 'Statutory & Tax Identifiers', colWidth);
 
   const empName = employee
     ? `${employee.firstName || ''} ${employee.middleName || ''} ${employee.lastName || ''}`.trim()
@@ -377,7 +379,7 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   ry = detailRow(doc, colRight, ry, 'ESIC Number', employee?.esic || employee?.esiNumber || '-');
   ry = detailRow(doc, colRight, ry, 'Aadhaar / ID', employee?.aadhaar ? `XXXX-XXXX-${String(employee.aadhaar).slice(-4)}` : '-');
 
-  y = Math.max(ly, ry) + 4;
+  y = Math.max(ly, ry) + 6;
 
   // Row 2 — Earnings (left) | Deductions (right), side by side
   const b = payslip?.breakdown || {};
@@ -389,6 +391,7 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
     { label: 'Medical Allowance', amount: Number(b.medical || 0) },
     { label: 'Special Allowance', amount: Number(b.specialAllowance || 0) },
     { label: 'Shift Allowance', amount: Number(b.shiftAllowance || 0) },
+    { label: 'Bonus / Overtime Payout', amount: Number(b.additionalPayout || 0) },
   ].filter(e => (e.amount ?? 0) > 0 || e.label === 'Basic Salary');
 
   const deductions: Row[] = [
@@ -412,11 +415,11 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
     { label: 'Total Deductions', amount: totalDeductions, isTotal: true },
   ], { showHeader: true });
 
-  y = Math.max(endEarn, endDed) + 3.5;
+  y = Math.max(endEarn, endDed) + 5.5;
 
   // Row 3 — Payment details (left) | Days / Tax summary (right)
   y = heading(doc, colLeft, y, 'Bank & Payment Details', colWidth);
-  heading(doc, colRight, y - 6.5, 'Attendance & Working Days', colWidth);
+  heading(doc, colRight, y - 8.5, 'Attendance & Working Days', colWidth);
 
   const bankName = employee?.paymentInfo?.bankName || employee?.bankName || '-';
   const accountNo = employee?.bankAccountNumber || employee?.paymentInfo?.accountNo || '-';
@@ -438,7 +441,7 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   ry = detailRow(doc, colRight, ry, 'Loss of Pay (LOP)', `${lopDays} Days`);
   ry = detailRow(doc, colRight, ry, 'Tax Regime', b.taxRegime ? `${b.taxRegime} Regime` : 'New Tax Regime');
 
-  y = Math.max(ly, ry) + 4.5;
+  y = Math.max(ly, ry) + 6.5;
 
   // ── Detailed Statutory Block (full width) ───────────────────────
   const taxableAnnual = Number(b.taxableAnnual || 0);
@@ -469,10 +472,10 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   y = drawTable(doc, colLeft, y, pageWidth - 28, '', statutoryRows, {
     showHeader: true,
     headerLeft: 'Statutory Component',
-    headerRight: 'Description / Monthly Contribution'
+    headerRight: 'Contribution / Description'
   });
 
-  doc.setFontSize(6.8);
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...MUTED);
   const taxSummaryLine = `Tax Regime: ${b.taxRegime || 'New'}   |   Annual Gross CTC: ${fmt((grossPay || 0) * 12)}   |   Taxable Income: ${fmt(taxableAnnual)}`;
@@ -481,35 +484,35 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
     colLeft + 1,
     y,
   );
-  y += 5.5;
+  y += 6.5;
 
   // ── NET SALARY PAYABLE HIGHLIGHT (Gentle Tint with Ruby & Slate text) ────────
   const netPay = Number(payslip?.netPay || 0);
   doc.setFillColor(...BRAND_TINT);
-  doc.roundedRect(colLeft, y, pageWidth - 28, 14.5, 2, 2, 'F');
+  doc.roundedRect(colLeft, y, pageWidth - 28, 16, 2, 2, 'F');
   doc.setDrawColor(...BRAND_ACCENT);
   doc.setLineWidth(0.4);
-  doc.roundedRect(colLeft, y, pageWidth - 28, 14.5, 2, 2, 'S');
+  doc.roundedRect(colLeft, y, pageWidth - 28, 16, 2, 2, 'S');
 
   doc.setTextColor(...BRAND_PRIMARY);
-  doc.setFontSize(10.5);
+  doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
-  doc.text('NET SALARY PAYABLE', colLeft + 5, y + 6.5);
+  doc.text('NET SALARY PAYABLE', colLeft + 5, y + 7.2);
 
-  doc.setFontSize(6.5);
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...MUTED);
-  doc.text(`(Gross Earnings ${fmt(grossPay)} - Total Deductions ${fmt(totalDeductions)})`, colLeft + 5, y + 11);
+  doc.text(`(Gross Earnings ${fmt(grossPay)} - Total Deductions ${fmt(totalDeductions)})`, colLeft + 5, y + 12.5);
 
-  doc.setFontSize(14);
+  doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...BRAND_PRIMARY);
-  doc.text(fmt(netPay), pageWidth - 14 - 5, y + 9.5, { align: 'right' });
+  doc.text(fmt(netPay), pageWidth - 19, y + 11.5, { align: 'right' });
 
-  y += 19;
+  y += 21;
 
   // ── Footer ──────────────────────────────────────────────────────
-  doc.setFontSize(6.2);
+  doc.setFontSize(7.5);
   doc.setFont('helvetica', 'italic');
   doc.setTextColor(...FAINT);
   const generatedByText = generatedBy ? `Generated by: ${generatedBy}` : '';
@@ -522,6 +525,7 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   );
 
   doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
   doc.text(`Page 1 of 1 | ${truncateText(doc, companyName, 80)}`, colLeft, 287);
 
   if (opts?.save !== false) doc.save(`${month}_${year}_${empCode}_SalarySlip.pdf`);
