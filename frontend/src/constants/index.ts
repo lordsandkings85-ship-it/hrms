@@ -60,5 +60,5 @@ export const ROLE_KEYWORDS = {
 // ── App Metadata ──────────────────────────────────────────────────────────────
 
 export const APP_NAME = 'Workora HRMS';
-export const APP_VERSION = '2.1.1';
+export const APP_VERSION = '2.1.2';
 export const APP_DESCRIPTION = 'Enterprise Human Resource Management System';
