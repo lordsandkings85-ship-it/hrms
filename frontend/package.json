@@ -1,6 +1,6 @@
 {
   "name": "lords-kings-hrms",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "private": true,
   "description": "Lords & Kings Enterprise Human Resource Management System",
   "author": "Lords & Kings",
@@ -22,6 +22,7 @@
     "jspdf": "^2.5.1",
     "jszip": "^3.10.1",
     "lucide-react": "^0.427.0",
+    "pdfjs-dist": "^6.3.289",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.52.2",

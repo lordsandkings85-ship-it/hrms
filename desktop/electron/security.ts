@@ -26,7 +26,8 @@ export function registerSecurity(app: Electron.App): void {
             "style-src 'self' 'unsafe-inline'; " +
             "img-src 'self' data: blob: https:; " +
             "font-src 'self' data:; " +
-            "connect-src 'self' https://hrms-backend-rl2c.onrender.com wss://hrms-backend-rl2c.onrender.com; " +
+            "connect-src 'self' blob: https://hrms-backend-rl2c.onrender.com wss://hrms-backend-rl2c.onrender.com; " +
+            "worker-src 'self' blob:; " +
             "frame-src 'self' blob:; " +
             "object-src 'none'; " +
             "base-uri 'self'; " +

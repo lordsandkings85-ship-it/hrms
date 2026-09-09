@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Download, Printer, ExternalLink, X, Loader2, FileText } from 'lucide-react';
 import { generatePayslipPDF, type PayslipData } from '../../utils/payslipPDF';
+import { renderPdfPagesToCanvas } from '../../utils/pdfPreview';
 import { payrollApiExt } from '../../api/client';
 import { useAuthStore } from '../../store/useAuthStore';
 
@@ -22,9 +23,11 @@ export function PayslipPreviewModal({
   title = 'Payslip Preview',
 }: PayslipPreviewModalProps) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [previewPages, setPreviewPages] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [currentData, setCurrentData] = useState<PayslipData | null>(null);
+  const viewerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -32,6 +35,7 @@ export function PayslipPreviewModal({
         URL.revokeObjectURL(pdfUrl);
         setPdfUrl(null);
       }
+      setPreviewPages(null);
       setCurrentData(null);
       setErrorMsg(null);
       return;
@@ -111,9 +115,16 @@ export function PayslipPreviewModal({
         }
 
         const blob = await generatePayslipPDF(dataToRender, { save: false });
+        const url = URL.createObjectURL(blob);
         if (isMounted) {
-          const url = URL.createObjectURL(blob);
           setPdfUrl(url);
+          setPreviewPages(null);
+        }
+
+        const targetWidth = viewerRef.current?.clientWidth || 720;
+        const canvases = await renderPdfPagesToCanvas(url, targetWidth);
+        if (isMounted) {
+          setPreviewPages(canvases.map((c) => c.toDataURL('image/png')));
         }
       } catch (err: any) {
         if (isMounted) {
@@ -253,14 +264,14 @@ export function PayslipPreviewModal({
         </div>
 
         {/* Viewer Content Area */}
-        <div className="flex-1 bg-slate-900/10 dark:bg-slate-950/60 p-2 sm:p-4 overflow-hidden relative flex items-center justify-center">
+        <div ref={viewerRef} className="flex-1 bg-slate-900/10 dark:bg-slate-950/60 p-2 sm:p-4 overflow-hidden relative">
           {loading ? (
-            <div className="flex flex-col items-center justify-center gap-3 text-slate-500">
+            <div className="flex flex-col items-center justify-center gap-3 text-slate-500 h-full">
               <Loader2 size={36} className="animate-spin text-red-500" />
               <span className="text-sm font-semibold animate-pulse">Rendering official payslip preview…</span>
             </div>
           ) : errorMsg ? (
-            <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-6 max-w-md text-center">
+            <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-6 max-w-md text-center mx-auto mt-10">
               <p className="text-sm font-bold text-rose-600 dark:text-rose-400 mb-2">Error Loading Payslip</p>
               <p className="text-xs text-[var(--text-muted)] mb-4">{errorMsg}</p>
               <button
@@ -270,12 +281,19 @@ export function PayslipPreviewModal({
                 Close
               </button>
             </div>
-          ) : pdfUrl ? (
-            <iframe
-              src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=1`}
-              title="Payslip PDF Viewer"
-              className="w-full h-full rounded-2xl border border-[var(--border)] shadow-md bg-white"
-            />
+          ) : previewPages ? (
+            <div
+              className="w-full h-full overflow-auto rounded-2xl border border-[var(--border)] shadow-md bg-white p-3 sm:p-4 flex flex-col items-center gap-3"
+            >
+              {previewPages.map((src, i) => (
+                <img
+                  key={i}
+                  src={src}
+                  alt={`Payslip page ${i + 1}`}
+                  className="w-full max-w-3xl border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm"
+                />
+              ))}
+            </div>
           ) : null}
         </div>
       </div>

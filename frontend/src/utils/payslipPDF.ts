@@ -145,16 +145,16 @@ function monthYear(payslip: any): { month: string; year: string | number } {
   return { month, year };
 }
 
-/** Safely truncates and fits text within maxWidth mm using ellipsis if necessary. */
-function truncateText(doc: jsPDF, text: string | number | undefined | null, maxWidth: number): string {
-  if (text == null || text === '') return '-';
-  const str = String(text);
-  if (doc.getTextWidth(str) <= maxWidth) return str;
-  let len = str.length - 1;
-  while (len > 0 && doc.getTextWidth(str.slice(0, len) + '...') > maxWidth) {
-    len--;
+/** Shrinks the current font until the text fits maxWidth — never truncates or hides text. Returns final size. */
+function fitText(doc: jsPDF, text: string | number | undefined | null, maxWidth: number, minSize = 5.5): number {
+  const str = text == null ? '' : String(text);
+  if (str === '' || maxWidth <= 0) return doc.getFontSize();
+  let size = doc.getFontSize();
+  while (size > minSize && doc.getTextWidth(str) > maxWidth) {
+    size -= 0.25;
+    doc.setFontSize(size);
   }
-  return len > 0 ? str.slice(0, len) + '...' : '...';
+  return size;
 }
 
 /** Section heading with a clean underline rule spanning the exact column width. */
@@ -183,14 +183,16 @@ function detailRow(
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...MUTED);
+  fitText(doc, label, labelWidth - 1, 6);
   doc.text(label, x, y);
 
   const maxValueW = Math.max(10, colWidth - labelWidth - 2);
-  const fittedValue = truncateText(doc, value, maxValueW);
 
   doc.setFont('helvetica', bold ? 'bold' : 'normal');
   doc.setTextColor(...DARK);
-  doc.text(fittedValue, x + labelWidth, y);
+  doc.setFontSize(8.5);
+  fitText(doc, value, maxValueW, 6.5);
+  doc.text(value, x + labelWidth, y);
   return y + 5.8;
 }
 
@@ -206,11 +208,19 @@ function drawTable(
 ): number {
   const left = x + 2.5;
   const right = x + width - 2.5;
-  const rowH = 6.2;
+  const rowH = 6.5;
 
   let cursor = y;
+
+  // Filled title strip
   if (title) {
-    cursor = heading(doc, x, y, title, width);
+    doc.setFillColor(...BRAND_PRIMARY);
+    doc.roundedRect(x, cursor, width, 7.5, 1.5, 1.5, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    doc.text(title.toUpperCase(), x + 4, cursor + 5);
+    cursor += 8.5;
   }
 
   const showHeader = opts.showHeader ?? false;
@@ -228,8 +238,8 @@ function drawTable(
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.setTextColor(...MUTED);
-    doc.text(opts.headerLeft || 'Component', left + 1, cursor + 3.2);
-    doc.text(opts.headerRight || 'Amount', right - 1, cursor + 3.2, { align: 'right' });
+    doc.text(opts.headerLeft || 'Component', left + 1, cursor + 3.4);
+    doc.text(opts.headerRight || 'Amount', right - 1, cursor + 3.4, { align: 'right' });
     doc.setDrawColor(...BORDER);
     doc.setLineWidth(0.2);
     doc.line(x, cursor + rowH - 1, x + width, cursor + rowH - 1);
@@ -240,35 +250,102 @@ function drawTable(
     if (row.isTotal) {
       doc.setFillColor(...BRAND_TINT);
       doc.rect(x + 0.3, cursor - 0.7, width - 0.6, rowH - 0.3, 'F');
+    } else if (idx % 2 === 0) {
+      doc.setFillColor(...ROW_BG);
+      doc.rect(x + 0.3, cursor - 0.7, width - 0.6, rowH - 0.3, 'F');
+    }
+
+    doc.setFontSize(9);
+    if (row.isTotal) {
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...BRAND_PRIMARY);
-      doc.setDrawColor(252, 165, 165);
-      doc.setLineWidth(0.3);
-      doc.line(x, cursor - 1, x + width, cursor - 1);
     } else {
-      if (idx % 2 === 0) {
-        doc.setFillColor(...ROW_BG);
-        doc.rect(x + 0.3, cursor - 0.7, width - 0.6, rowH - 0.3, 'F');
-      }
-      doc.setFont('helvetica', 'normal');
+      doc.setFont('helvetica', row.bold ? 'bold' : 'normal');
       doc.setTextColor(...SLATE_DARK);
     }
 
-    doc.setFontSize(8.5);
     const value = row.text ?? fmt(row.amount);
     const availW = right - left - 3;
-    const valW = Math.min(doc.getTextWidth(value), Math.max(28, availW - 62));
-    const fittedValue = truncateText(doc, value, valW);
-    const maxLabelW = Math.max(10, availW - doc.getTextWidth(fittedValue) - 2);
-    const fittedLabel = truncateText(doc, row.label, maxLabelW);
+    const valW = Math.min(doc.getTextWidth(value), Math.max(26, availW - 70));
+    fitText(doc, value, Math.max(20, valW), 6);
+    const usedVW = Math.min(doc.getTextWidth(value), availW - 30);
+    const labelMax = Math.max(12, availW - usedVW - 2);
+    doc.setFontSize(9);
+    fitText(doc, row.label, labelMax, 6.5);
 
-    doc.text(fittedLabel, left + 1, cursor + 3.2);
-    doc.setFont('helvetica', row.isTotal || row.bold ? 'bold' : 'normal');
-    doc.text(fittedValue, right - 1, cursor + 3.2, { align: 'right' });
+    doc.text(row.label, left + 1, cursor + 3.4);
+    doc.text(value, right - 1, cursor + 3.4, { align: 'right' });
     cursor += rowH;
   });
 
-  return cursor + 4.5;
+  return cursor + 2.5;
+}
+
+/** Horizontal card showing a series of label/value cells separated by hairlines. */
+function summaryStrip(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  width: number,
+  cells: { label: string; value: string }[],
+): number {
+  const height = 16;
+  doc.setFillColor(...ROW_BG);
+  doc.setDrawColor(...BORDER);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(x, y, width, height, 2, 2, 'FD');
+
+  const cellW = width / cells.length;
+  cells.forEach((cell, i) => {
+    const cx = x + i * cellW;
+    if (i > 0) {
+      doc.setDrawColor(...BORDER);
+      doc.setLineWidth(0.2);
+      doc.line(cx, y + 2.5, cx, y + height - 2.5);
+    }
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...MUTED);
+    doc.text(cell.label.toUpperCase(), cx + 3.5, y + 6);
+    doc.setFontSize(9.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...DARK);
+    fitText(doc, cell.value, cellW - 7, 6.5);
+    doc.text(cell.value, cx + 3.5, y + 12);
+  });
+
+  return y + height;
+}
+
+/** Full-width single-row band of stat items separated by hairlines. */
+function infoBand(doc: jsPDF, x: number, y: number, width: number, items: [string, string][]): number {
+  const height = 9.5;
+  doc.setFillColor(...ROW_BG);
+  doc.setDrawColor(...BORDER);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(x, y, width, height, 2, 2, 'FD');
+
+  const step = width / items.length;
+  items.forEach((item, i) => {
+    const cx = x + step * i;
+    if (i > 0) {
+      doc.setDrawColor(...BORDER);
+      doc.setLineWidth(0.2);
+      doc.line(cx, y + 1.5, cx, y + height - 1.5);
+    }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    const labelW = doc.getTextWidth(`${item[0]} :`);
+    doc.text(`${item[0]} :`, cx + 2.5, y + 6);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...DARK);
+    doc.setFontSize(8);
+    fitText(doc, item[1], Math.max(8, step - labelW - 6), 6);
+    doc.text(item[1], cx + 2.5 + labelW, y + 6);
+  });
+
+  return y + height;
 }
 
 /** Percentage derived from an amount over a base, formatted to 1 decimal. */
@@ -313,9 +390,10 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   const maxCompW = Math.max(30, pageWidth - 14 - rightTitlesW - leftTextX - 4);
 
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
-  doc.text(truncateText(doc, companyName, maxCompW), leftTextX, 11.5);
+  doc.setFontSize(13);
+  fitText(doc, companyName, maxCompW, 7.5);
+  doc.text(companyName, leftTextX, 11.5);
 
   const idParts = [
     company?.gst ? `GST: ${company.gst}` : null,
@@ -325,38 +403,42 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
 
   const subLine = idParts.length ? idParts.join('  |  ') : (company?.email || company?.phone || '');
   if (subLine) {
-    doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
     doc.setTextColor(...BRAND_LIGHT);
-    doc.text(truncateText(doc, subLine, maxCompW), leftTextX, 18);
+    fitText(doc, subLine, maxCompW, 6.5);
+    doc.text(subLine, leftTextX, 18);
   }
 
-  // Right-aligned salary slip titles
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(11.5);
+  // Right-side: SALARY SLIP badge pill
   doc.setFont('helvetica', 'bold');
-  doc.text('MONTHLY SALARY SLIP', pageWidth - 14, 9.5, { align: 'right' });
+  doc.setFontSize(8.5);
+  const badgeText = 'SALARY SLIP';
+  const badgeW = doc.getTextWidth(badgeText) + 6;
+  const badgeX = pageWidth - 14 - badgeW;
+  doc.setDrawColor(255, 255, 255);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(badgeX, 6.5, badgeW, 6, 3, 3, 'S');
+  doc.setTextColor(255, 255, 255);
+  doc.text(badgeText, badgeX + badgeW / 2, 10.7, { align: 'center' });
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
+  doc.setFontSize(15);
   doc.setTextColor(255, 255, 255);
-  doc.text(`${month} ${year}`, pageWidth - 14, 15.5, { align: 'right' });
+  doc.text(`${month} ${year}`, pageWidth - 14, 17.5, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(...BRAND_LIGHT);
-  doc.text(`Period: ${month} ${year}`, pageWidth - 14, 20.5, { align: 'right' });
+  doc.text(`Period: ${month} ${year}`, pageWidth - 14, 22.5, { align: 'right' });
 
-  // ── Body: two-column layout ─────────────────────────────────────
+  // ── Body ──────────────────────────────────────────────────────────
   const colLeft = 14;
   const colRight = 108;
   const colWidth = 88;
-  let y = 34;
+  let y = 36;
 
-  // Row 1 — Employee details | Statutory details
-  y = heading(doc, colLeft, y, 'Employee Details', colWidth);
-  heading(doc, colRight, y - 8.5, 'Statutory & Tax Identifiers', colWidth);
-
+  // Employee summary strip (full width)
   const empName = employee
     ? `${employee.firstName || ''} ${employee.middleName || ''} ${employee.lastName || ''}`.trim()
     : '-';
@@ -365,21 +447,14 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   const designation = employee?.designation?.title || '-';
   const doj = employee?.joiningDate || employee?.dateOfJoining ? new Date(employee.joiningDate || employee.dateOfJoining).toLocaleDateString('en-IN') : '-';
 
-  let ly = y;
-  ly = detailRow(doc, colLeft, ly, 'Employee Name', empName, true);
-  ly = detailRow(doc, colLeft, ly, 'Employee Code', empCode);
-  ly = detailRow(doc, colLeft, ly, 'Designation', designation);
-  ly = detailRow(doc, colLeft, ly, 'Department', department);
-  ly = detailRow(doc, colLeft, ly, 'Date of Joining', String(doj));
-
-  let ry = y;
-  ry = detailRow(doc, colRight, ry, 'PAN Number', employee?.pan || employee?.panNumber || '-', true);
-  ry = detailRow(doc, colRight, ry, 'UAN Number', employee?.uan || employee?.uanNumber || '-');
-  ry = detailRow(doc, colRight, ry, 'PF Number', employee?.pfNumber || '-');
-  ry = detailRow(doc, colRight, ry, 'ESIC Number', employee?.esic || employee?.esiNumber || '-');
-  ry = detailRow(doc, colRight, ry, 'Aadhaar / ID', employee?.aadhaar ? `XXXX-XXXX-${String(employee.aadhaar).slice(-4)}` : '-');
-
-  y = Math.max(ly, ry) + 6;
+  y = summaryStrip(doc, colLeft, y, pageWidth - 28, [
+    { label: 'Employee Name', value: empName },
+    { label: 'Employee Code', value: empCode },
+    { label: 'Designation', value: designation },
+    { label: 'Department', value: department },
+    { label: 'Date of Joining', value: String(doj) },
+  ]);
+  y += 4;
 
   // Row 2 — Earnings (left) | Deductions (right), side by side
   const b = payslip?.breakdown || {};
@@ -417,38 +492,45 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
 
   y = Math.max(endEarn, endDed) + 5.5;
 
-  // Row 3 — Payment details (left) | Days / Tax summary (right)
+  // Row 3 — Bank details (left) | Statutory IDs (right)
   y = heading(doc, colLeft, y, 'Bank & Payment Details', colWidth);
-  heading(doc, colRight, y - 8.5, 'Attendance & Working Days', colWidth);
+  heading(doc, colRight, y - 8.5, 'Statutory & Tax IDs', colWidth);
 
   const bankName = employee?.paymentInfo?.bankName || employee?.bankName || '-';
   const accountNo = employee?.bankAccountNumber || employee?.paymentInfo?.accountNo || '-';
   const ifsc = employee?.bankIfsc || employee?.ifsc || employee?.paymentInfo?.ifscCode || '-';
 
-  ly = y;
+  let ly = y;
   ly = detailRow(doc, colLeft, ly, 'Bank Name', bankName);
   ly = detailRow(doc, colLeft, ly, 'Account Number', accountNo);
   ly = detailRow(doc, colLeft, ly, 'IFSC Code', ifsc);
   ly = detailRow(doc, colLeft, ly, 'Payment Mode', payslip?.paymentMode || 'Direct Bank Transfer');
 
+  let ry = y;
+  ry = detailRow(doc, colRight, ry, 'PAN Number', employee?.pan || employee?.panNumber || '-', true);
+  ry = detailRow(doc, colRight, ry, 'UAN Number', employee?.uan || employee?.uanNumber || '-');
+  ry = detailRow(doc, colRight, ry, 'PF Number', employee?.pfNumber || '-');
+  ry = detailRow(doc, colRight, ry, 'ESIC Number', employee?.esic || employee?.esiNumber || '-');
+  ry = detailRow(doc, colRight, ry, 'Aadhaar / ID', employee?.aadhaar ? `XXXX-XXXX-${String(employee.aadhaar).slice(-4)}` : '-');
+
+  y = Math.max(ly, ry) + 5;
+
+  // Working days band (full width)
   const workingDays = payslip?.workingDays || b.totalWorkingDays || 30;
   const lopDays = payslip?.lossOfPayDays || b.lopDays || 0;
   const paidDays = payslip?.paidDays || Math.max(0, workingDays - lopDays);
+  y = infoBand(doc, colLeft, y, pageWidth - 28, [
+    ['Total Working Days', `${workingDays} Days`],
+    ['Paid Days', `${paidDays} Days`],
+    ['Loss of Pay', `${lopDays} Day${lopDays === 1 ? '' : 's'}`],
+    ['Tax Regime', b.taxRegime ? `${b.taxRegime} Regime` : 'New Tax Regime'],
+  ]);
+  y += 6;
 
-  ry = y;
-  ry = detailRow(doc, colRight, ry, 'Total Working Days', `${workingDays} Days`);
-  ry = detailRow(doc, colRight, ry, 'Paid Days', `${paidDays} Days`);
-  ry = detailRow(doc, colRight, ry, 'Loss of Pay (LOP)', `${lopDays} Days`);
-  ry = detailRow(doc, colRight, ry, 'Tax Regime', b.taxRegime ? `${b.taxRegime} Regime` : 'New Tax Regime');
-
-  y = Math.max(ly, ry) + 6.5;
-
-  // ── Detailed Statutory Block (full width) ───────────────────────
+// ── Detailed Statutory Block (full width) ───────────────────────
   const taxableAnnual = Number(b.taxableAnnual || 0);
   const effectiveRate = Number(b.effectiveTaxRate || 0);
   const basic = Number(b.basic || grossPay || 0);
-
-  y = heading(doc, colLeft, y, 'Statutory Contribution & Compliance', pageWidth - 28);
 
   const statutoryRows: Row[] = [
     {
@@ -469,18 +551,20 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
     },
     { label: 'Loss of Pay Adjustment', text: `${lopDays} day(s)  (${fmt(b.lopAmount || 0)})`, amount: Number(b.lopAmount || 0) },
   ];
-  y = drawTable(doc, colLeft, y, pageWidth - 28, '', statutoryRows, {
+  y = drawTable(doc, colLeft, y, pageWidth - 28, 'Statutory Contribution & Compliance', statutoryRows, {
     showHeader: true,
     headerLeft: 'Statutory Component',
     headerRight: 'Contribution / Description'
   });
+  y += 2;
 
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...MUTED);
   const taxSummaryLine = `Tax Regime: ${b.taxRegime || 'New'}   |   Annual Gross CTC: ${fmt((grossPay || 0) * 12)}   |   Taxable Income: ${fmt(taxableAnnual)}`;
+  fitText(doc, taxSummaryLine, pageWidth - 28, 6.5);
   doc.text(
-    truncateText(doc, taxSummaryLine, pageWidth - 28),
+    taxSummaryLine,
     colLeft + 1,
     y,
   );
@@ -518,15 +602,19 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   const generatedByText = generatedBy ? `Generated by: ${generatedBy}` : '';
   const generatedAtText = generatedAt ? ` | Generated: ${generatedAt}` : '';
   const fullFooterText = `${generatedByText}${generatedAtText} | This is a computer-generated document and does not require a physical signature.`;
+  doc.setFontSize(7.5);
+  fitText(doc, fullFooterText, pageWidth - 28, 6);
   doc.text(
-    truncateText(doc, fullFooterText, pageWidth - 28),
+    fullFooterText,
     colLeft,
     y,
   );
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.text(`Page 1 of 1 | ${truncateText(doc, companyName, 80)}`, colLeft, 287);
+  const pageLine = `Page 1 of 1 | ${companyName}`;
+  fitText(doc, pageLine, 80, 6);
+  doc.text(pageLine, colLeft, 287);
 
   if (opts?.save !== false) doc.save(`${month}_${year}_${empCode}_SalarySlip.pdf`);
 
