@@ -20,7 +20,7 @@ function registerSecurity(app) {
         responseHeaders: {
           ...details.responseHeaders,
           "Content-Security-Policy": [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://hrms-backend-rl2c.onrender.com wss://hrms-backend-rl2c.onrender.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://hrms-backend-rl2c.onrender.com wss://hrms-backend-rl2c.onrender.com; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';"
           ]
         }
       });
@@ -34,6 +34,10 @@ function registerSecurity(app) {
     contents.setWindowOpenHandler(({ url }) => {
       if (allowExternal(url)) {
         electron.shell.openExternal(url);
+        return { action: "deny" };
+      }
+      if (url.startsWith("blob:")) {
+        return { action: "allow" };
       }
       return { action: "deny" };
     });
@@ -447,6 +451,8 @@ function createMainWindow() {
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("https://") || url.startsWith("http://")) {
       electron.shell.openExternal(url);
+    } else if (url.startsWith("blob:")) {
+      return { action: "allow" };
     }
     return { action: "deny" };
   });

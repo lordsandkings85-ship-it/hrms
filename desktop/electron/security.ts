@@ -27,7 +27,7 @@ export function registerSecurity(app: Electron.App): void {
             "img-src 'self' data: blob: https:; " +
             "font-src 'self' data:; " +
             "connect-src 'self' https://hrms-backend-rl2c.onrender.com wss://hrms-backend-rl2c.onrender.com; " +
-            "frame-src 'none'; " +
+            "frame-src 'self' blob:; " +
             "object-src 'none'; " +
             "base-uri 'self'; " +
             "form-action 'self';",
@@ -47,6 +47,10 @@ export function registerSecurity(app: Electron.App): void {
     contents.setWindowOpenHandler(({ url }) => {
       if (allowExternal(url)) {
         shell.openExternal(url);
+        return { action: 'deny' };
+      }
+      if (url.startsWith('blob:')) {
+        return { action: 'allow' };
       }
       return { action: 'deny' };
     });

@@ -126,6 +126,8 @@ function createMainWindow(): BrowserWindow {
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://') || url.startsWith('http://')) {
       shell.openExternal(url);
+    } else if (url.startsWith('blob:')) {
+      return { action: 'allow' };
     }
     return { action: 'deny' };
   });
