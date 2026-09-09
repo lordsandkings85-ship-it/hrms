@@ -134,9 +134,14 @@ const employees = await this.prisma.employee.findMany({
       },
     });
 
-    const holidays = await this.prisma.holiday.findMany({
+    let holidays = await this.prisma.holiday.findMany({
       where: { companyId, date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) } },
     });
+    if (holidays.length === 0) {
+      holidays = await this.prisma.holiday.findMany({
+        where: { date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) } },
+      });
+    }
 
     // Fetch all additional payouts for this month/year in bulk
     const allPayouts = await this.prisma.additionalPayout.findMany({
@@ -375,9 +380,19 @@ let payslipCount = 0;
     const start = new Date(year, month - 1, 1);
     const end = new Date(year, month, 1);
 
-    const [employees, holidays, logs, cycle] = await Promise.all([
+    let holidays = await this.prisma.holiday.findMany({
+      where: groupWide ? { date: { gte: start, lt: end } } : { companyId, date: { gte: start, lt: end } }
+    });
+    if (holidays.length === 0 && !groupWide) {
+      holidays = await this.prisma.holiday.findMany({ where: { date: { gte: start, lt: end } } });
+    }
+    const [employees, logs, cycle] = await Promise.all([
       this.prisma.employee.findMany({
-        where: groupWide ? { status: 'active', isSystem: false } : { companyId, status: 'active', isSystem: false },
+        where: {
+          ...(groupWide ? {} : { companyId }),
+          status: 'active',
+          isSystem: false,
+        },
         select: {
           id: true,
           employeeCode: true,
@@ -388,7 +403,6 @@ let payslipCount = 0;
           company: { select: { name: true, displayName: true } },
         }
       }),
-      this.prisma.holiday.findMany({ where: groupWide ? { date: { gte: start, lt: end } } : { companyId, date: { gte: start, lt: end } } }),
       this.prisma.attendanceLog.findMany({ where: groupWide ? { date: { gte: start, lt: end } } : { employee: { companyId }, date: { gte: start, lt: end } } }),
       this.prisma.payrollCycle.findFirst({ where: { companyId, month, year } }),
     ]);
@@ -439,8 +453,9 @@ let payslipCount = 0;
         if (wd === 6) return dow >= 1 && dow <= 6;
         return true;
       }).length;
-      const totalDays = countWorkingDays(start, end, wd);
-      const absent = Math.max(0, totalDays - present - late - halfDay - onLeave - holidaysCount);
+      const grossDays = countWorkingDays(start, end, wd);
+      const totalDays = Math.max(0, grossDays - holidaysCount);
+      const absent = Math.max(0, totalDays - present - late - halfDay - onLeave);
 
       return {
         ...emp,

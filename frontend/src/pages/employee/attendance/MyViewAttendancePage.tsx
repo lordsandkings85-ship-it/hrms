@@ -41,9 +41,21 @@ export default function MyViewAttendancePage() {
     queryFn: () => leaveApi.listHolidays(),
   });
 
+  const holidayDateSet = new Set(
+    (holidays || []).map((h: any) => {
+      const d = new Date(h.date);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })
+  );
+
   const attendanceEvents = (Object.values(
     (historyLogs || []).reduce((acc: any, row: any) => {
-      const dateStr = row.date.split('T')[0];
+      const d = new Date(row.date);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      // On holidays, if employee didn't check in (status absent), don't show an Absent event
+      if (holidayDateSet.has(dateStr) && row.status === 'absent' && !row.checkIn) {
+        return acc;
+      }
       if (!acc[dateStr]) {
         let title = 'Present';
         let color = '#10b981'; // Green
@@ -75,15 +87,22 @@ export default function MyViewAttendancePage() {
   const holidayEvents = (holidays || [])
     .filter((h: any) => {
       const d = new Date(h.date);
-      return d.getFullYear() === currentYear && (d.getMonth() + 1) === currentMonth;
+      return (
+        (d.getFullYear() === currentYear && d.getMonth() + 1 === currentMonth) ||
+        (d.getUTCFullYear() === currentYear && d.getUTCMonth() + 1 === currentMonth)
+      );
     })
-    .map((h: any) => ({
-      id: `holiday-${h.id}`,
-      title: h.name,
-      date: new Date(h.date).toISOString().split('T')[0],
-      backgroundColor: '#06b6d4', // Cyan/Teal
-      textColor: '#ffffff',
-    }));
+    .map((h: any) => {
+      const d = new Date(h.date);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return {
+        id: `holiday-${h.id}`,
+        title: h.name,
+        date: dateStr,
+        backgroundColor: '#06b6d4', // Cyan/Teal
+        textColor: '#ffffff',
+      };
+    });
 
   const allEvents = [...attendanceEvents, ...holidayEvents];
 

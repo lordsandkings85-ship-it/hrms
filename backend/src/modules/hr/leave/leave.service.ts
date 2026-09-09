@@ -76,7 +76,14 @@ export class LeaveService {
 
     // Rule 4 — monthly Casual Leave accounting: reserve pending days and check balance
     if (await this.hasMonthlyBalance(employeeId, leaveTypeId, year)) {
-      const days = isHalfDayCount(start, new Date(endDate), isHalfDay);
+      let holidays = await this.prisma.holiday.findMany({
+        where: groupWide ? {} : { companyId: targetCompanyId },
+        select: { date: true },
+      });
+      if (holidays.length === 0 && !groupWide) {
+        holidays = await this.prisma.holiday.findMany({ select: { date: true } });
+      }
+      const days = isHalfDayCount(start, new Date(endDate), isHalfDay, holidays);
       if (type.negativeBalanceAllowed !== true) {
         const row = await this.prisma.leaveMonthlyBalance.findUnique({
           where: { employeeId_leaveTypeId_year_month: { employeeId, leaveTypeId, year, month } },
@@ -155,24 +162,24 @@ export class LeaveService {
     if (!groupWide && req.employee.companyId !== companyId) throw new ForbiddenException('Leave request does not belong to this company');
     if (req.status !== 'pending') throw new BadRequestException('Leave request is already processed');
 
-    let days = isHalfDayCount(req.startDate, req.endDate, req.isHalfDay);
-
     // Fetch holidays once for reuse in exclusion + attendance log creation
-    const holidays = await this.prisma.holiday.findMany({
+    let holidays = await this.prisma.holiday.findMany({
       where: {
         companyId: req.employee.companyId,
         date: { gte: req.startDate, lte: req.endDate },
       },
+      select: { date: true },
     });
-
-    // Holiday Exclusion (Exclude non-Sunday holidays)
-    if (!req.isHalfDay) {
-      let holidayCount = 0;
-      for (const h of holidays) {
-        if (h.date.getDay() !== 0) holidayCount++;
-      }
-      days = Math.max(0, days - holidayCount);
+    if (holidays.length === 0) {
+      holidays = await this.prisma.holiday.findMany({
+        where: {
+          date: { gte: req.startDate, lte: req.endDate },
+        },
+        select: { date: true },
+      });
     }
+
+    let days = isHalfDayCount(req.startDate, req.endDate, req.isHalfDay, holidays);
 
     // Sandwich Rule detection across separate requests
     // If applying for a Monday (day 1), check if previous Friday (day 5) was a leave.
@@ -599,10 +606,17 @@ export class LeaveService {
       },
       orderBy: { createdAt: 'desc' },
     });
+    let holidays = await this.prisma.holiday.findMany({
+      where: groupWide ? {} : { companyId },
+      select: { date: true },
+    });
+    if (holidays.length === 0 && !groupWide) {
+      holidays = await this.prisma.holiday.findMany({ select: { date: true } });
+    }
     // Attach a computed duration (in days) so the UI doesn't have to guess.
     return rows.map((r) => ({
       ...r,
-      duration: isHalfDayCount(r.startDate, r.endDate, r.isHalfDay),
+      duration: isHalfDayCount(r.startDate, r.endDate, r.isHalfDay, holidays),
     }));
   }
 
@@ -612,10 +626,25 @@ export class LeaveService {
       where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
     });
     if (!employee) throw new NotFoundException('Employee not found in this company');
-    return this.prisma.leaveBalance.findMany({
+    const rows = await this.prisma.leaveBalance.findMany({
       where: { employeeId, year },
       include: { leaveType: true },
+      orderBy: { leaveType: { name: 'asc' } },
     });
+
+    // Deduplicate by leave type name / code to ensure each leave category appears only once
+    const seen = new Map<string, (typeof rows)[0]>();
+    for (const row of rows) {
+      const typeKey = (row.leaveType?.name || row.leaveType?.code || row.leaveTypeId || '').toLowerCase().trim();
+      if (!seen.has(typeKey)) {
+        seen.set(typeKey, { ...row });
+      } else {
+        const existing = seen.get(typeKey)!;
+        existing.used = Math.max(existing.used, row.used);
+        existing.allotted = Math.max(existing.allotted, row.allotted);
+      }
+    }
+    return Array.from(seen.values());
   }
 
   // Company-wide balance grid used by the HR "Employee Leave Balances" tab.
@@ -1283,7 +1312,7 @@ export class LeaveService {
   }
 }
 
-function isHalfDayCount(start: Date, end: Date, isHalfDay: boolean): number {
+function isHalfDayCount(start: Date, end: Date, isHalfDay: boolean, holidays?: { date: Date }[]): number {
   if (isHalfDay) return 0.5;
   
   let count = 0;
@@ -1294,14 +1323,22 @@ function isHalfDayCount(start: Date, end: Date, isHalfDay: boolean): number {
   current.setHours(0, 0, 0, 0);
   endDate.setHours(0, 0, 0, 0);
   
+  const holidayTimestamps = new Set(
+    (holidays || []).map((h) => {
+      const d = new Date(h.date);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    })
+  );
+  
   while (current <= endDate) {
     // 0 is Sunday
-    if (current.getDay() !== 0) {
+    if (current.getDay() !== 0 && !holidayTimestamps.has(current.getTime())) {
       count++;
     }
     current.setDate(current.getDate() + 1);
   }
   
-  return Math.max(count, 1);
+  return Math.max(count, 0);
 }
 

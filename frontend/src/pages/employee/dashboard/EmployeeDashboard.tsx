@@ -7,7 +7,7 @@ import { Spinner } from '../../../components/ui/Spinner';
 import { generatePayslipPDF } from '../../../utils/payslipPDF';
 import { StatusBadge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/ToastProvider';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useServerTime } from '../../../hooks/useServerTime';
 import { useShiftRemaining, fmtShiftHM } from '../../../hooks/useShiftRemaining';
 import { getServerDate, getServerYear, getServerMonth } from '../../../utils/serverTime';
@@ -71,6 +71,22 @@ export default function EmployeeDashboard() {
       queryFn: () => leaveApi.balances(emp!.id, currentYear),
       enabled: !!emp,
    });
+
+   const uniqueLeaveBalances = useMemo(() => {
+      if (!leaveBalances || !leaveBalances.length) return [];
+      const map = new Map<string, any>();
+      for (const bal of leaveBalances) {
+         const key = (bal.leaveType?.name || bal.leaveType?.code || bal.id || '').toLowerCase().trim();
+         if (!map.has(key)) {
+            map.set(key, { ...bal });
+         } else {
+            const prev = map.get(key);
+            prev.used = Math.max(prev.used ?? 0, bal.used ?? 0);
+            prev.allotted = Math.max(prev.allotted ?? 0, bal.allotted ?? 0);
+         }
+      }
+      return Array.from(map.values());
+   }, [leaveBalances]);
 
    const { data: dashboardData } = useQuery({
       queryKey: dashboardSummaryKey(user?.id),
@@ -345,9 +361,9 @@ export default function EmployeeDashboard() {
                   <h2 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Leave Balances</h2>
                   <Calendar size={16} style={{ color: 'var(--text-muted)' }} />
                </div>
-               {leaveBalances && leaveBalances.length > 0 ? (
+               {uniqueLeaveBalances && uniqueLeaveBalances.length > 0 ? (
                   <div className="space-y-3 flex-1">
-                      {leaveBalances.slice(0, 5).map((bal: any) => {
+                      {uniqueLeaveBalances.slice(0, 5).map((bal: any) => {
                          const used = bal.used ?? 0;
                          const allotted = bal.allotted ?? 0;
                          const balance = allotted - used;

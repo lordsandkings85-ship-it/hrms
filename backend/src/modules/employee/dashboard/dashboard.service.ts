@@ -130,7 +130,32 @@ export class DashboardService {
     const onLeaveSet = new Set(onLeaveGroup.map((g) => g.employeeId));
     const presentToday = activeIds.filter((e) => presentSet.has(e.id) && !onLeaveSet.has(e.id)).length;
     const onLeaveToday = activeIds.filter((e) => onLeaveSet.has(e.id)).length;
-    const absentToday = Math.max(totalEmployees - presentToday - onLeaveToday, 0);
+    let todayHolidays = await this.prisma.holiday.findMany({
+      where: {
+        companyId: { in: targetCompanyIds },
+        date: { gte: new Date(startOfDay.getTime() - 24 * 60 * 60 * 1000), lte: new Date(endOfDay.getTime() + 24 * 60 * 60 * 1000) },
+      },
+      select: { date: true },
+    });
+    if (todayHolidays.length === 0) {
+      todayHolidays = await this.prisma.holiday.findMany({
+        where: { date: { gte: new Date(startOfDay.getTime() - 24 * 60 * 60 * 1000), lte: new Date(endOfDay.getTime() + 24 * 60 * 60 * 1000) } },
+        select: { date: true },
+      });
+    }
+    const isTodayHoliday = todayHolidays.some((h) => {
+      const hd = new Date(h.date);
+      return (
+        (hd.getUTCFullYear() === today.getUTCFullYear() &&
+          hd.getUTCMonth() === today.getUTCMonth() &&
+          hd.getUTCDate() === today.getUTCDate()) ||
+        (hd.getFullYear() === today.getFullYear() &&
+          hd.getMonth() === today.getMonth() &&
+          hd.getDate() === today.getDate())
+      );
+    });
+    const isSunday = today.getDay() === 0;
+    const absentToday = isTodayHoliday || isSunday ? 0 : Math.max(totalEmployees - presentToday - onLeaveToday, 0);
 
     const currentMonthStr = today.getMonth() + 1;
     const currentYearNum = today.getFullYear();

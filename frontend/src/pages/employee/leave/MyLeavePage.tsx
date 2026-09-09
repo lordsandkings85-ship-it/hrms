@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  CalendarDays, Calendar, FileText, CalendarPlus, CheckCircle2, Clock, XCircle, Send, Award
-} from 'lucide-react';
+import {CalendarDays, Calendar, FileText, CalendarPlus, CheckCircle2, Clock, XCircle, Send, Award} 
+from 'lucide-react';
 import { leaveApi, employeeServicesApi } from '../../../api/client';
 import { fmtDate, fmtDateFull } from '../../../utils/formatDate';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -83,6 +82,22 @@ export default function MyLeavePage() {
     queryFn: () => leaveApi.balances(myEmpId), 
     enabled: !!myEmpId 
   });
+
+  const uniqueBalances = useMemo(() => {
+    if (!balances || !balances.length) return [];
+    const map = new Map<string, any>();
+    for (const bal of balances) {
+      const key = (bal.leaveType?.name || bal.leaveType?.code || bal.id || '').toLowerCase().trim();
+      if (!map.has(key)) {
+        map.set(key, { ...bal });
+      } else {
+        const prev = map.get(key);
+        prev.used = Math.max(prev.used ?? 0, bal.used ?? 0);
+        prev.allotted = Math.max(prev.allotted ?? 0, bal.allotted ?? 0);
+      }
+    }
+    return Array.from(map.values());
+  }, [balances]);
   const { data: holidays } = useQuery({ queryKey: ['holidays-list'], queryFn: () => leaveApi.listHolidays() });
   const { data: monthlyCL, isLoading: isLoadingMonthlyCL } = useQuery({
     queryKey: ['leave-monthly-mine', myEmpId],
@@ -381,11 +396,11 @@ export default function MyLeavePage() {
 
             {isLoadingBalances ? (
               <div className="flex justify-center py-6"><Spinner /></div>
-            ) : !balances || balances.length === 0 ? (
+            ) : !uniqueBalances || uniqueBalances.length === 0 ? (
               <p className="text-xs text-[var(--text-muted)] py-8 text-center">No leave balance metrics found.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                {balances.map((bal: any) => {
+                {uniqueBalances.map((bal: any) => {
                   const used = bal.used ?? 0;
                   const allotted = bal.allotted ?? 0;
                   const carriedOver = bal.carriedOver ?? 0;

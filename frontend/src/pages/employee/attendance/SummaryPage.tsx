@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { attendanceApiExt, attendanceApi, leaveApi } from '../../../api/client';
@@ -34,6 +34,20 @@ function AdminSummary() {
     queryFn: async () => { const r = await attendanceApi.listMonthly(year, month); return Array.isArray(r) ? r : []; },
   });
 
+  const { data: holidays } = useQuery({
+    queryKey: ['holidays-list', year, month],
+    queryFn: () => leaveApi.listHolidays(),
+  });
+
+  const holidayDateSet = useMemo(() => {
+    return new Set(
+      (holidays || []).map((h: any) => {
+        const d = new Date(h.date);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      })
+    );
+  }, [holidays]);
+
   const filtered = (logs || []).filter((log: any) => {
     const name = ((log.employee?.firstName || '') + ' ' + (log.employee?.lastName || '')).toLowerCase();
     return name.includes(searchTerm.toLowerCase());
@@ -43,7 +57,13 @@ function AdminSummary() {
   // Late/half_day take priority over present for the same day.
   const uniqueByDay = new Map<string, any>();
   for (const log of filtered) {
-    const key = `${log.employeeId}-${new Date(log.date).toDateString()}`;
+    const d = new Date(log.date);
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    // If it's a holiday and log is absent with no punch, skip it
+    if (holidayDateSet.has(dateKey) && log.status === 'absent' && !log.checkIn) {
+      continue;
+    }
+    const key = `${log.employeeId}-${dateKey}`;
     const existing = uniqueByDay.get(key);
     if (!existing) uniqueByDay.set(key, log);
     else if ((log.status === 'late' || log.status === 'half_day') && existing.status === 'present') uniqueByDay.set(key, log);
@@ -81,6 +101,11 @@ function AdminSummary() {
   const personMap = new Map<string, PersonRow>();
   for (const log of filtered) {
     if (!log.employeeId) continue;
+    const d = new Date(log.date);
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (holidayDateSet.has(dateKey) && log.status === 'absent' && !log.checkIn) {
+      continue;
+    }
     let row = personMap.get(log.employeeId);
     if (!row) {
       row = {
@@ -106,12 +131,20 @@ function AdminSummary() {
   for (const dayLog of uniqueLogs) {
     const row = personMap.get(dayLog.employeeId);
     if (!row) continue;
-    row.daysWorked++;
-    if (dayLog.status === 'present') row.present++;
-    else if (dayLog.status === 'late') row.late++;
-    else if (dayLog.status === 'half_day') row.halfDay++;
-    else if (dayLog.status === 'on_leave') row.onLeave++;
-    else if (dayLog.status === 'absent') row.absent++;
+    if (dayLog.status === 'present') {
+      row.present++;
+      row.daysWorked++;
+    } else if (dayLog.status === 'late') {
+      row.late++;
+      row.daysWorked++;
+    } else if (dayLog.status === 'half_day') {
+      row.halfDay++;
+      row.daysWorked += 0.5;
+    } else if (dayLog.status === 'on_leave') {
+      row.onLeave++;
+    } else if (dayLog.status === 'absent') {
+      row.absent++;
+    }
   }
   const personRows = Array.from(personMap.values()).sort((a, b) =>
     `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));

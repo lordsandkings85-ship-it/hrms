@@ -572,7 +572,7 @@ export class AttendanceService {
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
     const dow = day.getDay();
 
-    const [checkedLogs, employees, approvedLeaves, holidays, policies, assignments] = await Promise.all([
+    const [checkedLogs, employees, approvedLeaves, holidaysList, policies, assignments] = await Promise.all([
       this.prisma.attendanceLog.findMany({
         where: {
           ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId, isSystem: false } }),
@@ -602,11 +602,8 @@ export class AttendanceService {
         select: { employeeId: true, isHalfDay: true },
       }),
       this.prisma.holiday.findMany({
-        where: {
-          ...(groupWide ? {} : { companyId }),
-          date: { gte: startOfDay, lt: endOfDay },
-        },
-        select: { id: true },
+        where: groupWide ? {} : { companyId },
+        select: { id: true, date: true },
       }),
       this.prisma.attendancePolicy.findMany({
         where: groupWide ? {} : { companyId },
@@ -622,10 +619,29 @@ export class AttendanceService {
       }),
     ]);
 
+    let effectiveHolidays = holidaysList;
+    if (effectiveHolidays.length === 0 && !groupWide) {
+      effectiveHolidays = await this.prisma.holiday.findMany({
+        select: { id: true, date: true },
+      });
+    }
+
     const checkedIn = new Set(checkedLogs.filter((l) => l.checkIn != null).map((l) => l.employeeId));
     const fullDayLeaveIds = new Set(approvedLeaves.filter((l) => !l.isHalfDay).map((l) => l.employeeId));
     const halfDayLeaveIds = new Set(approvedLeaves.filter((l) => l.isHalfDay).map((l) => l.employeeId));
-    const isHoliday = holidays.length > 0;
+    const isHoliday = effectiveHolidays.some((h) => {
+      if (!h.date) return true;
+      const hd = new Date(h.date);
+      if (isNaN(hd.getTime())) return true;
+      return (
+        (hd.getUTCFullYear() === day.getUTCFullYear() &&
+          hd.getUTCMonth() === day.getUTCMonth() &&
+          hd.getUTCDate() === day.getUTCDate()) ||
+        (hd.getFullYear() === day.getFullYear() &&
+          hd.getMonth() === day.getMonth() &&
+          hd.getDate() === day.getDate())
+      );
+    });
     const secondSatEnabled = new Map(policies.map((p) => [p.key, p.value])).get('custom.secondSaturdayOff') === 'true';
     const isSecondSat = this.isSecondSaturday(day);
 
@@ -662,7 +678,7 @@ export class AttendanceService {
         shiftEnd: shiftByEmployee.get(e.id)?.endTime ?? null,
       }));
 
-    return { startOfDay, endOfDay, absentEmployees, fullDayLeaveIds, halfDayLeaveIds };
+    return { startOfDay, endOfDay, absentEmployees, fullDayLeaveIds, halfDayLeaveIds, isHoliday };
   }
 
   /** Persist an absent AttendanceLog row (check-in/check-out null) for every active
@@ -674,7 +690,21 @@ export class AttendanceService {
     date: Date,
     options?: { notes?: string | null; actorRole?: string | null },
   ) {
-    const { startOfDay, endOfDay, absentEmployees } = await this.computeAbsentForDate(companyId, date);
+    const { startOfDay, endOfDay, absentEmployees, isHoliday } = await this.computeAbsentForDate(companyId, date);
+    if (isHoliday) {
+      // Clean up any stray auto-marked absent logs on holidays (where employee did not check in)
+      if (typeof this.prisma.attendanceLog?.deleteMany === 'function') {
+        await this.prisma.attendanceLog.deleteMany({
+          where: {
+            employee: { companyId },
+            date: { gte: startOfDay, lt: endOfDay },
+            status: 'absent',
+            checkIn: null,
+          },
+        });
+      }
+      return { date: startOfDay, marked: 0, skipped: 0 };
+    }
     if (absentEmployees.length === 0) {
       return { date: startOfDay, marked: 0, skipped: 0 };
     }
@@ -849,15 +879,31 @@ export class AttendanceService {
     const totalOvertimeMins = logs.reduce((s, l) => s + l.overtimeMinutes, 0);
 
     // Fetch company holidays for the month and exclude those on working days
-    const holidays = await this.prisma.holiday.findMany({
-      where: { companyId: targetCompanyId, date: { gte: start, lt: end } },
+    let holidays = await this.prisma.holiday.findMany({
+      where: groupWide ? {} : { companyId: targetCompanyId },
+      select: { id: true, date: true, name: true },
     });
-    const holidayCount = holidays.filter(h => {
-      const dow = h.date.getDay();
-      if (workingDaysPerWeek === 5 && dow >= 1 && dow <= 5) return true;
-      if (workingDaysPerWeek === 6 && dow >= 1 && dow <= 6) return true;
-      if (workingDaysPerWeek === 7) return true;
-      return false;
+    if (holidays.length === 0 && !groupWide) {
+      holidays = await this.prisma.holiday.findMany({
+        select: { id: true, date: true, name: true },
+      });
+    }
+
+    const monthHolidays = holidays.filter((h) => {
+      const hd = new Date(h.date);
+      return (
+        (hd.getUTCFullYear() === year && hd.getUTCMonth() === month - 1) ||
+        (hd.getFullYear() === year && hd.getMonth() === month - 1)
+      );
+    });
+
+    const holidayCount = monthHolidays.filter((h) => {
+      const hd = new Date(h.date);
+      const dow = hd.getDay();
+      const utcdow = hd.getUTCDay();
+      const isWd = (d: number) =>
+        workingDaysPerWeek === 5 ? d >= 1 && d <= 5 : workingDaysPerWeek === 6 ? d >= 1 && d <= 6 : true;
+      return isWd(dow) || isWd(utcdow);
     }).length;
 
     const daysInMonth = new Date(year, month, 0).getDate();
@@ -869,9 +915,20 @@ export class AttendanceService {
       else if (workingDaysPerWeek === 7) workingDaysInMonth++;
     }
 
-    const absent = Math.max(0, workingDaysInMonth - holidayCount - present - late - halfDay - onLeave);
+    const totalWorkingDays = Math.max(0, workingDaysInMonth - holidayCount);
+    const absent = Math.max(0, totalWorkingDays - present - late - halfDay - onLeave);
 
-    return { present, late, halfDay, onLeave, absent, holidays: holidayCount, totalOvertimeMins, totalDays: workingDaysInMonth - holidayCount, logs };
+    return {
+      present,
+      late,
+      halfDay,
+      onLeave,
+      absent,
+      holidays: holidayCount,
+      totalOvertimeMins,
+      totalDays: totalWorkingDays,
+      logs,
+    };
   }
 
   async listPendingRegularizations(companyId: string, userId?: string) {
