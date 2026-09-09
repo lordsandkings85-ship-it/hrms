@@ -261,6 +261,16 @@ export class LeaveController {
     );
   }
 
+  // Recalibrate and clean up leave balances for company employees
+  @Post('monthly-allocation/recalibrate')
+  @Permissions({ module: 'leave', action: 'edit' })
+  recalibrateBalances(
+    @CurrentUser() user: AuthUser,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.monthlyAllocationService.recalibrateAllBalances(companyId || user.companyId);
+  }
+
   // Read-only status of the monthly Casual Leave allocation (for admin visibility)
   @Get('monthly-allocation/status')
   @Permissions({ module: 'leave', action: 'view' })

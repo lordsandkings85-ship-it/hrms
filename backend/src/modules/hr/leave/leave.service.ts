@@ -656,7 +656,10 @@ export class LeaveService {
         existing.allotted = Math.max(existing.allotted, row.allotted);
       }
     }
-    return Array.from(seen.values());
+    return Array.from(seen.values()).map((r) => ({
+      ...r,
+      remaining: Math.max(0, r.allotted + r.carriedOver - r.used - r.pending - r.encashed),
+    }));
   }
 
   // Company-wide balance grid used by the HR "Employee Leave Balances" tab.
@@ -1062,6 +1065,24 @@ export class LeaveService {
     const adjusted = row.adjusted + (changes.adjusted ?? 0);
     const remaining = Math.max(0, row.openingBalance + row.allocated + adjusted - taken - pending);
     await tx.leaveMonthlyBalance.update({ where, data: { taken, pending, cancelled, adjusted, remaining } });
+
+    // Cascade carry forward to subsequent months of the same year
+    let prevRemaining = remaining;
+    for (let m = month + 1; m <= 12; m++) {
+      const nextWhere = { employeeId_leaveTypeId_year_month: { employeeId, leaveTypeId, year, month: m } };
+      const nextRow = await tx.leaveMonthlyBalance.findUnique({ where: nextWhere });
+      if (!nextRow) break;
+      const nextRemaining = Math.max(0, prevRemaining + nextRow.allocated + nextRow.adjusted - nextRow.taken - nextRow.pending);
+      await tx.leaveMonthlyBalance.update({
+        where: nextWhere,
+        data: {
+          openingBalance: prevRemaining,
+          carryForward: prevRemaining,
+          remaining: nextRemaining,
+        },
+      });
+      prevRemaining = nextRemaining;
+    }
   }
 
   /** Rule 4 — monthly balance ledger for an employee (optionally filtered by year) */

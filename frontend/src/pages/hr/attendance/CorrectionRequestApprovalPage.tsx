@@ -16,8 +16,17 @@ export default function CorrectionRequestApprovalPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
   const queryClient = useQueryClient();
   const { success: toastSuccess, error: toastError } = useToast();
+
+  const clearActionError = (id: string) =>
+    setActionErrors((prev) => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
 
   const { data: requests, isLoading } = useQuery({
     queryKey: ['regularization-pending'],
@@ -27,28 +36,36 @@ export default function CorrectionRequestApprovalPage() {
 
   const approveMutation = useMutation({
     mutationFn: (requestId: string) => attendanceApi.approveRegularization(requestId),
-    onSuccess: () => {
+    onSuccess: (_data, requestId) => {
       toastSuccess('Correction request approved');
+      clearActionError(requestId);
       queryClient.invalidateQueries({ queryKey: ['regularization-pending'] });
       queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
       queryClient.invalidateQueries({ queryKey: ['attendance-today'] });
       queryClient.invalidateQueries({ queryKey: ['attendance-summary'] });
       queryClient.invalidateQueries({ queryKey: ['attendance-summary-dash'] });
     },
-    onError: (err: any) => toastError(err.message || 'Failed to approve request'),
+    onError: (err: any, requestId) => {
+      toastError(err.message || 'Failed to approve request');
+      setActionErrors((prev) => ({ ...prev, [requestId]: err.message || 'Failed to approve request' }));
+    },
   });
 
   const rejectMutation = useMutation({
     mutationFn: (requestId: string) => attendanceApi.rejectRegularization(requestId),
-    onSuccess: () => {
+    onSuccess: (_data, requestId) => {
       toastSuccess('Correction request rejected');
+      clearActionError(requestId);
       queryClient.invalidateQueries({ queryKey: ['regularization-pending'] });
       queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
       queryClient.invalidateQueries({ queryKey: ['attendance-today'] });
       queryClient.invalidateQueries({ queryKey: ['attendance-summary'] });
       queryClient.invalidateQueries({ queryKey: ['attendance-summary-dash'] });
     },
-    onError: (err: any) => toastError(err.message || 'Failed to reject request'),
+    onError: (err: any, requestId) => {
+      toastError(err.message || 'Failed to reject request');
+      setActionErrors((prev) => ({ ...prev, [requestId]: err.message || 'Failed to reject request' }));
+    },
   });
 
   const filteredRequests = (requests || []).filter((req: any) => {
@@ -138,21 +155,29 @@ export default function CorrectionRequestApprovalPage() {
       key: 'actions',
       header: 'Actions',
       render: (row: any) => (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => approveMutation.mutate(row.id)}
-            disabled={approveMutation.isPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white border border-emerald-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all disabled:opacity-50"
-          >
-            <Check size={12} /> Approve
-          </button>
-          <button
-            onClick={() => { if (window.confirm('Reject this correction request?')) rejectMutation.mutate(row.id); }}
-            disabled={rejectMutation.isPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all disabled:opacity-50"
-          >
-            <X size={12} /> Reject
-          </button>
+        <div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => approveMutation.mutate(row.id)}
+              disabled={approveMutation.isPending || rejectMutation.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white border border-emerald-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all disabled:opacity-50"
+            >
+              <Check size={12} /> Approve
+            </button>
+            <button
+              onClick={() => { if (window.confirm('Reject this correction request?')) rejectMutation.mutate(row.id); }}
+              disabled={approveMutation.isPending || rejectMutation.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 text-[10px] rounded-lg font-bold uppercase tracking-wider transition-all disabled:opacity-50"
+            >
+              <X size={12} /> Reject
+            </button>
+          </div>
+          {actionErrors[row.id] && (
+            <div className="mt-2 max-w-[260px] rounded-lg border border-red-500/30 bg-red-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-red-500 flex items-start gap-1.5">
+              <X size={11} className="mt-px shrink-0" />
+              <span>{actionErrors[row.id]}</span>
+            </div>
+          )}
         </div>
       ),
     }
