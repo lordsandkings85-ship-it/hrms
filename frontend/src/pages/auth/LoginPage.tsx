@@ -5,9 +5,9 @@ import { authApi } from '../../api/client';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Spinner } from '../../components/ui/Spinner';
 import workoraIcon from '../../assets/brand/workora-icon.png';
-import { version as APP_VERSION } from '../../../package.json';
+import { APP_VERSION } from '../../constants';
 
-const VERSION = `v${APP_VERSION}`;
+const VERSION = `v${APP_VERSION || '2.0.0'}`;
 
 const FEATURES = [
   { icon: Fingerprint, text: 'Geofenced GPS attendance', desc: 'Pinpoint accuracy for distributed teams' },
