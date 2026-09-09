@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { employeesApi, organizationApi } from '../../api/client';
-import { Save, RefreshCw, Camera, Trash2, User, Upload } from 'lucide-react';
+import { Save, RefreshCw, Camera, Trash2, User, Upload, Sliders } from 'lucide-react';
 import { compressImage } from '../../utils/imageCompressor';
 import { useToast } from '../../components/ui/ToastProvider';
 import { useNavigate } from 'react-router-dom';
 import { getServerNow } from '../../utils/serverTime';
+import { AvatarAdjustmentModal } from '../../components/ui/AvatarAdjustmentModal';
 
 interface AdvancedEmployeeFormProps {
   onClose: () => void;
@@ -124,6 +125,8 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
   const [activeTab, setActiveTab] = useState('Contact');
   const [saving, setSaving] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
+  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+  const [adjustImageSrc, setAdjustImageSrc] = useState<string | null>(null);
 
   // Fetch dynamic data for dropdowns
   const { data: departments = [] } = useQuery({ queryKey: ['departments'], queryFn: () => organizationApi.listDepartments() });
@@ -1309,16 +1312,20 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
                       type="file"
                       accept="image/png,image/jpeg,image/webp,image/jpg"
                       className="hidden"
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
-                          try {
-                            const compressed = await compressImage(file, 400, 0.88);
-                            updateRoot('photoUrl', compressed);
-                          } catch (err) {
-                            console.error('Failed to compress image:', err);
-                          }
+                          const reader = new FileReader();
+                          reader.onload = (re) => {
+                            const src = re.target?.result as string;
+                            if (src) {
+                              setAdjustImageSrc(src);
+                              setIsAdjustModalOpen(true);
+                            }
+                          };
+                          reader.readAsDataURL(file);
                         }
+                        e.target.value = '';
                       }}
                     />
                     <label
@@ -1330,15 +1337,29 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
                     </label>
 
                     {formData.photoUrl && (
-                      <button
-                        type="button"
-                        onClick={() => updateRoot('photoUrl', '')}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/30 dark:hover:bg-rose-900/50 dark:text-rose-400 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-                        title="Remove Picture"
-                      >
-                        <Trash2 size={13} />
-                        <span>Remove</span>
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdjustImageSrc(formData.photoUrl);
+                            setIsAdjustModalOpen(true);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 dark:text-indigo-300 text-xs font-semibold rounded-lg transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800 shadow-2xs"
+                          title="Adjust, crop, zoom, or rotate avatar"
+                        >
+                          <Sliders size={13} />
+                          <span>Adjust</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateRoot('photoUrl', '')}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/30 dark:hover:bg-rose-900/50 dark:text-rose-400 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                          title="Remove Picture"
+                        >
+                          <Trash2 size={13} />
+                          <span>Remove</span>
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -1449,6 +1470,19 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
             </div>
           </form>
         </div>
+
+        {/* Avatar Cropper / Adjustment Modal */}
+        <AvatarAdjustmentModal
+          open={isAdjustModalOpen}
+          imageSrc={adjustImageSrc}
+          onClose={() => {
+            setIsAdjustModalOpen(false);
+            setAdjustImageSrc(null);
+          }}
+          onSave={(adjustedDataUrl) => {
+            updateRoot('photoUrl', adjustedDataUrl);
+          }}
+        />
 
       </div>
     </div>
