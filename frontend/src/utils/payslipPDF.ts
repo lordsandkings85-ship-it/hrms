@@ -373,30 +373,26 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   doc.setFillColor(...BRAND_ACCENT);
   doc.rect(0, 26.2, pageWidth, 0.8, 'F');
 
-  // Company logo + name, centered as a unit
+  // Company logo (centered) above the company name (centered)
   const logo = await getLogo(company?.logoUrl);
-  const logoBoxH = 16;
-  let logoW = 0;
-  if (logo) {
-    logoW = logoBoxH * (logo.width / logo.height);
-    if (logoW > 48) logoW = 48;
-    if (logoW < 10) logoW = 10;
-  }
-
-  const nameMax = Math.min(96, Math.max(40, pageWidth - 28 - (logoW + 4) - 44));
+  const nameMax = 90;
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
-  const nameW = doc.getTextWidth(companyName);
-  const nameWUsed = Math.min(nameW, nameMax);
-  const unitW = logoW + (logoW ? 4 : 0) + nameWUsed;
-  const startX = Math.max(14, (pageWidth - unitW) / 2);
-  const nameX = startX + logoW + (logoW ? 4 : 0);
+  const nameWUsed = Math.min(doc.getTextWidth(companyName), nameMax);
+  const nameX = (pageWidth - nameWUsed) / 2;
+
+  let nameY = 15;
   if (logo) {
-    doc.addImage(logo.dataUrl, 'PNG', startX, (27 - logoBoxH) / 2, logoW, logoBoxH);
+    const logoBoxH = 11;
+    let logoW = logoBoxH * (logo.width / logo.height);
+    if (logoW > 44) logoW = 44;
+    if (logoW < 8) logoW = 8;
+    doc.addImage(logo.dataUrl, 'PNG', (pageWidth - logoW) / 2, 2.2, logoW, logoBoxH);
+    nameY = 17.8;
   }
   fitText(doc, companyName, nameMax, 7.5);
-  doc.text(companyName, nameX, 15);
+  doc.text(companyName, nameX, nameY);
 
   // GST / PAN (CIN if present) — top-left of the header band
   const idParts = [
