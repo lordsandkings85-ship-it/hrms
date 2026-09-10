@@ -373,41 +373,44 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   doc.setFillColor(...BRAND_ACCENT);
   doc.rect(0, 26.2, pageWidth, 0.8, 'F');
 
-  // Company logo (transparent, blended directly into header)
+  // Company logo + name, centered as a unit
   const logo = await getLogo(company?.logoUrl);
-  let leftTextX = 14;
+  const logoBoxH = 16;
+  let logoW = 0;
   if (logo) {
-    const logoBoxH = 16;
-    let logoW = logoBoxH * (logo.width / logo.height);
+    logoW = logoBoxH * (logo.width / logo.height);
     if (logoW > 48) logoW = 48;
     if (logoW < 10) logoW = 10;
-    const logoY = (27 - logoBoxH) / 2;
-    doc.addImage(logo.dataUrl, 'PNG', 14, logoY, logoW, logoBoxH);
-    leftTextX = 14 + logoW + 4;
   }
 
-  const rightTitlesW = 55;
-  const maxCompW = Math.max(30, pageWidth - 14 - rightTitlesW - leftTextX - 4);
-
+  const nameMax = Math.min(96, Math.max(40, pageWidth - 28 - (logoW + 4) - 44));
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
-  fitText(doc, companyName, maxCompW, 7.5);
-  doc.text(companyName, leftTextX, 11.5);
+  const nameW = doc.getTextWidth(companyName);
+  const nameWUsed = Math.min(nameW, nameMax);
+  const unitW = logoW + (logoW ? 4 : 0) + nameWUsed;
+  const startX = Math.max(14, (pageWidth - unitW) / 2);
+  const nameX = startX + logoW + (logoW ? 4 : 0);
+  if (logo) {
+    doc.addImage(logo.dataUrl, 'PNG', startX, (27 - logoBoxH) / 2, logoW, logoBoxH);
+  }
+  fitText(doc, companyName, nameMax, 7.5);
+  doc.text(companyName, nameX, 15);
 
+  // GST / PAN (CIN if present) — top-left of the header band
   const idParts = [
     company?.gst ? `GST: ${company.gst}` : null,
     company?.pan ? `PAN: ${company.pan}` : null,
     company?.cin ? `CIN: ${company.cin}` : null,
   ].filter(Boolean);
-
-  const subLine = idParts.length ? idParts.join('  |  ') : (company?.email || company?.phone || '');
-  if (subLine) {
+  const idLine = idParts.join('  |  ');
+  if (idLine) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...BRAND_LIGHT);
-    fitText(doc, subLine, maxCompW, 6.5);
-    doc.text(subLine, leftTextX, 18);
+    fitText(doc, idLine, 52, 6.5);
+    doc.text(idLine, 14, 9.5);
   }
 
   // Right-side: SALARY SLIP badge pill
@@ -528,7 +531,6 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   y += 6;
 
 // ── Detailed Statutory Block (full width) ───────────────────────
-  const taxableAnnual = Number(b.taxableAnnual || 0);
   const effectiveRate = Number(b.effectiveTaxRate || 0);
   const basic = Number(b.basic || grossPay || 0);
 
@@ -557,18 +559,6 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
     headerRight: 'Contribution / Description'
   });
   y += 2;
-
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...MUTED);
-  const taxSummaryLine = `Tax Regime: ${b.taxRegime || 'New'}   |   Annual Gross CTC: ${fmt((grossPay || 0) * 12)}   |   Taxable Income: ${fmt(taxableAnnual)}`;
-  fitText(doc, taxSummaryLine, pageWidth - 28, 6.5);
-  doc.text(
-    taxSummaryLine,
-    colLeft + 1,
-    y,
-  );
-  y += 6.5;
 
   // ── NET SALARY PAYABLE HIGHLIGHT (Gentle Tint with Ruby & Slate text) ────────
   const netPay = Number(payslip?.netPay || 0);
