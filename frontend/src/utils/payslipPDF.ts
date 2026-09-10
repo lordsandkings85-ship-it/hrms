@@ -394,20 +394,6 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   fitText(doc, companyName, nameMax, 7.5);
   doc.text(companyName, nameX, nameY);
 
-  // GST / PAN (CIN if present) — stacked top-right of the header band
-  const idParts = [
-    company?.gst ? `GST: ${company.gst}` : null,
-    company?.pan ? `PAN: ${company.pan}` : null,
-    company?.cin ? `CIN: ${company.cin}` : null,
-  ].filter((p): p is string => Boolean(p));
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(...BRAND_LIGHT);
-  idParts.forEach((part, i) => {
-    fitText(doc, part, 52, 6.5);
-    doc.text(part, pageWidth - 14, 10 + i * 3.5, { align: 'right' });
-  });
-
   // Left-side: SALARY SLIP badge pill
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
@@ -422,12 +408,27 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
   doc.setTextColor(255, 255, 255);
-  doc.text(`${month} ${year}`, pageWidth - 14, 20, { align: 'right' });
+  doc.text(`${month} ${year}`, 14, 17.5);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(...BRAND_LIGHT);
-  doc.text(`Period: ${month} ${year}`, pageWidth - 14, 24, { align: 'right' });
+  doc.text(`Period: ${month} ${year}`, 14, 22.5);
+
+  // GST / PAN (CIN if present) — right side of the header band, right-aligned
+  const idParts = [
+    company?.gst ? `GST: ${company.gst}` : null,
+    company?.pan ? `PAN: ${company.pan}` : null,
+    company?.cin ? `CIN: ${company.cin}` : null,
+  ].filter((p): p is string => Boolean(p));
+  for (const [i, part] of idParts.entries()) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...BRAND_LIGHT);
+    const size = fitText(doc, part, 52, 6.5);
+    doc.setFontSize(size);
+    doc.text(part, pageWidth - 14, 10 + i * 3.5, { align: 'right' });
+  }
 
   // ── Body ──────────────────────────────────────────────────────────
   const colLeft = 14;
