@@ -412,17 +412,39 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
 
 
 
-  // GST / PAN (CIN if present) — right side of the header band, right-aligned
-  const idParts = [
-    company?.gst ? `GST: ${company.gst}` : null,
-    company?.pan ? `PAN: ${company.pan}` : null,
-    company?.cin ? `CIN: ${company.cin}` : null,
-  ].filter((p): p is string => Boolean(p));
-  for (const [i, part] of idParts.entries()) {
+  // GST / PAN (CIN if present) — right side of the header band, aligned tabular block
+  const idItems = [
+    company?.gst ? { label: 'GST:', value: String(company.gst) } : null,
+    company?.pan ? { label: 'PAN:', value: String(company.pan) } : null,
+    company?.cin ? { label: 'CIN:', value: String(company.cin) } : null,
+  ].filter((p): p is { label: string; value: string } => Boolean(p));
+
+  if (idItems.length > 0) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    const labelW = Math.max(...idItems.map(it => doc.getTextWidth(it.label))) + 2;
+
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(...BRAND_LIGHT);
-    doc.text(part, pageWidth - 14, 9.5 + i * 4.5, { align: 'right' });
+    doc.setFontSize(8.5);
+    const valW = Math.max(...idItems.map(it => doc.getTextWidth(it.value)));
+
+    const totalW = labelW + valW;
+    const blockX = pageWidth - 14 - totalW;
+
+    idItems.forEach((item, idx) => {
+      const iy = 15 + idx * 4.8;
+      // Label in bold BRAND_LIGHT
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...BRAND_LIGHT);
+      doc.text(item.label, blockX, iy);
+
+      // Value in normal crisp white
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text(item.value, blockX + labelW, iy);
+    });
   }
 
   // ── Body ──────────────────────────────────────────────────────────

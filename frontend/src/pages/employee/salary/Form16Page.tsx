@@ -28,10 +28,12 @@ export default function Form16Page() {
     if (!selectedData) return;
     const name = [user?.employee?.firstName, user?.employee?.lastName].filter(Boolean).join(' ') || user?.email || '';
     await generateForm16PDF(selectedData, { name, code: user?.employee?.employeeCode, pan: user?.employee?.pan }, {
-      name: user?.company?.name,
-      pan: user?.company?.panNumber,
-      gst: user?.company?.gstNumber,
-      address: user?.company?.address,
+      name: (user?.company as any)?.displayName || user?.company?.name,
+      pan: (user?.company as any)?.panNumber || (user?.company as any)?.pan,
+      gst: (user?.company as any)?.gstNumber || (user?.company as any)?.gst,
+      cin: (user?.company as any)?.cinNumber || (user?.company as any)?.cin,
+      address: (user?.company as any)?.address,
+      logoUrl: (user?.company as any)?.logoUrl,
     });
   };
 
