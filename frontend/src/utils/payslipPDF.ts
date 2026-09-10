@@ -394,7 +394,7 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   fitText(doc, companyName, nameMax, 7.5);
   doc.text(companyName, nameX, nameY);
 
-  // GST / PAN (CIN if present) — stacked top-left of the header band
+  // GST / PAN (CIN if present) — stacked top-right of the header band
   const idParts = [
     company?.gst ? `GST: ${company.gst}` : null,
     company?.pan ? `PAN: ${company.pan}` : null,
@@ -405,30 +405,29 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   doc.setTextColor(...BRAND_LIGHT);
   idParts.forEach((part, i) => {
     fitText(doc, part, 52, 6.5);
-    doc.text(part, 14, 10 + i * 3.5);
+    doc.text(part, pageWidth - 14, 10 + i * 3.5, { align: 'right' });
   });
 
-  // Right-side: SALARY SLIP badge pill
+  // Left-side: SALARY SLIP badge pill
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   const badgeText = 'SALARY SLIP';
   const badgeW = doc.getTextWidth(badgeText) + 6;
-  const badgeX = pageWidth - 14 - badgeW;
   doc.setDrawColor(255, 255, 255);
   doc.setLineWidth(0.4);
-  doc.roundedRect(badgeX, 6.5, badgeW, 6, 3, 3, 'S');
+  doc.roundedRect(14, 6.5, badgeW, 6, 3, 3, 'S');
   doc.setTextColor(255, 255, 255);
-  doc.text(badgeText, badgeX + badgeW / 2, 10.7, { align: 'center' });
+  doc.text(badgeText, 14 + badgeW / 2, 10.7, { align: 'center' });
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
   doc.setTextColor(255, 255, 255);
-  doc.text(`${month} ${year}`, pageWidth - 14, 17.5, { align: 'right' });
+  doc.text(`${month} ${year}`, pageWidth - 14, 20, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(...BRAND_LIGHT);
-  doc.text(`Period: ${month} ${year}`, pageWidth - 14, 22.5, { align: 'right' });
+  doc.text(`Period: ${month} ${year}`, pageWidth - 14, 24, { align: 'right' });
 
   // ── Body ──────────────────────────────────────────────────────────
   const colLeft = 14;
