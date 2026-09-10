@@ -394,20 +394,19 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   fitText(doc, companyName, nameMax, 7.5);
   doc.text(companyName, nameX, nameY);
 
-  // GST / PAN (CIN if present) — top-left of the header band
+  // GST / PAN (CIN if present) — stacked top-left of the header band
   const idParts = [
     company?.gst ? `GST: ${company.gst}` : null,
     company?.pan ? `PAN: ${company.pan}` : null,
     company?.cin ? `CIN: ${company.cin}` : null,
-  ].filter(Boolean);
-  const idLine = idParts.join('  |  ');
-  if (idLine) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(...BRAND_LIGHT);
-    fitText(doc, idLine, 52, 6.5);
-    doc.text(idLine, 14, 9.5);
-  }
+  ].filter((p): p is string => Boolean(p));
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...BRAND_LIGHT);
+  idParts.forEach((part, i) => {
+    fitText(doc, part, 52, 6.5);
+    doc.text(part, 14, 10 + i * 3.5);
+  });
 
   // Right-side: SALARY SLIP badge pill
   doc.setFont('helvetica', 'bold');
