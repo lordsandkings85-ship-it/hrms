@@ -384,12 +384,12 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
 
   let nameY = 15;
   if (logo) {
-    const logoBoxH = 11;
+    const logoBoxH = 12;
     let logoW = logoBoxH * (logo.width / logo.height);
     if (logoW > 44) logoW = 44;
     if (logoW < 8) logoW = 8;
     doc.addImage(logo.dataUrl, 'PNG', (pageWidth - logoW) / 2, 2.2, logoW, logoBoxH);
-    nameY = 17.8;
+    nameY = 19;
   }
   fitText(doc, companyName, nameMax, 7.5);
   doc.text(companyName, nameX, nameY);
@@ -401,19 +401,16 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   const badgeW = doc.getTextWidth(badgeText) + 6;
   doc.setDrawColor(255, 255, 255);
   doc.setLineWidth(0.4);
-  doc.roundedRect(14, 6.5, badgeW, 6, 3, 3, 'S');
+  doc.roundedRect(9, 6.5, badgeW, 6, 3, 3, 'S');
   doc.setTextColor(255, 255, 255);
-  doc.text(badgeText, 14 + badgeW / 2, 10.7, { align: 'center' });
+  doc.text(badgeText, 9 + badgeW / 2, 10.7, { align: 'center' });
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
   doc.setTextColor(255, 255, 255);
-  doc.text(`${month} ${year}`, 14, 17.5);
+  doc.text(`${month} ${year}`, 8.5, 19);
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(...BRAND_LIGHT);
-  doc.text(`Period: ${month} ${year}`, 14, 22.5);
+
 
   // GST / PAN (CIN if present) — right side of the header band, right-aligned
   const idParts = [
@@ -423,11 +420,9 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   ].filter((p): p is string => Boolean(p));
   for (const [i, part] of idParts.entries()) {
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(9);
     doc.setTextColor(...BRAND_LIGHT);
-    const size = fitText(doc, part, 52, 6.5);
-    doc.setFontSize(size);
-    doc.text(part, pageWidth - 14, 10 + i * 3.5, { align: 'right' });
+    doc.text(part, pageWidth - 14, 9.5 + i * 4.5, { align: 'right' });
   }
 
   // ── Body ──────────────────────────────────────────────────────────
