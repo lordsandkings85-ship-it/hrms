@@ -39,10 +39,11 @@ function zonedDateTime(timeZone: string, y: number, m: number, d: number, h: num
 function toZonedDate(timeZone: string, input?: string | Date | null): Date | undefined {
   if (!input) return undefined;
   if (input instanceof Date) return input;
-  // Naive ISO string like "2026-09-01T10:25:00" (or with seconds) — interpret as company wall-clock time
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(input);
-  if (m) {
-    return zonedDateTime(timeZone, +m[1], +m[2], +m[3], +m[4], +m[5], +(m[6] || 0));
+  // Naive ISO string like "2026-09-01T10:25:00" (or with seconds) — interpret as company wall-clock time.
+  // Fully-qualified timestamps (with Z or ±HH:MM offset) parse verbatim so their offset is preserved.
+  if (typeof input === 'string' && /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.test(input)) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(input);
+    return m ? zonedDateTime(timeZone, +m[1], +m[2], +m[3], +m[4], +m[5], +(m[6] || 0)) : undefined;
   }
   const dt = new Date(input);
   return isNaN(dt.getTime()) ? undefined : dt;

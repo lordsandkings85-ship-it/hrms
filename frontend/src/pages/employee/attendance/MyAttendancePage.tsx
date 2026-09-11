@@ -42,8 +42,8 @@ export default function MyAttendancePage() {
   const [selectedLogId, setSelectedLogId] = useState('');
   const [regularizeReason, setRegularizeReason] = useState('');
   const [regularizeType, setRegularizeType] = useState<'full_day' | 'regularization'>('full_day');
-  const [checkInTime, setCheckInTime] = useState('09:00');
-  const [checkOutTime, setCheckOutTime] = useState('18:00');
+  const [checkInTime, setCheckInTime] = useState('');
+  const [checkOutTime, setCheckOutTime] = useState('');
 
   // GPS Geolocation state
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -86,6 +86,11 @@ export default function MyAttendancePage() {
       setTab(SUB_TO_TAB[sub]);
     }
   }, [sub]);
+
+  useEffect(() => {
+    setCheckInTime('');
+    setCheckOutTime('');
+  }, [selectedLogId]);
 
   const handleTabChange = (t: TabKey) => {
     setTab(t);
@@ -176,8 +181,8 @@ export default function MyAttendancePage() {
       const dateStr = new Date(logDate).toISOString().split('T')[0];
       return attendanceApi.regularize(logId, { 
         employeeId: myEmpId, 
-        requestedCheckIn: checkInTime ? `${dateStr}T${checkInTime}:00+05:30` : null, 
-        requestedCheckOut: checkOutTime ? `${dateStr}T${checkOutTime}:00+05:30` : null, 
+        requestedCheckIn: checkInTime ? `${dateStr}T${checkInTime}:00` : null, 
+        requestedCheckOut: checkOutTime ? `${dateStr}T${checkOutTime}:00` : null, 
         reason 
       });
     },
@@ -416,11 +421,13 @@ export default function MyAttendancePage() {
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Actual Check-In Time</label>
                   <input type="time" value={checkInTime} onChange={e => setCheckInTime(e.target.value)}
+                    placeholder={(() => { const l = historyLogs?.find((x: any) => x.id === selectedLogId); return l?.checkIn ? `Keep ${fmtTime12(l.checkIn)}` : 'Keep original'; })()}
                     className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm text-[var(--text-primary)] font-mono focus:outline-none focus:border-blue-500/50" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Actual Check-Out Time</label>
                   <input type="time" value={checkOutTime} onChange={e => setCheckOutTime(e.target.value)}
+                    placeholder={(() => { const l = historyLogs?.find((x: any) => x.id === selectedLogId); return l?.checkOut ? `Keep ${fmtTime12(l.checkOut)}` : 'Keep original'; })()}
                     className="w-full px-3 py-2 bg-[var(--surface-alt)] border border-[var(--border)] rounded-xl text-sm text-[var(--text-primary)] font-mono focus:outline-none focus:border-blue-500/50" />
                 </div>
               </div>

@@ -129,3 +129,50 @@ describe('AttendanceService.markMissingCheckouts', () => {
     expect(result.marked).toBe(0);
   });
 });
+
+describe('AttendanceService.approveRegularization', () => {
+  const build = () => {
+    const originalCheckIn = new Date('2026-09-04T03:45:00Z');
+    const correctedCheckOut = new Date('2026-09-04T17:30:00Z');
+    const prisma: any = {
+      user: { findUnique: jest.fn(async () => null) },
+      regularizationRequest: {
+        findUnique: jest.fn(async () => ({
+          id: 'r-1',
+          attendanceLogId: 'l-1',
+          employeeId: 'e-1',
+          type: 'regularization',
+          reason: 'Missed check-out',
+          requestedCheckIn: null,
+          requestedCheckOut: correctedCheckOut,
+          employee: { id: 'e-1', companyId: 'c-1' },
+          attendanceLog: {
+            id: 'l-1',
+            date: new Date('2026-09-04'),
+            checkIn: originalCheckIn,
+            checkOut: null,
+            status: 'present',
+            attendanceStatus: null,
+          },
+        })),
+        update: jest.fn(async (a: any) => a),
+      },
+      attendanceLog: { update: jest.fn(async (a: any) => ({ id: 'l-1', ...a.data })) },
+      attendanceAudit: { create: jest.fn(async (a: any) => a) },
+      shiftAssignment: { findFirst: jest.fn(async () => null) },
+      attendancePolicy: { findMany: jest.fn(async () => []) },
+      $transaction: jest.fn(async (tx: any[]) => tx),
+    };
+    const notifications = { notifyApprover: jest.fn(async () => {}), notifyEmployee: jest.fn(async () => {}) };
+    const service = new AttendanceService(prisma as any, notifications as any);
+    return { service, prisma, originalCheckIn, correctedCheckOut };
+  };
+
+  it('preserves the original check-in when only a check-out was requested', async () => {
+    const { service, prisma, originalCheckIn, correctedCheckOut } = build();
+    await service.approveRegularization('r-1', 'c-1', 'approver');
+    const logUpdate = prisma.attendanceLog.update.mock.calls[0][0];
+    expect(logUpdate.data.checkIn).toEqual(originalCheckIn);
+    expect(logUpdate.data.checkOut).toEqual(correctedCheckOut);
+  });
+});
