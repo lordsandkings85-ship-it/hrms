@@ -890,7 +890,10 @@ export class AttendanceService {
     const holidaySetFor = async (empCompanyId: string) => {
       if (holidayCache.has(empCompanyId)) return holidayCache.get(empCompanyId)!;
       let holidays = await this.prisma.holiday.findMany({ where: { companyId: empCompanyId }, select: { date: true } });
-      if (holidays.length === 0 && !groupWide) {
+      // Companies without their own holiday list share the global one (holidays are
+      // registered under the parent company). Apply regardless of group-wide scope so
+      // HR and employee views agree on working-day totals.
+      if (holidays.length === 0) {
         holidays = await this.prisma.holiday.findMany({ select: { date: true } });
       }
       const set = new Set(holidays.map((h) => dateKey(h.date)));
@@ -1008,12 +1011,14 @@ export class AttendanceService {
     const onLeave = uniqueLogs.filter(l => l.status === 'on_leave').length;
     const totalOvertimeMins = logs.reduce((s, l) => s + l.overtimeMinutes, 0);
 
-    // Fetch company holidays for the month and exclude those on working days
+    // Fetch company holidays for the month and exclude those on working days.
+    // Companies without their own list share the global one so working-day totals
+    // agree for group-wide (HR) and employee viewers alike.
     let holidays = await this.prisma.holiday.findMany({
       where: groupWide ? {} : { companyId: targetCompanyId },
       select: { id: true, date: true, name: true },
     });
-    if (holidays.length === 0 && !groupWide) {
+    if (holidays.length === 0) {
       holidays = await this.prisma.holiday.findMany({
         select: { id: true, date: true, name: true },
       });
@@ -1076,12 +1081,14 @@ export class AttendanceService {
     for (let i = 1; i <= daysInMonth; i++) {
       const d = new Date(year, month - 1, i);
       const dow = d.getDay();
-      if (workingDaysPerWeek === 5 && dow >= 1 && dow <= 5) workingDaysInMonth++;
-      else if (workingDaysPerWeek === 6) {
+      // Mirror monthlyWorkdaySummaries exactly: Sunday is always off, and Saturday
+      // counts only for 6-day companies (with the 2nd-Saturday-off policy exempted).
+      if (dow === 0) continue;
+      if (dow === 6) {
+        if (workingDaysPerWeek !== 6) continue;
         if (this.isSecondSaturday(d) && secondSatOff) continue;
-        workingDaysInMonth++;
       }
-      else if (workingDaysPerWeek === 7) workingDaysInMonth++;
+      workingDaysInMonth++;
     }
 
     const totalWorkingDays = Math.max(0, workingDaysInMonth - holidayCount);

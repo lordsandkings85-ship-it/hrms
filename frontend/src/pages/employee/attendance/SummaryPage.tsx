@@ -2,8 +2,9 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { attendanceApiExt, attendanceApi, leaveApi } from '../../../api/client';
-import { Calendar as CalendarIcon, CheckCircle, XCircle, Clock as ClockIcon, AlertCircle, Search, Users, Gift, Download } from 'lucide-react';
+import { Calendar as CalendarIcon, CheckCircle, XCircle, Clock as ClockIcon, AlertCircle, Search, Users, Download } from 'lucide-react';
 import { Spinner } from '../../../components/ui/Spinner';
+import { RingChart } from '../../../components/ui/RingChart';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { getServerYear, getServerMonth } from '../../../utils/serverTime';
 import { fmtTime12 } from '../../../utils/formatDate';
@@ -34,6 +35,15 @@ function AdminSummary() {
     queryKey: ['attendance-monthly-report', year, month],
     queryFn: async () => { const r = await attendanceApi.listMonthly(year, month); return Array.isArray(r) ? r : []; },
   });
+
+  const { data: workdays } = useQuery({
+    queryKey: ['attendance-monthly-workdays', year, month],
+    queryFn: async () => { const r = await attendanceApi.monthlyWorkdays(year, month); return Array.isArray(r) ? r : []; },
+  });
+
+  const workdayMap = useMemo(() => {
+    return new Map((workdays || []).map((w: any) => [w.employeeId, w]));
+  }, [workdays]);
 
   const { data: holidays } = useQuery({
     queryKey: ['holidays-list', year, month],
@@ -147,8 +157,25 @@ function AdminSummary() {
       row.absent++;
     }
   }
+  // Bring in active employees that have no logged attendance rows this month
+  // (working-day totals/absences still apply to them from the backend summary).
+  for (const w of workdays || []) {
+    if (!w?.employeeId || personMap.has(w.employeeId)) continue;
+    personMap.set(w.employeeId, {
+      employeeId: w.employeeId,
+      firstName: w.firstName,
+      lastName: w.lastName,
+      employeeCode: w.employeeCode,
+      department: w.department || '--',
+      logs: [],
+      daysWorked: 0, present: 0, late: 0, halfDay: 0, onLeave: 0, absent: 0,
+      totalMins: 0, overtimeMins: 0,
+    });
+  }
   const personRows = Array.from(personMap.values()).sort((a, b) =>
     `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
+
+  const row = (p: any) => workdayMap.get(p.employeeId);
 
   const fmtHours = (mins: number) => {
     if (!mins) return '--';
@@ -163,11 +190,6 @@ function AdminSummary() {
   const exportExcel = async () => {
     if (!personRows.length) return;
     const monthName = new Date(0, month - 1).toLocaleString('default', { month: 'long' });
-    let workdayMap = new Map<string, any>();
-    try {
-      const workdays = await attendanceApi.monthlyWorkdays(year, month);
-      if (Array.isArray(workdays)) workdayMap = new Map(workdays.map((w: any) => [w.employeeId, w]));
-    } catch { /* fall back to the aggregated rows below */ }
     await downloadXlsx({
       filename: `Monthly_Attendance_${monthName}_${year}.xlsx`,
       sheetName: `${monthName} ${year}`,
@@ -218,17 +240,23 @@ function AdminSummary() {
     { key: 'daysWorked', header: 'Days Worked', render: (p: any) => (
       <span className="font-mono text-sm font-black text-slate-900 dark:text-white">{p.daysWorked}</span>
     )},
+    { key: 'totalWorkingDays', header: 'Total Working Days', render: (p: any) => (
+      <span className="font-mono text-sm font-black text-slate-900 dark:text-white">{row(p)?.totalWorkingDays ?? p.daysWorked}</span>
+    )},
     { key: 'present', header: 'Present', render: (p: any) => (
-      <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${p.present ? 'bg-emerald-500/10 text-emerald-500' : 'text-slate-400'}`}>{p.present}</span>
+      <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${(row(p)?.present ?? p.present) ? 'bg-emerald-500/10 text-emerald-500' : 'text-slate-400'}`}>{row(p)?.present ?? p.present}</span>
     )},
     { key: 'late', header: 'Late', render: (p: any) => (
-      <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${p.late ? 'bg-amber-500/10 text-amber-500' : 'text-slate-400'}`}>{p.late}</span>
+      <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${(row(p)?.late ?? p.late) ? 'bg-amber-500/10 text-amber-500' : 'text-slate-400'}`}>{row(p)?.late ?? p.late}</span>
     )},
     { key: 'halfDay', header: 'Half Day', render: (p: any) => (
-      <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${p.halfDay ? 'bg-blue-500/10 text-blue-500' : 'text-slate-400'}`}>{p.halfDay}</span>
+      <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${(row(p)?.halfDay ?? p.halfDay) ? 'bg-blue-500/10 text-blue-500' : 'text-slate-400'}`}>{row(p)?.halfDay ?? p.halfDay}</span>
     )},
     { key: 'onLeave', header: 'On Leave', render: (p: any) => (
-      <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${p.onLeave ? 'bg-indigo-500/10 text-indigo-500' : 'text-slate-400'}`}>{p.onLeave}</span>
+      <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${(row(p)?.onLeave ?? p.onLeave) ? 'bg-indigo-500/10 text-indigo-500' : 'text-slate-400'}`}>{row(p)?.onLeave ?? p.onLeave}</span>
+    )},
+    { key: 'absent', header: 'Absent', render: (p: any) => (
+      <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${(row(p)?.absent ?? p.absent) ? 'bg-rose-500/10 text-rose-500' : 'text-slate-400'}`}>{row(p)?.absent ?? p.absent}</span>
     )},
     { key: 'totalHours', header: 'Total Hours', render: (p: any) => (
       <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{fmtHours(p.totalMins)}</span>
@@ -433,6 +461,9 @@ function EmployeeSummary() {
     enabled: !!empId,
   });
 
+  const presentDays = summary ? summary.present + summary.late + (summary.halfDay * 0.5) : 0;
+  const totalExpected = summary ? summary.totalDays : 0;
+
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto animate-fade">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
@@ -464,50 +495,39 @@ function EmployeeSummary() {
       {isLoading ? (
         <div className="flex justify-center p-12"><Spinner size="lg" /></div>
       ) : summary ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
-              <CheckCircle size={24} />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Present</p>
-              <h2 className="text-2xl font-black text-slate-900 dark:text-white">{summary.present}</h2>
-            </div>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <CalendarIcon size={18} className="text-indigo-500" /> This Month's Attendance
+            </h3>
+            <span className="text-xs font-bold text-slate-500">
+              {new Date(0, month - 1).toLocaleString('default', { month: 'long' })} {year}
+            </span>
           </div>
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center text-rose-500 shrink-0">
-              <XCircle size={24} />
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+            <div className="relative flex-shrink-0">
+              <RingChart value={presentDays} max={totalExpected} color="var(--success)" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="font-mono text-lg font-bold text-slate-900 dark:text-white">{presentDays}</span>
+                <span className="text-[10px] text-slate-500">/ {totalExpected} days</span>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Absent</p>
-              <h2 className="text-2xl font-black text-slate-900 dark:text-white">{summary.absent}</h2>
-            </div>
-          </div>
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
-              <ClockIcon size={24} />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Late</p>
-              <h2 className="text-2xl font-black text-slate-900 dark:text-white">{summary.late}</h2>
-            </div>
-          </div>
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0">
-              <AlertCircle size={24} />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">On Leave</p>
-              <h2 className="text-2xl font-black text-slate-900 dark:text-white">{summary.onLeave}</h2>
-            </div>
-          </div>
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-cyan-50 dark:bg-cyan-500/10 flex items-center justify-center text-cyan-500 shrink-0">
-              <Gift size={24} />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Holidays</p>
-              <h2 className="text-2xl font-black text-slate-900 dark:text-white">{summary.holidays ?? 0}</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-3 flex-1 w-full">
+              {[
+                { label: 'Total Working Days', value: summary.totalDays, color: 'var(--info)' },
+                { label: 'Present', value: summary.present + summary.late, color: 'var(--success)' },
+                { label: 'Late', value: summary.late, color: 'var(--warning)' },
+                { label: 'Half Day', value: summary.halfDay, color: 'var(--info)' },
+                { label: 'On Leave', value: summary.onLeave, color: 'var(--primary)' },
+                { label: 'Absent', value: summary.absent, color: 'var(--danger)' },
+                { label: 'Holidays', value: summary.holidays ?? 0, color: 'var(--success)' },
+              ].map(row => (
+                <div key={row.label} className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: row.color }} />
+                  <span className="text-xs flex-1 text-slate-500">{row.label}</span>
+                  <span className="font-mono text-xs font-semibold text-slate-900 dark:text-white">{row.value}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

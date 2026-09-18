@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { payrollApi, payrollApiExt, attendanceApiExt, leaveApi, dashboardApi, dashboardSummaryKey, attendanceApi, announcementsApi } from '../../../api/client';
 import { Fingerprint, Calendar, Download, Eye, Shield, ArrowRight, TrendingUp, Megaphone, Bell, Clock, User, Banknote, CalendarDays, Receipt, Headphones, Target, ChevronRight, UserMinus, AlertTriangle } from 'lucide-react';
 import { Spinner } from '../../../components/ui/Spinner';
+import { RingChart } from '../../../components/ui/RingChart';
 import { generatePayslipPDF } from '../../../utils/payslipPDF';
 import { PayslipPreviewModal } from '../../../components/payroll/PayslipPreviewModal';
 import { StatusBadge } from '../../../components/ui/Badge';
@@ -13,26 +14,6 @@ import { useServerTime } from '../../../hooks/useServerTime';
 import { useShiftRemaining, fmtShiftHM } from '../../../hooks/useShiftRemaining';
 import { getServerDate, getServerYear, getServerMonth } from '../../../utils/serverTime';
 import { fmtDate, fmt24To12 } from '../../../utils/formatDate';
-
-// SVG ring chart using CSS variables
-function RingChart({ value, max, color = 'var(--info)' }: { value: number; max: number; color?: string }) {
-   const r = 36;
-   const circ = 2 * Math.PI * r;
-   const pct = max > 0 ? Math.min(value / max, 1) : 0;
-   const dash = pct * circ;
-   return (
-      <svg width="96" height="96" viewBox="0 0 96 96" className="-rotate-90">
-         <circle cx="48" cy="48" r={r} fill="none" stroke="var(--border-subtle)" strokeWidth="10" />
-         <circle
-            cx="48" cy="48" r={r} fill="none"
-            stroke={color} strokeWidth="10"
-            strokeDasharray={`${dash} ${circ}`}
-            strokeLinecap="round"
-            style={{ transition: 'stroke-dasharray 0.6s ease' }}
-         />
-      </svg>
-   );
-}
 
 const LiveClock = React.memo(function LiveClock() {
    const { now } = useServerTime();
