@@ -62,6 +62,19 @@ export class MilestoneAnnouncementsService {
     let createdNotifications = 0;
     let createdAnnouncements = 0;
 
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+    // Auto-expire milestone announcements from previous days so a "finished" birthday or
+    // work anniversary stops showing in the Announcements list. Runs once daily with this job.
+    await this.prisma.announcement.updateMany({
+      where: {
+        category: { in: ['Birthday', 'Anniversary'] },
+        isActive: true,
+        createdAt: { lt: startOfToday },
+      },
+      data: { isActive: false },
+    });
+
     for (const company of companies) {
       const employees = await this.prisma.employee.findMany({
         where: { companyId: company.id, status: 'active' },

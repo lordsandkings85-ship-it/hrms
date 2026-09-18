@@ -56,6 +56,7 @@ describe('MilestoneAnnouncementsService', () => {
         findFirst: jest.fn(async () => mocks.existingAnnouncement ?? null),
         count: jest.fn(async () => 1),
         create: jest.fn(async (a: any) => a.data),
+        updateMany: jest.fn(async () => ({ count: 0 })),
       },
     };
     const notifications = { create: jest.fn(async (n: any) => n) };
