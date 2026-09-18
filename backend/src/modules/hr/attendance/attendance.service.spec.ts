@@ -176,3 +176,73 @@ describe('AttendanceService.approveRegularization', () => {
     expect(logUpdate.data.checkOut).toEqual(correctedCheckOut);
   });
 });
+
+describe('AttendanceService.monthlyWorkdaySummaries', () => {
+  const notifications = { notifyApprover: jest.fn(async () => {}), notifyEmployee: jest.fn(async () => {}) };
+
+  it('counts 6-day working days minus second Saturday (policy) and holidays; derives absent', async () => {
+    const prisma: any = {
+      employee: {
+        findMany: jest.fn(async () => [{
+          id: 'e-1', firstName: 'Alice', lastName: 'Smith', employeeCode: 'E1',
+          workingDaysPerWeek: 6, companyId: 'c-1', department: { name: 'Eng' },
+        }]),
+      },
+      attendancePolicy: {
+        findMany: jest.fn(async () => [{ companyId: 'c-1', value: 'true' }]),
+      },
+      holiday: {
+        findMany: jest.fn(async () => [{ date: new Date(2026, 8, 16) }]),
+      },
+      attendanceLog: {
+        findMany: jest.fn(async () =>
+          [1, 2, 3, 7, 8, 9, 10, 11, 17, 18].map((d) => ({
+            employeeId: 'e-1', date: new Date(2026, 8, d), status: 'present',
+          })),
+        ),
+      },
+    };
+    const service = new AttendanceService(prisma as any, notifications as any);
+    const rows = await service.monthlyWorkdaySummaries('c-1', 2026, 9);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      employeeCode: 'E1',
+      totalWorkingDays: 24, // 25 (Mon-Sat minus second Sat) - 1 holiday
+      present: 10,
+      late: 0,
+      halfDay: 0,
+      onLeave: 0,
+      absent: 14,
+    });
+  });
+
+  it('counts 5-day working days for employees of companies without the second-Saturday policy', async () => {
+    const prisma: any = {
+      employee: {
+        findMany: jest.fn(async () => [{
+          id: 'e-2', firstName: 'Bob', lastName: 'Jones', employeeCode: 'E2',
+          workingDaysPerWeek: 5, companyId: 'c-2', department: { name: 'Ops' },
+        }]),
+      },
+      attendancePolicy: {
+        findMany: jest.fn(async () => []),
+      },
+      holiday: {
+        findMany: jest.fn()
+          .mockImplementationOnce(async () => [])
+          .mockImplementation(async () => [{ date: new Date(2026, 8, 16) }]),
+      },
+      attendanceLog: {
+        findMany: jest.fn(async () => []),
+      },
+    };
+    const service = new AttendanceService(prisma as any, notifications as any);
+    const rows = await service.monthlyWorkdaySummaries('c-2', 2026, 9);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      totalWorkingDays: 21, // 22 (Mon-Fri) - 1 holiday
+      present: 0,
+      absent: 21,
+    });
+  });
+});

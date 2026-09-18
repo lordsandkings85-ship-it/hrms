@@ -77,6 +77,21 @@ export class AttendanceController {
     );
   }
 
+  @Get('monthly/working-days')
+  @Permissions({ module: 'attendance', action: 'view' })
+  monthlyWorkdays(
+    @CurrentUser() user: AuthUser,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    return this.attendanceService.monthlyWorkdaySummaries(
+      user.companyId,
+      year ? Number(year) : undefined,
+      month ? Number(month) : undefined,
+      user.userId,
+    );
+  }
+
   @Get('summary/:employeeId')
   @Permissions({ module: 'attendance', action: 'view' })
   monthlySummary(

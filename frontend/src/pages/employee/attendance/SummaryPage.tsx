@@ -163,32 +163,39 @@ function AdminSummary() {
   const exportExcel = async () => {
     if (!personRows.length) return;
     const monthName = new Date(0, month - 1).toLocaleString('default', { month: 'long' });
+    let workdayMap = new Map<string, any>();
+    try {
+      const workdays = await attendanceApi.monthlyWorkdays(year, month);
+      if (Array.isArray(workdays)) workdayMap = new Map(workdays.map((w: any) => [w.employeeId, w]));
+    } catch { /* fall back to the aggregated rows below */ }
     await downloadXlsx({
       filename: `Monthly_Attendance_${monthName}_${year}.xlsx`,
       sheetName: `${monthName} ${year}`,
-      totalsRow: true,
       columns: [
         { header: 'Employee Name', key: 'employeeName', width: 24 },
         { header: 'Employee Code', key: 'employeeCode', width: 14 },
         { header: 'Department', key: 'department', width: 22 },
-        { header: 'Working Days', key: 'daysWorked', width: 13, type: 'number' },
+        { header: 'Total Working Days', key: 'totalWorkingDays', width: 18, type: 'number' },
         { header: 'Present', key: 'present', width: 11, type: 'number' },
         { header: 'Absent', key: 'absent', width: 11, type: 'number' },
         { header: 'On Leave', key: 'onLeave', width: 11, type: 'number' },
         { header: 'Half Days', key: 'halfDay', width: 11, type: 'number' },
         { header: 'Late', key: 'late', width: 11, type: 'number' },
       ],
-      rows: personRows.map((p: any) => ({
-        employeeName: `${p.firstName || ''} ${p.lastName || ''}`.trim(),
-        employeeCode: p.employeeCode || '',
-        department: p.department || '',
-        daysWorked: p.daysWorked,
-        present: p.present,
-        absent: p.absent,
-        onLeave: p.onLeave,
-        halfDay: p.halfDay,
-        late: p.late,
-      })),
+      rows: personRows.map((p: any) => {
+        const w = workdayMap.get(p.employeeId) || {};
+        return {
+          employeeName: `${p.firstName || ''} ${p.lastName || ''}`.trim(),
+          employeeCode: p.employeeCode || '',
+          department: p.department || '',
+          totalWorkingDays: w.totalWorkingDays ?? p.daysWorked,
+          present: w.present ?? p.present,
+          absent: w.absent ?? p.absent,
+          onLeave: w.onLeave ?? p.onLeave,
+          halfDay: w.halfDay ?? p.halfDay,
+          late: w.late ?? p.late,
+        };
+      }),
     });
   };
 

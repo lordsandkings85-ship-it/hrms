@@ -400,6 +400,12 @@ listToday: (date?: string) => {
     if (month) qs.set('month', String(month));
     return api<any[]>(`/attendance/monthly?${qs.toString()}`);
   },
+  monthlyWorkdays: (year?: number, month?: number) => {
+    const qs = new URLSearchParams();
+    if (year) qs.set('year', String(year));
+    if (month) qs.set('month', String(month));
+    return api<any[]>(`/attendance/monthly/working-days?${qs.toString()}`);
+  },
   listPendingRegularizations: () =>
     api<any[]>('/attendance/regularize/pending'),
   listRegularizations: (status?: 'pending' | 'approved' | 'rejected' | 'all') =>
