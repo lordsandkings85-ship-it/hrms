@@ -2,11 +2,12 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { attendanceApiExt, attendanceApi, leaveApi } from '../../../api/client';
-import { Calendar as CalendarIcon, CheckCircle, XCircle, Clock as ClockIcon, AlertCircle, Search, Users, Gift } from 'lucide-react';
+import { Calendar as CalendarIcon, CheckCircle, XCircle, Clock as ClockIcon, AlertCircle, Search, Users, Gift, Download } from 'lucide-react';
 import { Spinner } from '../../../components/ui/Spinner';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { getServerYear, getServerMonth } from '../../../utils/serverTime';
 import { fmtTime12 } from '../../../utils/formatDate';
+import { downloadXlsx } from '../../../utils/excelExport';
 
 function useIsAdmin() {
   const { user } = useAuthStore();
@@ -158,6 +159,38 @@ function AdminSummary() {
   const selectedPersonLogs = selectedPerson
     ? [...selectedPerson.logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     : [];
+
+  const exportExcel = async () => {
+    if (!personRows.length) return;
+    const monthName = new Date(0, month - 1).toLocaleString('default', { month: 'long' });
+    await downloadXlsx({
+      filename: `Monthly_Attendance_${monthName}_${year}.xlsx`,
+      sheetName: `${monthName} ${year}`,
+      totalsRow: true,
+      columns: [
+        { header: 'Employee Name', key: 'employeeName', width: 24 },
+        { header: 'Employee Code', key: 'employeeCode', width: 14 },
+        { header: 'Department', key: 'department', width: 22 },
+        { header: 'Working Days', key: 'daysWorked', width: 13, type: 'number' },
+        { header: 'Present', key: 'present', width: 11, type: 'number' },
+        { header: 'Absent', key: 'absent', width: 11, type: 'number' },
+        { header: 'On Leave', key: 'onLeave', width: 11, type: 'number' },
+        { header: 'Half Days', key: 'halfDay', width: 11, type: 'number' },
+        { header: 'Late', key: 'late', width: 11, type: 'number' },
+      ],
+      rows: personRows.map((p: any) => ({
+        employeeName: `${p.firstName || ''} ${p.lastName || ''}`.trim(),
+        employeeCode: p.employeeCode || '',
+        department: p.department || '',
+        daysWorked: p.daysWorked,
+        present: p.present,
+        absent: p.absent,
+        onLeave: p.onLeave,
+        halfDay: p.halfDay,
+        late: p.late,
+      })),
+    });
+  };
 
   // ---- Per-person summary columns ----
   const columns: Column<any>[] = [
@@ -336,9 +369,14 @@ function AdminSummary() {
                   <input type="text" placeholder="Search employee..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64" />
                 </div>
+                <button onClick={exportExcel}
+                  className="px-4 py-2 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 rounded-lg hover:bg-indigo-500/20 transition-colors flex items-center gap-1.5">
+                  <Download size={14} /> Export Excel
+                </button>
               </div>
             </div>
             <DataTable columns={columns} data={personRows} loading={logsLoading} keyField="employeeId"
+              exportable={false}
               onRowClick={(p: any) => setSelectedEmpId(selectedEmpId === p.employeeId ? null : p.employeeId)}
               rowClassName={(p: any) => selectedEmpId === p.employeeId ? 'cursor-pointer ring-1 ring-indigo-400' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50'} />
           </div>
