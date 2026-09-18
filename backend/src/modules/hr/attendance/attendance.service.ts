@@ -1019,6 +1019,23 @@ export class AttendanceService {
       });
     }
 
+    // Second-Saturday-off policy (mirrors monthlyWorkdaySummaries): when a 6-day company
+    // has the policy enabled, the 2nd Saturday of the month is not a working day.
+    const secondSatPolicy = await this.prisma.attendancePolicy.findFirst({
+      where: {
+        companyId: targetCompanyId,
+        key: 'custom.secondSaturdayOff',
+      },
+      select: { value: true },
+    });
+    const secondSaturdayOff =
+      secondSatPolicy?.value === 'true' ||
+      (secondSatPolicy === null &&
+        (await this.prisma.attendancePolicy.findFirst({
+          where: { key: 'custom.secondSaturdayOff' },
+          select: { value: true },
+        }))?.value === 'true');
+
     const monthHolidays = holidays.filter((h) => {
       const hd = new Date(h.date);
       return (
@@ -1037,11 +1054,33 @@ export class AttendanceService {
     }).length;
 
     const daysInMonth = new Date(year, month, 0).getDate();
+
+    // Second-Saturday-off policy: skip 2nd Saturday from the working-day total just like
+    // monthlyWorkdaySummaries does, so the dashboard card agrees with the monthly report/export.
+    const secondSatPolicies = await this.prisma.attendancePolicy.findMany({
+      where: {
+        companyId: targetCompanyId,
+        key: 'custom.secondSaturdayOff',
+      },
+      select: { value: true },
+    });
+    const secondSatOff =
+      secondSatPolicies.length > 0
+        ? secondSatPolicies[0].value === 'true'
+        : (await this.prisma.attendancePolicy.findFirst({
+            where: { key: 'custom.secondSaturdayOff' },
+            select: { value: true },
+          }))?.value === 'true';
+
     let workingDaysInMonth = 0;
     for (let i = 1; i <= daysInMonth; i++) {
-      const d = new Date(year, month - 1, i).getDay();
-      if (workingDaysPerWeek === 5 && d >= 1 && d <= 5) workingDaysInMonth++;
-      else if (workingDaysPerWeek === 6 && d >= 1 && d <= 6) workingDaysInMonth++;
+      const d = new Date(year, month - 1, i);
+      const dow = d.getDay();
+      if (workingDaysPerWeek === 5 && dow >= 1 && dow <= 5) workingDaysInMonth++;
+      else if (workingDaysPerWeek === 6) {
+        if (this.isSecondSaturday(d) && secondSatOff) continue;
+        workingDaysInMonth++;
+      }
       else if (workingDaysPerWeek === 7) workingDaysInMonth++;
     }
 
