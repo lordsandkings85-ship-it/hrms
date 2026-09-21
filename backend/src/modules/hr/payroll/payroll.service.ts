@@ -163,14 +163,30 @@ export class PayrollService {
       throw new BadRequestException('No eligible employees found for this payroll run. Check the company scope, employee status, and that salary structures exist.');
     }
 
-    let holidays = await this.prisma.holiday.findMany({
-      where: { companyId, date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) } },
+    // Holiday calendar: fetched per employee company with a global fallback so payroll
+    // working days agree with the attendance module (companies without their own holiday
+    // list share holidays registered under the parent company).
+    const monthHolidays = await this.prisma.holiday.findMany({
+      where: { date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) } },
     });
-    if (holidays.length === 0) {
-      holidays = await this.prisma.holiday.findMany({
-        where: { date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) } },
-      });
+    const holidaysByCompany = new Map<string, any[]>();
+    for (const h of monthHolidays) {
+      const list = holidaysByCompany.get(h.companyId) || [];
+      list.push(h);
+      holidaysByCompany.set(h.companyId, list);
     }
+
+    // Second-Saturday-off policy per employee company (6-day weeks), global fallback.
+    const empCompanyIds = [...new Set(employees.map((e) => e.companyId).filter(Boolean))];
+    const satPolicies = await this.prisma.attendancePolicy.findMany({
+      where: { companyId: { in: empCompanyIds }, key: 'custom.secondSaturdayOff' },
+      select: { companyId: true, value: true },
+    });
+    const satPolicyGlobal = await this.prisma.attendancePolicy.findFirst({
+      where: { key: 'custom.secondSaturdayOff' },
+      select: { value: true },
+    });
+    const secondSatByCompany = new Map(satPolicies.map((p) => [p.companyId, p.value === 'true']));
 
     // Fetch all additional payouts for this month/year in bulk
     const allPayouts = await this.prisma.additionalPayout.findMany({
@@ -208,12 +224,6 @@ export class PayrollService {
       }
       return workingDays;
     };
-    const isWorkingDay = (date: Date, workingDaysPerWeek: number) => {
-      const dayOfWeek = date.getDay();
-      if (workingDaysPerWeek === 5) return dayOfWeek >= 1 && dayOfWeek <= 5;
-      if (workingDaysPerWeek === 6) return dayOfWeek >= 1 && dayOfWeek <= 6;
-      return true;
-    };
 
 let payslipCount = 0;
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -225,18 +235,50 @@ let payslipCount = 0;
         const gross = Number(structure.basic) + Number(structure.hra) + Number(structure.da) + Number(structure.conveyance) +
           Number(structure.medical) + Number(structure.specialAllowance);
 
-        // LOP Calculation: working days with no attendance log, excluding company holidays
-        const totalWorkingDays = countWorkingDays(monthStart, monthEnd, wdPerWeek);
-        // Dedupe by stored calendar date (UTC) - multiple punches per day count once.
-        const loggedDays = new Set(
+        // LOP Calculation mirrors the attendance calendar: net working days = Monday-Saturday
+        // (or specified 5/7-day week) minus second Saturdays (policy) minus holidays that fall
+        // on working days. Paid days only count real attendance (present/late/half_day/on_leave)
+        // — nightly auto-backfilled 'absent' placeholder rows must NOT count as paid days.
+        const ownHolidays = holidaysByCompany.get(emp.companyId) || [];
+        const holidaySource = ownHolidays.length > 0 ? ownHolidays : monthHolidays;
+        const holidayKey = (d: Date) =>
+          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const holidaySet = new Set(holidaySource.map((h) => holidayKey(h.date)));
+        const secondSatOff = secondSatByCompany.has(emp.companyId)
+          ? secondSatByCompany.get(emp.companyId)!
+          : satPolicyGlobal?.value === 'true';
+
+        const isNetWorkingDay = (d: Date) => {
+          const dow = d.getDay();
+          if (dow === 0) return false; // Sunday
+          if (dow === 6) {
+            if (wdPerWeek !== 6) return false; // Saturday only for 6-day week
+            if (d.getDate() >= 8 && d.getDate() <= 14 && secondSatOff) return false; // 2nd Saturday off
+          }
+          return !holidaySet.has(holidayKey(d));
+        };
+
+        const daysInMonth = new Date(year, month, 0).getDate();
+        let totalWorkingDays = 0;
+        for (let i = 1; i <= daysInMonth; i++) {
+          if (isNetWorkingDay(new Date(year, month - 1, i))) totalWorkingDays++;
+        }
+
+        const paidStatuses = new Set(['present', 'late', 'half_day', 'on_leave']);
+        // Dedupe by stored calendar date (UTC) — multiple punches per day count once.
+        const paidDays = new Set(
           emp.attendanceLog
-            .filter((log) => isWorkingDay(log.date, wdPerWeek))
-            .map((log) => log.date.getUTCFullYear() * 10000 + log.date.getUTCMonth() * 100 + log.date.getUTCDate()),
+            .filter((log) => paidStatuses.has(log.status) && isNetWorkingDay(log.date))
+            .map((log) => log.date.getUTCFullYear() * 10000 + (log.date.getUTCMonth() + 1) * 100 + log.date.getUTCDate()),
         ).size;
-        const holidayDays = holidays.filter((h) => isWorkingDay(h.date, wdPerWeek)).length;
-        const lopDays = Math.max(0, totalWorkingDays - loggedDays - holidayDays);
+        const holidayDays = Array.from(holidaySet).filter((k) => {
+          const [yy, mm, dd] = k.split('-').map(Number);
+          const dow = new Date(yy, mm - 1, dd).getDay();
+          return wdPerWeek === 5 ? dow >= 1 && dow <= 5 : wdPerWeek === 6 ? dow >= 1 && dow <= 6 : true;
+        }).length;
+        const lopDays = Math.max(0, totalWorkingDays - paidDays);
         let lopAmount = totalWorkingDays > 0 ? (gross / totalWorkingDays) * lopDays : 0;
-        
+
         // Safety Clamp: LOP cannot exceed gross salary & rounded to nearest rupee
         lopAmount = Math.round(Math.min(lopAmount, gross));
 
@@ -313,6 +355,8 @@ let payslipCount = 0;
           lopDays,
           lopAmount: Math.round(lopAmount),
           totalWorkingDays,
+          paidDays,
+          holidayDays,
         };
 
         const empComp = emp.company;

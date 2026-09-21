@@ -533,7 +533,7 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   // Working days band (full width)
   const workingDays = payslip?.workingDays || b.totalWorkingDays || 30;
   const lopDays = payslip?.lossOfPayDays || b.lopDays || 0;
-  const paidDays = payslip?.paidDays || Math.max(0, workingDays - lopDays);
+  const paidDays = payslip?.paidDays || b.paidDays || Math.max(0, workingDays - lopDays);
   y = infoBand(doc, colLeft, y, pageWidth - 28, [
     ['Total Working Days', `${workingDays} Days`],
     ['Paid Days', `${paidDays} Days`],

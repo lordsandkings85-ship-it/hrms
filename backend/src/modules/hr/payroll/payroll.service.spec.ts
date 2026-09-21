@@ -51,6 +51,10 @@ describe('PayrollService', () => {
       holiday: {
         findMany: jest.fn(async () => []),
       },
+      attendancePolicy: {
+        findMany: jest.fn(async () => []),
+        findFirst: jest.fn(async () => null),
+      },
       additionalPayout: {
         findMany: jest.fn(async () => []),
       },
@@ -102,7 +106,7 @@ describe('PayrollService', () => {
     });
 
     it('deducts LOP for working days with no attendance log, excluding holidays', async () => {
-      // Aug 2026: 21 working days (5-day week)
+      // Aug 2026: 21 weekdays (5-day week), minus 1 holiday (Fri Aug 14) = 20 net working days
       const emp = baseEmployee({
         salaryStructures: [baseStructure()],
         attendanceLog: [
@@ -111,6 +115,7 @@ describe('PayrollService', () => {
           { date: new Date(2026, 7, 5), status: 'late' },
           { date: new Date(2026, 7, 6), status: 'present' },
           { date: new Date(2026, 7, 7), status: 'on_leave' },
+          { date: new Date(2026, 7, 11), status: 'absent' }, // nightly backfill - NOT a paid day
         ],
       });
       prisma.employee.findMany.mockResolvedValueOnce([emp]);
@@ -121,11 +126,13 @@ describe('PayrollService', () => {
 
       const createArgs = prisma.payslip.create.mock.calls[0][0];
       const breakdown = createArgs.data.breakdown;
-      expect(breakdown.totalWorkingDays).toBe(21);
-      expect(breakdown.lopDays).toBe(21 - 5 - 1);
-      expect(breakdown.lopAmount).toBe(Math.round((10000 / 21) * 15));
+      expect(breakdown.totalWorkingDays).toBe(20);
+      expect(breakdown.holidayDays).toBe(1);
+      expect(breakdown.paidDays).toBe(5);
+      expect(breakdown.lopDays).toBe(20 - 5);
+      expect(breakdown.lopAmount).toBe(Math.round((10000 / 20) * 15));
       // net = gross - pf(1200) - esi(75) - lopAmount (rounded to nearest rupee)
-      expect(createArgs.data.netPay).toBe(10000 - 1200 - 75 - Math.round((10000 / 21) * 15));
+      expect(createArgs.data.netPay).toBe(10000 - 1200 - 75 - Math.round((10000 / 20) * 15));
     });
 
     it('pays full shift allowance for assignments active the whole month and prorates mid-month starts', async () => {
