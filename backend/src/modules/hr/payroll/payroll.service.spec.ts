@@ -2,6 +2,13 @@ import { Test } from '@nestjs/testing';
 import { PayrollService } from './payroll.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { MailService } from '../../../common/mail/mail.service';
+import { isGroupWideUser } from '../../../utils/group-access.util';
+
+jest.mock('../../../utils/group-access.util', () => ({
+  isGroupWideUser: jest.fn(async () => false),
+}));
+
+const mockGroupWide = (value: boolean) => (isGroupWideUser as jest.Mock).mockResolvedValue(value);
 
 describe('PayrollService', () => {
   let service: PayrollService;
@@ -167,6 +174,32 @@ describe('PayrollService', () => {
 
       const shiftWhere = employeeQueryArgs.include.shiftAssignment.where;
       expect(shiftWhere.effectiveFrom.lt).toEqual(new Date(2026, 8, 1));
+    });
+
+    it('does not scope employees/payouts to the caller company for group-wide runs', async () => {
+      mockGroupWide(true);
+      prisma.employee.findMany.mockImplementationOnce(async (args: any) => {
+        employeeQueryArgs = args;
+        return [baseEmployee({ companyId: 'company-2', salaryStructures: [baseStructure()] })];
+      });
+
+      await service.runPayroll('company-1', 8, 2026, 'new', ['emp-1'], 'user-1');
+
+      expect(employeeQueryArgs.where.companyId).toBeUndefined();
+      expect(employeeQueryArgs.where.status).toBe('active');
+      // Payouts fetched group-wide when run spans multiple companies.
+      const payoutWhere = prisma.additionalPayout.findMany.mock.calls[0][0].where;
+      expect(payoutWhere.employee).toBeUndefined();
+      expect(payoutWhere.month).toBe(8);
+    });
+
+    it('fails loudly instead of marking a cycle processed with zero payslips', async () => {
+      prisma.employee.findMany.mockResolvedValueOnce([]);
+
+      await expect(service.runPayroll('company-1', 8, 2026, 'new')).rejects.toThrow('No eligible employees found');
+
+      expect(prisma.payrollCycle.update).not.toHaveBeenCalled();
+      expect(prisma.payslip.create).not.toHaveBeenCalled();
     });
   });
 

@@ -41,7 +41,7 @@ export default function MyPayrollPage() {
   };
 
   // Queries
-  const { data: payslips, isLoading: isLoadingPayslips } = useQuery({
+  const { data: payslips, isLoading: isLoadingPayslips, error: payslipsError } = useQuery({
     queryKey: ['my-payslips', myEmpId],
     queryFn: () => payrollApi.getPayslips(myEmpId),
     enabled: !!myEmpId,
@@ -217,6 +217,10 @@ export default function MyPayrollPage() {
             </h3>
             {isLoadingPayslips ? (
               <div className="flex justify-center py-8"><Spinner /></div>
+            ) : payslipsError ? (
+              <div className="flex justify-center py-8 text-xs font-semibold text-rose-500">
+                Could not load payslips: {(payslipsError as any)?.message || 'Something went wrong'}
+              </div>
             ) : payslips && payslips.length > 0 ? (
               <DataTable data={payslips} columns={payslipColumns} keyField="id" />
             ) : (

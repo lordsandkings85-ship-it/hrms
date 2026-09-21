@@ -118,13 +118,24 @@ export class PayrollService {
   }
 
   /** Bulk payroll run: computes gross/net + TDS for every active employee (or a selected subset) */
-  async runPayroll(companyId: string, month: number, year: number, regime: 'old' | 'new' = 'new', employeeIds?: string[]) {
+  async runPayroll(companyId: string, month: number, year: number, regime: 'old' | 'new' = 'new', employeeIds?: string[], userId?: string) {
     const cycle = await this.openCycle(companyId, month, year);
 
     if (cycle.status === 'locked') throw new BadRequestException('Payroll cycle is locked');
 
+    // Group-wide (HR admin / super admin) runs span every company in the group;
+    // otherwise scope strictly to the caller's company. The admin UI's employee
+    // picker lists all group employees for group-wide users, so scoping the run to
+    // the caller's company would silently produce a processed cycle with 0 payslips.
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+
     const employees = await this.prisma.employee.findMany({
-      where: { companyId, status: 'active', isSystem: false, ...(employeeIds?.length ? { id: { in: employeeIds } } : {}) },
+      where: {
+        status: 'active',
+        isSystem: false,
+        ...(groupWide ? {} : { companyId }),
+        ...(employeeIds?.length ? { id: { in: employeeIds } } : {}),
+      },
       include: { 
         company: true,
         salaryStructures: { orderBy: { effectiveFrom: 'desc' }, take: 1 },
@@ -148,6 +159,10 @@ export class PayrollService {
       },
     });
 
+    if (employees.length === 0) {
+      throw new BadRequestException('No eligible employees found for this payroll run. Check the company scope, employee status, and that salary structures exist.');
+    }
+
     let holidays = await this.prisma.holiday.findMany({
       where: { companyId, date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) } },
     });
@@ -159,7 +174,7 @@ export class PayrollService {
 
     // Fetch all additional payouts for this month/year in bulk
     const allPayouts = await this.prisma.additionalPayout.findMany({
-      where: { employee: { companyId }, month, year },
+      where: { ...(groupWide ? {} : { employee: { companyId } }), month, year },
     });
     const payoutsByEmployee = new Map<string, number>();
     for (const p of allPayouts) {
