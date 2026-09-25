@@ -8,6 +8,7 @@ import { CompaniesModule } from './modules/admin/companies/companies.module';
 import { EmployeesModule } from './modules/hr/employees/employees.module';
 import { DashboardModule } from './modules/employee/dashboard/dashboard.module';
 import { AttendanceModule } from './modules/hr/attendance/attendance.module';
+import { PermissionRequestModule } from './modules/hr/permission-request/permission-request.module';
 import { LeaveModule } from './modules/hr/leave/leave.module';
 import { PayrollModule } from './modules/hr/payroll/payroll.module';
 import { RecruitmentModule } from './modules/hr/recruitment/recruitment.module';
@@ -50,6 +51,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     EmployeesModule,
     DashboardModule,
     AttendanceModule,
+    PermissionRequestModule,
     LeaveModule,
     PayrollModule,
     RecruitmentModule,

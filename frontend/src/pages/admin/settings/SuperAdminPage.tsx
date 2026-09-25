@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ShieldCheck, HardDrive, Cpu, Terminal, Building, Loader2, Database, CalendarDays, CalendarCheck2, ListChecks, Search, Users } from 'lucide-react';
-import { superAdminApi } from '../../../api/client';
+import { ShieldCheck, HardDrive, Cpu, Terminal, Building, Loader2, Database, CalendarDays, CalendarCheck2, ListChecks, Search, Users, Clock } from 'lucide-react';
+import { superAdminApi, permissionRequestApi } from '../../../api/client';
 import { fmtDate, fmtDateTime, fmtTime12 } from '../../../utils/formatDate';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { StatusBadge } from '../../../components/ui/AdminSection';
@@ -359,10 +359,96 @@ function LeavePanel({ tenants }: { tenants: any[] }) {
   );
 }
 
+function PermissionPanel() {
+  const now = new Date();
+  const [month, setMonth] = useState(() => `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+
+  const { data: report, isLoading } = useQuery({
+    queryKey: ['superadmin-permission-usage', month],
+    queryFn: () => permissionRequestApi.usage(month),
+  });
+
+  const totalUsed = (report?.companies || []).reduce((s: number, c: any) => s + (c.usedMinutes || 0), 0);
+  const totalPending = (report?.companies || []).reduce((s: number, c: any) => s + (c.pending || 0), 0);
+  const totalApproved = (report?.companies || []).reduce((s: number, c: any) => s + (c.approved || 0), 0);
+  const totalCompanies = (report?.companies || []).length;
+
+  const companyColumns: Column<any>[] = [
+    { key: 'company', header: 'Company', render: (c: any) => <span className="font-bold text-[var(--text-primary)]">{c.companyName}</span> },
+    { key: 'employees', header: 'Employees', render: (c: any) => <span className="font-mono text-xs font-bold">{c.employees}</span> },
+    { key: 'used', header: 'Used (hh:mm)', render: (c: any) => <span className="font-mono text-sm font-bold text-indigo-500">{`${Math.floor((c.usedMinutes || 0) / 60)}:${String((c.usedMinutes || 0) % 60).padStart(2, '0')} / 3:00`}</span> },
+    { key: 'pending', header: 'Pending', render: (c: any) => <span className="font-mono text-xs font-bold text-amber-500">{c.pending}</span> },
+    { key: 'approved', header: 'Approved', render: (c: any) => <span className="font-mono text-xs font-bold text-emerald-500">{c.approved}</span> },
+  ];
+
+  const requestColumns: Column<any>[] = [
+    { key: 'company', header: 'Company', render: (r: any) => <span className="text-xs font-semibold text-[var(--text-muted)]">{r.companyName}</span> },
+    { key: 'employee', header: 'Employee', render: (r: any) => (
+      <div className="min-w-0">
+        <div className="text-sm font-bold text-[var(--text-primary)] truncate">{r.employeeName}</div>
+        <div className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider font-mono">{r.employeeCode}</div>
+      </div>
+    )},
+    { key: 'when', header: 'Date & Time', render: (r: any) => (
+      <div className="text-xs">
+        <div className="font-bold text-[var(--text-primary)]">{fmtDate(r.date)}</div>
+        <div className="text-[var(--text-muted)] font-medium">{fmtTime12(r.fromTime)} – {fmtTime12(r.toTime)} · {r.minutes} min</div>
+      </div>
+    )},
+    { key: 'reason', header: 'Reason', render: (r: any) => <span className="text-xs text-[var(--text-muted)]">{r.reason}</span> },
+    { key: 'status', header: 'Status', render: (r: any) => <StatusBadge status={r.status} /> },
+  ];
+
+  const requests = Array.isArray(report?.requests) ? report.requests : [];
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6 pb-4 border-b border-[var(--border)]">
+          <div>
+            <h3 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
+              <Clock className="text-indigo-500" size={20} /> 3-Hour Permission Usage
+            </h3>
+            <p className="text-sm text-[var(--text-muted)] mt-1 font-medium">Monthly 3-hour permission allowance usage across all tenants.</p>
+          </div>
+          <input
+            type="month"
+            value={month}
+            onChange={(e) => e.target.value && setMonth(e.target.value)}
+            className="px-4 py-2 rounded-xl bg-[var(--surface-alt)] border border-[var(--border)] text-sm font-bold text-[var(--text-primary)] focus:outline-none focus:border-indigo-500/50 transition-colors"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          {[
+            { label: 'Companies', value: String(totalCompanies), cls: 'text-indigo-500' },
+            { label: 'Used (hh:mm)', value: `${Math.floor(totalUsed / 60)}:${String(totalUsed % 60).padStart(2, '0')}`, cls: 'text-emerald-500' },
+            { label: 'Pending', value: String(totalPending), cls: 'text-amber-500' },
+            { label: 'Approved', value: String(totalApproved), cls: 'text-blue-500' },
+          ].map((c) => (
+            <div key={c.label} className="bg-[var(--surface-alt)] border border-[var(--border)] rounded-2xl p-4">
+              <div className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)]">{c.label}</div>
+              <div className={`text-xl font-bold font-mono mt-1 ${c.cls}`}>{isLoading ? <Loader2 size={16} className="animate-spin" /> : c.value}</div>
+            </div>
+          ))}
+        </div>
+
+        <h4 className="text-sm font-bold text-[var(--text-primary)] mb-3 uppercase tracking-wider">By Company</h4>
+        <div className="mb-8">
+          <DataTable columns={companyColumns} data={report?.companies ?? []} loading={isLoading} keyField="companyId" emptyTitle="No usage" emptyMessage="No permission requests this month." />
+        </div>
+
+        <h4 className="text-sm font-bold text-[var(--text-primary)] mb-3 uppercase tracking-wider">Requests</h4>
+        <DataTable columns={requestColumns} data={requests} loading={isLoading} keyField="id" emptyTitle="No requests" emptyMessage="No permission requests this month." />
+      </div>
+    </div>
+  );
+}
+
 export default function SuperAdminPage() {
   const navigate = useNavigate();
   const { sub } = useParams<{ sub?: string }>();
-  const activeTab = sub === 'attendance' ? 'attendance' : sub === 'leave' ? 'leave' : 'overview';
+  const activeTab = sub === 'attendance' ? 'attendance' : sub === 'leave' ? 'leave' : sub === 'permission' ? 'permission' : 'overview';
 
   const { data: tenants, isLoading: isLoadingTenants } = useQuery({
     queryKey: ['superadmin-tenants'],
@@ -424,6 +510,10 @@ export default function SuperAdminPage() {
             className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors flex items-center gap-2 ${activeTab === 'leave' ? 'bg-indigo-500 text-white border-indigo-500 shadow-sm' : 'bg-[var(--surface-alt)] border-[var(--border)] text-[var(--text-muted)] hover:text-indigo-500'}`}>
             <CalendarCheck2 size={16} /> Leave Request
           </button>
+          <button onClick={() => navigate('/super-admin/permission')}
+            className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors flex items-center gap-2 ${activeTab === 'permission' ? 'bg-indigo-500 text-white border-indigo-500 shadow-sm' : 'bg-[var(--surface-alt)] border-[var(--border)] text-[var(--text-muted)] hover:text-indigo-500'}`}>
+            <Clock size={16} /> Permission
+          </button>
         </div>
       </div>
 
@@ -431,6 +521,8 @@ export default function SuperAdminPage() {
         <AttendancePanel tenants={Array.isArray(tenants) ? tenants : []} />
       ) : activeTab === 'leave' ? (
         <LeavePanel tenants={Array.isArray(tenants) ? tenants : []} />
+      ) : activeTab === 'permission' ? (
+        <PermissionPanel />
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

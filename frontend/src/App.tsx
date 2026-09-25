@@ -35,6 +35,7 @@ const DailyReportPage        = lazy(() => import('./pages/employee/attendance/Da
 const SummaryPage            = lazy(() => import('./pages/employee/attendance/SummaryPage'));
 const EmployeeCorrectionPage = lazy(() => import('./pages/employee/attendance/EmployeeCorrectionPage'));
 const MyAttendancePage       = lazy(() => import('./pages/employee/attendance/MyAttendancePage'));
+const PermissionRequestPage  = lazy(() => import('./pages/employee/attendance/PermissionRequestPage'));
 const MyViewAttendancePage   = lazy(() => import('./pages/employee/attendance/MyViewAttendancePage'));
 
 // ── Employee Lifecycle Pages ──────────────────────────────────────
@@ -101,6 +102,7 @@ const OvertimeApprovalPage        = lazy(() => import('./pages/hr/approvals/Over
 const CorrectionRequestApprovalPage = lazy(() => import('./pages/hr/attendance/CorrectionRequestApprovalPage'));
 const MarkAttendanceApprovalPage    = lazy(() => import('./pages/hr/attendance/MarkAttendanceApprovalPage'));
 const RegularizationApprovalPage    = lazy(() => import('./pages/hr/attendance/RegularizationApprovalPage'));
+const PermissionApprovalPage        = lazy(() => import('./pages/hr/attendance/PermissionApprovalPage'));
 const GeoAttendanceApprovalPage     = lazy(() => import('./pages/hr/attendance/GeoAttendanceApprovalPage'));
 const TeamDailyAttendanceReportPage = lazy(() => import('./pages/hr/attendance/TeamDailyAttendanceReportPage'));
 
@@ -149,7 +151,7 @@ function isAdminOnlyPath(pathname: string): boolean {
     '/tax-calculator/master', '/tax-calculator/declarations', '/tax-calculator/pending',
     '/tax-calculator/slabs', '/tax-calculator/sec-category', '/tax-calculator/income-slab-cat',
     '/attendance/policy', '/attendance/correction', '/attendance/mark',
-    '/attendance/regularization', '/attendance/geo',
+    '/attendance/regularization', '/attendance/geo', '/attendance/permission-approval',
   ].some(starts);
 }
 
@@ -237,6 +239,7 @@ export default function App() {
           { path: 'attendance/correction',            El: CorrectionRequestApprovalPage },
           { path: 'attendance/mark',                  El: MarkAttendanceApprovalPage },
           { path: 'attendance/regularization',        El: RegularizationApprovalPage },
+          { path: 'attendance/permission-approval',   El: PermissionApprovalPage },
           { path: 'attendance/geo',                   El: GeoAttendanceApprovalPage },
           { path: 'attendance/correction-request',    El: EmployeeCorrectionPage },
           { path: 'attendance/daily',                 El: DailyAttendancePage },
@@ -250,6 +253,7 @@ export default function App() {
           { path: 'attendance/summary',               El: SummaryPage },
           { path: 'attendance/view',                  El: MyViewAttendancePage },
           { path: 'attendance/my',                    El: MyAttendancePage },
+          { path: 'attendance/permission',             El: PermissionRequestPage },
 
           // ── Leave ─────────────────────────────────────────────────────
           { path: 'leave',                   El: LeaveRouter },

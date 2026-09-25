@@ -989,6 +989,48 @@ export const attendanceApiExt = {
     api<any>(`/attendance/regularize/${logId}/approve`, { method: 'POST', body: JSON.stringify({ status }) }),
 };
 
+export interface PermissionRequest {
+  id: string;
+  companyId: string;
+  employeeId: string;
+  date: string;
+  fromTime: string;
+  toTime: string;
+  minutes: number;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  rejectReason?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  createdAt: string;
+  employee?: any;
+  approverName?: string | null;
+}
+
+export const permissionRequestApi = {
+  create: (data: { employeeId: string; date: string; fromTime: string; toTime: string; reason: string }) =>
+    api<PermissionRequest>('/permission-requests', { method: 'POST', body: JSON.stringify(data) }),
+  listMine: () => api<PermissionRequest[]>('/permission-requests/my'),
+  listPending: () => api<PermissionRequest[]>('/permission-requests/pending'),
+  list: (params: { status?: string; employeeId?: string; from?: string; to?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.status) qs.set('status', params.status);
+    if (params.employeeId) qs.set('employeeId', params.employeeId);
+    if (params.from) qs.set('from', params.from);
+    if (params.to) qs.set('to', params.to);
+    return api<PermissionRequest[]>(`/permission-requests?${qs.toString()}`);
+  },
+  usage: (month?: string) => {
+    const qs = new URLSearchParams();
+    if (month) qs.set('month', month);
+    return api<any>(`/permission-requests/usage?${qs.toString()}`);
+  },
+  cancel: (id: string) => api<PermissionRequest>(`/permission-requests/${id}/cancel`, { method: 'POST' }),
+  approve: (id: string) => api<PermissionRequest>(`/permission-requests/${id}/approve`, { method: 'POST' }),
+  reject: (id: string, reason: string) =>
+    api<PermissionRequest>(`/permission-requests/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
+};
+
 // Enhanced payroll API
 export const payrollApiExt = {
   listCycles: () => api<any[]>('/payroll/cycles'),

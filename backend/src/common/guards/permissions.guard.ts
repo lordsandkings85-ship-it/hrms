@@ -123,6 +123,24 @@ export class PermissionsGuard implements CanActivate {
         });
         if (leave?.employeeId === userEmployeeId) return true;
       }
+      // Self-service: an employee may cancel their OWN permission request. Mirrors
+      // the leave-cancel rule above; the service re-verifies ownership + company.
+      if (
+        userEmployeeId &&
+        method === 'POST' &&
+        params?.id &&
+        /\/permission-requests\/[^/]+\/cancel$/.test(pathNoPrefix)
+      ) {
+        const perm = await this.prisma.permissionRequest.findUnique({
+          where: { id: params.id },
+          select: { employeeId: true },
+        });
+        if (perm?.employeeId === userEmployeeId) return true;
+      }
+      // Self-service: GET /permission-requests/my returns only the caller's own rows.
+      if (userEmployeeId && isReadOnlyMethod && pathNoPrefix === '/permission-requests/my') {
+        return true;
+      }
       if (userEmployeeId && params?.id && request.route?.path?.endsWith('payslip/:id')) {
         const payslip = await this.prisma.payslip.findUnique({
           where: { id: params.id },

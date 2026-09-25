@@ -81,6 +81,7 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
           { to: '/attendance/manual', label: 'Update Attendance' },
           { to: '/attendance/custom', label: 'Emp Custom Daily Attendance' },
           { to: '/attendance/regularization', label: 'Attendance Regularisation' },
+          { to: '/attendance/permission-approval', label: 'Permission Approval' },
           { to: '/attendance/overtime', label: 'Overtime' },
           { to: '/attendance/geofence', label: 'Geo Attendance' },
           { to: '/attendance/daily-report', label: 'Daily Attendance Report' },
@@ -386,6 +387,7 @@ const EMPLOYEE_NAV_GROUPS: { group: string; items: NavItem[] }[] = [
         children: [
           { to: '/attendance/daily', label: 'Apply Attendance' },
           { to: '/attendance/correction-request', label: 'Correction Request' },
+          { to: '/attendance/permission', label: 'Permission Request' },
           { to: '/travel', label: 'Training/Tour Request' },
           { to: '/shifts', label: 'Shift Change Request' },
           { to: '/attendance/summary', label: 'View Attendance' },
@@ -469,6 +471,7 @@ const HR_NAV_GROUPS: { group: string; items: NavItem[] }[] = [
           { to: '/attendance/correction', label: 'Correction Request Approval' },
           { to: '/attendance/mark', label: 'Mark Attendance Approval' },
           { to: '/attendance/regularization', label: 'Regularization Approval' },
+          { to: '/attendance/permission-approval', label: 'Permission Approval' },
           { to: '/attendance/geo', label: 'Geo Attendance Approval' },
           { to: '/reports/attendance', label: 'Team Daily Attendance Report' },
         ],
@@ -831,6 +834,7 @@ export default function Layout() {
     if (!notif.isRead) markReadMutation.mutate(notif.id);
     if (notif.referenceType === 'LEAVE_REQUEST') navigate('/leave');
     else if (notif.referenceType === 'REGULARIZATION_REQUEST' || notif.type === 'REGULARIZATION') navigate('/attendance/regularization');
+    else if (notif.referenceType === 'PERMISSION_REQUEST' || notif.type === 'PERMISSION') navigate('/attendance/permission-approval');
     else if (notif.id.startsWith('jobs-info')) navigate('/recruitment');
     else if (notif.type === 'LEAVE') navigate('/leave');
     else navigate('/dashboard');

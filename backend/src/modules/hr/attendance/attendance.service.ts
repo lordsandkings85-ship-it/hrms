@@ -1094,6 +1094,27 @@ export class AttendanceService {
     const totalWorkingDays = Math.max(0, workingDaysInMonth - holidayCount);
     const absent = Math.max(0, totalWorkingDays - present - late - halfDay - onLeave);
 
+    // Approved 3-Hour Permission requests for the month, surfaced so UIs can show
+    // a "Permission" indicator on the relevant dates (display-only; does not change
+    // the attendance status counts above).
+    const permissionMonthStart = new Date(Date.UTC(year, month - 1, 1));
+    const permissionMonthEnd = new Date(Date.UTC(year, month, 1));
+    const approvedPerms = await this.prisma.permissionRequest.findMany({
+      where: {
+        employeeId,
+        date: { gte: permissionMonthStart, lt: permissionMonthEnd },
+        status: 'approved',
+      },
+      select: { id: true, date: true, fromTime: true, toTime: true, minutes: true },
+    });
+    const permissions = approvedPerms.map((p) => ({
+      id: p.id,
+      date: p.date.toISOString().slice(0, 10),
+      fromTime: p.fromTime,
+      toTime: p.toTime,
+      minutes: p.minutes,
+    }));
+
     return {
       present,
       late,
@@ -1104,6 +1125,7 @@ export class AttendanceService {
       totalOvertimeMins,
       totalDays: totalWorkingDays,
       logs,
+      permissions,
     };
   }
 

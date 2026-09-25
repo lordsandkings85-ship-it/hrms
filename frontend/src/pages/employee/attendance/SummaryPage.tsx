@@ -521,6 +521,7 @@ function EmployeeSummary() {
                 { label: 'On Leave', value: summary.onLeave, color: 'var(--primary)' },
                 { label: 'Absent', value: summary.absent, color: 'var(--danger)' },
                 { label: 'Holidays', value: summary.holidays ?? 0, color: 'var(--success)' },
+                { label: 'Permission', value: summary.permissions?.length ?? 0, color: 'var(--info)' },
               ].map(row => (
                 <div key={row.label} className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: row.color }} />

@@ -267,6 +267,9 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
       attendanceLog: {
         findMany: jest.fn(async () => []),
       },
+      permissionRequest: {
+        findMany: jest.fn(async () => []),
+      },
       holiday: {
         findMany: jest.fn(async () => [{ id: 'h-1', date: new Date(2026, 8, 16), name: 'Test Holiday' }]),
       },
@@ -292,6 +295,9 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
       attendanceLog: {
         findMany: jest.fn(async () => []),
       },
+      permissionRequest: {
+        findMany: jest.fn(async () => []),
+      },
       holiday: {
         findMany: jest.fn(async () => [{ id: 'h-1', date: new Date(2026, 8, 16), name: 'Test Holiday' }]),
       },
@@ -314,6 +320,9 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
         findFirst: jest.fn(async () => ({ workingDaysPerWeek: 6, companyId: 'c-1' })),
       },
       attendanceLog: {
+        findMany: jest.fn(async () => []),
+      },
+      permissionRequest: {
         findMany: jest.fn(async () => []),
       },
       holiday: {

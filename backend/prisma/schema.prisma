@@ -124,6 +124,27 @@ model RegularizationRequest {
   employee          Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
+model PermissionRequest {
+  id           String    @id @default(uuid())
+  companyId    String
+  employeeId   String
+  date         DateTime
+  fromTime     String
+  toTime       String
+  minutes      Int
+  reason       String
+  status       String    @default("pending") // pending, approved, rejected, cancelled
+  rejectReason String?
+  approvedBy   String?
+  approvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company      Company   @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, status])
+  @@index([employeeId, date])
+}
+
 model AttendanceAudit {
   id              String         @id @default(uuid())
   companyId       String
@@ -331,6 +352,7 @@ model Company {
   courseEnrollments       CourseEnrollment[]
   attendanceAudits        AttendanceAudit[]
   compOffBalances         CompOffBalance[]
+  permissionRequests      PermissionRequest[]
   leaveMonthlyBalances    LeaveMonthlyBalance[]
   Payslip                 Payslip[]
 }
@@ -469,6 +491,7 @@ model Employee {
   evaluation360s          Evaluation360[]
   attendanceAudits        AttendanceAudit[]
   compOffBalances         CompOffBalance[]
+  permissionRequests      PermissionRequest[]
   leaveMonthlyBalances    LeaveMonthlyBalance[]
   companyHistory          EmployeeCompanyHistory[]
 
