@@ -73,6 +73,13 @@ function parseYMD(value?: string): { y: number; m: number; d: number } | null {
   return y && m && d ? { y, m, d } : null;
 }
 
+/** Parse a stored audit timestamp; returns null for anything unparseable. */
+function parseISODate(value?: string | null): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function zonedWallClock(timeZone: string, date: Date) {
   const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -1342,15 +1349,17 @@ export class AttendanceService {
             attendanceLogId: { in: logIds },
             action: { in: ['REGULARIZATION_APPROVED', 'REGULARIZATION_REJECTED'] },
           },
-          select: { attendanceLogId: true, action: true, createdAt: true },
+          select: { attendanceLogId: true, action: true, createdAt: true, fromValue: true, toValue: true },
           orderBy: { createdAt: 'desc' },
         })
       : [];
-    const resolvedByLog = new Map<string, Map<string, Date>>();
+    const resolvedByLog = new Map<string, Map<string, { createdAt: Date; fromValue: string | null; toValue: string | null }>>();
     for (const audit of audits) {
       if (!audit.attendanceLogId) continue;
-      const byAction = resolvedByLog.get(audit.attendanceLogId) ?? new Map<string, Date>();
-      if (!byAction.has(audit.action)) byAction.set(audit.action, audit.createdAt);
+      const byAction = resolvedByLog.get(audit.attendanceLogId) ?? new Map();
+      if (!byAction.has(audit.action)) {
+        byAction.set(audit.action, { createdAt: audit.createdAt, fromValue: audit.fromValue, toValue: audit.toValue });
+      }
       resolvedByLog.set(audit.attendanceLogId, byAction);
     }
 
@@ -1379,9 +1388,30 @@ export class AttendanceService {
         : r.status === 'rejected'
           ? 'REGULARIZATION_REJECTED'
           : null;
-      const resolvedAt = expectedAction
+      const resolution = expectedAction
         ? resolvedByLog.get(r.attendanceLogId)?.get(expectedAction) ?? null
         : null;
+      const resolvedAt = resolution?.createdAt ?? null;
+
+      // The punch an employee actually recorded. Approving a time correction
+      // overwrites the stored check-in/out, so for those rows the original is
+      // only knowable from the pre-correction value captured in the audit trail.
+      const approvedEvent = resolvedByLog.get(r.attendanceLogId)?.get('REGULARIZATION_APPROVED');
+      const auditPunchIn = parseISODate(approvedEvent?.fromValue);
+      const auditPunchOut = parseISODate(approvedEvent?.toValue);
+      let originalPunch: { checkIn: Date | null; checkOut: Date | null; source: string };
+      if (r.status === 'approved' && r.type !== 'full_day') {
+        originalPunch = auditPunchIn || auditPunchOut
+          ? { checkIn: auditPunchIn, checkOut: auditPunchOut, source: 'pre_correction' }
+          : { checkIn: null, checkOut: null, source: 'not_retained' };
+      } else {
+        originalPunch = {
+          checkIn: r.attendanceLog?.checkIn ?? null,
+          checkOut: r.attendanceLog?.checkOut ?? null,
+          source: r.status === 'approved' ? 'preserved_full_day' : 'current_punch',
+        };
+      }
+
       return {
         id: r.id,
         employee: r.employee,
@@ -1393,6 +1423,7 @@ export class AttendanceService {
         status: r.status,
         resolutionNote: r.resolutionNote,
         requestedAt: r.createdAt,
+        originalPunch,
         approval: {
           approverId: r.approverId,
           approverName: r.approverId ? (approverMap[r.approverId] ?? null) : null,
@@ -1619,6 +1650,10 @@ export class AttendanceService {
     // correction renders correctly (worked/OT, late, incomplete vs FULL_DAY_PRESENT).
     const newCheckIn = req.requestedCheckIn ?? req.attendanceLog?.checkIn ?? null;
     const newCheckOut = req.requestedCheckOut ?? null; // null clears a mistaken punch
+    // Captured before the overwrite below — the stored punch is the only record of
+    // what the employee actually did, so it has to survive the correction.
+    const prevCheckIn = req.attendanceLog?.checkIn ?? null;
+    const prevCheckOut = req.attendanceLog?.checkOut ?? null;
     const ctx = await this.resolveShiftContext(targetCompanyId, req.employeeId, newCheckIn ?? new Date());
     const policyMap = ctx ? ctx.policyMap : new Map<string, string>();
     const otThreshold = ctx?.shift.shiftType?.overtimeThresholdMinutes
@@ -1681,11 +1716,13 @@ export class AttendanceService {
           employeeId: req.employeeId,
           attendanceLogId: req.attendanceLogId,
           action: 'REGULARIZATION_APPROVED',
-          fromValue: req.requestedCheckIn ? undefined : null,
-          toValue: req.requestedCheckOut ? undefined : null,
+          // Pre-correction punch is kept here (the log itself gets overwritten below)
+          // so reports can show the original vs the regularized time.
+          fromValue: prevCheckIn ? prevCheckIn.toISOString() : null,
+          toValue: prevCheckOut ? prevCheckOut.toISOString() : null,
           actorId: approverId,
           actorRole: 'hr',
-          notes: `Time regularization approved (in ${newCheckIn?.toISOString() ?? '—'}, out ${newCheckOut?.toISOString() ?? '—'}).`,
+          notes: `Time regularization approved (in ${newCheckIn?.toISOString() ?? '—'}, out ${newCheckOut?.toISOString() ?? '—'}). Original punch before correction: in ${prevCheckIn?.toISOString() ?? '—'}, out ${prevCheckOut?.toISOString() ?? '—'}.`,
         },
       }),
     ]);

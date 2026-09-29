@@ -182,6 +182,16 @@ describe('AttendanceService.approveRegularization', () => {
     expect(logUpdate.data.checkIn).toEqual(originalCheckIn);
     expect(logUpdate.data.checkOut).toEqual(correctedCheckOut);
   });
+
+  it('archives the pre-correction punch in the audit before the log is overwritten', async () => {
+    const { service, prisma, originalCheckIn } = build();
+    await service.approveRegularization('r-1', 'c-1', 'approver');
+    const audit = prisma.attendanceAudit.create.mock.calls[0][0].data;
+    expect(audit.action).toBe('REGULARIZATION_APPROVED');
+    expect(audit.fromValue).toBe(originalCheckIn.toISOString());
+    expect(audit.toValue).toBeNull();
+    expect(audit.notes).toContain('Original punch before correction');
+  });
 });
 
 describe('AttendanceService.monthlyWorkdaySummaries', () => {
@@ -379,14 +389,14 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
 describe('AttendanceService.getRegularizationReport', () => {
   const companyId = 'c-1';
 
-  const buildService = ({ groupWide = false } = {}) => {
+  const buildService = ({ groupWide = false, audits, requests }: { groupWide?: boolean; audits?: any[]; requests?: any[] } = {}) => {
     mockGroupWide(groupWide);
     const prisma: any = {
       company: {
         findUnique: jest.fn(async () => ({ timezone: 'Asia/Kolkata' })),
       },
       regularizationRequest: {
-        findMany: jest.fn(async () => [
+        findMany: jest.fn(async () => requests ?? [
           {
             id: 'r-1',
             attendanceLogId: 'l-1',
@@ -419,8 +429,14 @@ describe('AttendanceService.getRegularizationReport', () => {
         ]),
       },
       attendanceAudit: {
-        findMany: jest.fn(async () => [
-          { attendanceLogId: 'l-1', action: 'REGULARIZATION_APPROVED', createdAt: new Date('2026-09-04T08:30:00Z') },
+        findMany: jest.fn(async () => audits ?? [
+          {
+            attendanceLogId: 'l-1',
+            action: 'REGULARIZATION_APPROVED',
+            createdAt: new Date('2026-09-04T08:30:00Z'),
+            fromValue: '2026-09-03T11:20:00.000Z',
+            toValue: '2026-09-03T20:15:00.000Z',
+          },
         ]),
       },
       user: {
@@ -509,6 +525,68 @@ describe('AttendanceService.getRegularizationReport', () => {
     });
     expect(rows[1].approval).toEqual({ approverId: null, approverName: null, resolvedAt: null });
     expect(rows[0].requestedCheckIn).toEqual(new Date('2026-09-04T09:00:00Z'));
+  });
+
+  it('returns the pre-correction punch for an approved time change', async () => {
+    const { service } = buildService();
+    const rows = await service.getRegularizationReport(companyId, 'u-1', {});
+    expect(rows[0].originalPunch).toEqual({
+      checkIn: new Date('2026-09-03T11:20:00.000Z'),
+      checkOut: new Date('2026-09-03T20:15:00.000Z'),
+      source: 'pre_correction',
+    });
+  });
+
+  it('flags not_retained when an approved time change has no archived original', async () => {
+    const { service } = buildService({
+      audits: [{ attendanceLogId: 'l-1', action: 'REGULARIZATION_APPROVED', createdAt: new Date('2026-09-04T08:30:00Z'), fromValue: null, toValue: null }],
+    });
+    const rows = await service.getRegularizationReport(companyId, 'u-1', {});
+    expect(rows[0].originalPunch).toEqual({ checkIn: null, checkOut: null, source: 'not_retained' });
+  });
+
+  it('treats the stored punch as the original for a pending request', async () => {
+    const { service } = buildService({
+      audits: [],
+      requests: [
+        {
+          id: 'r-9', attendanceLogId: 'l-9', employeeId: 'e-9',
+          requestedCheckIn: new Date('2026-09-04T09:00:00Z'), requestedCheckOut: new Date('2026-09-04T18:00:00Z'),
+          reason: 'No electricity', status: 'pending', type: 'regularization', resolutionNote: null, approverId: null,
+          createdAt: new Date('2026-09-04T07:00:00Z'),
+          employee: { id: 'e-9', firstName: 'Cara', lastName: 'D', employeeCode: 'E9', department: { name: 'IT' }, designation: null, branch: null, company: { id: 'c-1', name: 'Acme', displayName: 'Acme' } },
+          attendanceLog: { id: 'l-9', date: new Date('2026-09-04'), checkIn: new Date('2026-09-04T10:30:00Z'), checkOut: new Date('2026-09-04T19:10:00Z'), status: 'late', attendanceStatus: 'FULL_DAY_PRESENT', workedMinutes: 520, requiredMinutes: 480, lateMinutes: 30, lateStatus: 'late', correctionOf: null, regularizationStatus: 'pending', regularizationNote: null, overtimeMinutes: 40 },
+        },
+      ],
+    });
+    const rows = await service.getRegularizationReport(companyId, 'u-1', {});
+    expect(rows[0].originalPunch).toEqual({
+      checkIn: new Date('2026-09-04T10:30:00Z'),
+      checkOut: new Date('2026-09-04T19:10:00Z'),
+      source: 'current_punch',
+    });
+  });
+
+  it('uses the preserved punches as the original for an approved full-day request', async () => {
+    const { service } = buildService({
+      audits: [],
+      requests: [
+        {
+          id: 'r-8', attendanceLogId: 'l-8', employeeId: 'e-8',
+          requestedCheckIn: null, requestedCheckOut: null,
+          reason: 'Client visit', status: 'approved', type: 'full_day', resolutionNote: 'ok', approverId: 'u-1',
+          createdAt: new Date('2026-09-04T07:00:00Z'),
+          employee: { id: 'e-8', firstName: 'Dan', lastName: 'E', employeeCode: 'E8', department: null, designation: null, branch: null, company: { id: 'c-1', name: 'Acme', displayName: 'Acme' } },
+          attendanceLog: { id: 'l-8', date: new Date('2026-09-04'), checkIn: new Date('2026-09-04T06:30:50Z'), checkOut: new Date('2026-09-04T06:30:54Z'), status: 'present', attendanceStatus: 'FULL_DAY_PRESENT', workedMinutes: 0, requiredMinutes: 480, lateMinutes: 0, lateStatus: 'on_time', correctionOf: 'r-8', regularizationStatus: 'approved', regularizationNote: 'Client visit', overtimeMinutes: 0 },
+        },
+      ],
+    });
+    const rows = await service.getRegularizationReport(companyId, 'u-1', {});
+    expect(rows[0].originalPunch).toEqual({
+      checkIn: new Date('2026-09-04T06:30:50Z'),
+      checkOut: new Date('2026-09-04T06:30:54Z'),
+      source: 'preserved_full_day',
+    });
   });
 });
 
