@@ -1273,8 +1273,10 @@ export class AttendanceService {
       });
       const tz = company?.timezone || 'UTC';
       const logDate: any = {};
-      if (from) logDate.gte = zonedDateTime(tz, from.y, from.m, from.d, 0, 0);
-      if (to) logDate.lt = zonedDateTime(tz, to.y, to.m, to.d + 1, 0, 0);
+      // parseYMD yields a 1-based month while zonedDateTime/Date.UTC expect 0-based —
+      // without the -1 every range would shift forward by one month and match nothing.
+      if (from) logDate.gte = zonedDateTime(tz, from.y, from.m - 1, from.d, 0, 0);
+      if (to) logDate.lt = zonedDateTime(tz, to.y, to.m - 1, to.d + 1, 0, 0);
       where.attendanceLog = { date: logDate };
     }
 

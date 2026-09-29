@@ -472,6 +472,31 @@ describe('AttendanceService.getRegularizationReport', () => {
       lt: expect.any(Date),
     });
     expect(called.where.attendanceLog.date.lt.getTime()).toBeGreaterThan(called.where.attendanceLog.date.gte.getTime());
+    // Sept 1 00:00 and Oct 1 00:00 in Asia/Kolkata (+05:30) — the range must stay in
+    // September; a 1-based month leaking into Date.UTC would slide it to Oct/Nov.
+    expect(called.where.attendanceLog.date.gte.toISOString()).toBe('2026-08-31T18:30:00.000Z');
+    expect(called.where.attendanceLog.date.lt.toISOString()).toBe('2026-09-30T18:30:00.000Z');
+  });
+
+  it('maps the date filter to the requested calendar month, not the next one', async () => {
+    const { service, prisma } = buildService();
+    await service.getRegularizationReport(companyId, 'u-1', { from: '2026-01-01', to: '2026-01-31' });
+    const called = (prisma.regularizationRequest.findMany as jest.Mock).mock.calls[0][0];
+    expect(called.where.attendanceLog.date.gte.toISOString()).toBe('2025-12-31T18:30:00.000Z');
+    expect(called.where.attendanceLog.date.lt.toISOString()).toBe('2026-01-31T18:30:00.000Z');
+  });
+
+  it('supports a single-day range and a from-only range', async () => {
+    const { service, prisma } = buildService();
+    await service.getRegularizationReport(companyId, 'u-1', { from: '2026-09-15', to: '2026-09-15' });
+    const single = (prisma.regularizationRequest.findMany as jest.Mock).mock.calls[0][0].where.attendanceLog.date;
+    expect(single.gte.toISOString()).toBe('2026-09-14T18:30:00.000Z');
+    expect(single.lt.toISOString()).toBe('2026-09-15T18:30:00.000Z');
+
+    await service.getRegularizationReport(companyId, 'u-1', { from: '2026-12-01' });
+    const fromOnly = (prisma.regularizationRequest.findMany as jest.Mock).mock.calls[1][0].where.attendanceLog.date;
+    expect(fromOnly.gte.toISOString()).toBe('2026-11-30T18:30:00.000Z');
+    expect(fromOnly.lt).toBeUndefined();
   });
 
   it('resolves approval info (audit timestamp + approver name) for approved rows and null for pending', async () => {
