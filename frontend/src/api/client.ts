@@ -416,6 +416,42 @@ listToday: (date?: string) => {
     api<any>(`/attendance/regularize/${requestId}/approve`, { method: 'POST' }),
   rejectRegularization: (requestId: string) =>
     api<any>(`/attendance/regularize/${requestId}/reject`, { method: 'POST' }),
+  regularizationReport: (params: {
+    from?: string;
+    to?: string;
+    employeeId?: string;
+    departmentId?: string;
+    designationId?: string;
+    branchId?: string;
+    companyId?: string;
+    status?: string;
+    type?: string;
+  } = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.set(k, String(v));
+    });
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return api<any[]>('/attendance/regularize/report' + suffix);
+  },
+  regularizationSummary: (params: {
+    from?: string;
+    to?: string;
+    employeeId?: string;
+    departmentId?: string;
+    designationId?: string;
+    branchId?: string;
+    companyId?: string;
+    status?: string;
+    type?: string;
+  } = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.set(k, String(v));
+    });
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return api<any>('/attendance/regularize/summary' + suffix);
+  },
 };
 
 export const leaveApi = {

@@ -125,6 +125,44 @@ export class AttendanceController {
     return this.attendanceService.listRegularizations(user.companyId, status, user.userId);
   }
 
+  @Get('regularize/report')
+  @Permissions({ module: 'attendance', action: 'export' })
+  regularizationReport(
+    @CurrentUser() user: AuthUser,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('employeeId') employeeId?: string,
+    @Query('departmentId') departmentId?: string,
+    @Query('designationId') designationId?: string,
+    @Query('branchId') branchId?: string,
+    @Query('companyId') companyId?: string,
+    @Query('status') status?: string,
+    @Query('type') type?: string,
+  ) {
+    return this.attendanceService.getRegularizationReport(user.companyId, user.userId, {
+      from, to, employeeId, departmentId, designationId, branchId, companyId, status, type,
+    });
+  }
+
+  @Get('regularize/summary')
+  @Permissions({ module: 'attendance', action: 'export' })
+  regularizationSummary(
+    @CurrentUser() user: AuthUser,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('employeeId') employeeId?: string,
+    @Query('departmentId') departmentId?: string,
+    @Query('designationId') designationId?: string,
+    @Query('branchId') branchId?: string,
+    @Query('companyId') companyId?: string,
+    @Query('status') status?: string,
+    @Query('type') type?: string,
+  ) {
+    return this.attendanceService.getRegularizationSummary(user.companyId, user.userId, {
+      from, to, employeeId, departmentId, designationId, branchId, companyId, status, type,
+    });
+  }
+
   @Post('regularize/:logId')
   @Permissions({ module: 'attendance', action: 'create' })
   requestRegularization(

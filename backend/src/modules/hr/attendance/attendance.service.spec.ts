@@ -375,3 +375,169 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
     });
   });
 });
+
+describe('AttendanceService.getRegularizationReport', () => {
+  const companyId = 'c-1';
+
+  const buildService = ({ groupWide = false } = {}) => {
+    mockGroupWide(groupWide);
+    const prisma: any = {
+      company: {
+        findUnique: jest.fn(async () => ({ timezone: 'Asia/Kolkata' })),
+      },
+      regularizationRequest: {
+        findMany: jest.fn(async () => [
+          {
+            id: 'r-1',
+            attendanceLogId: 'l-1',
+            employeeId: 'e-1',
+            requestedCheckIn: new Date('2026-09-04T09:00:00Z'),
+            requestedCheckOut: new Date('2026-09-04T18:00:00Z'),
+            reason: 'Client meeting',
+            status: 'approved',
+            type: 'regularization',
+            resolutionNote: 'OK',
+            approverId: 'u-1',
+            createdAt: new Date('2026-09-03T10:00:00Z'),
+            employee: { id: 'e-1', firstName: 'Alice', lastName: 'Smith', employeeCode: 'E1', department: { name: 'Eng' }, designation: { title: 'Dev' }, branch: { name: 'Main' }, company: { id: 'c-1', name: 'Acme', displayName: 'Acme Ltd' } },
+            attendanceLog: { id: 'l-1', date: new Date('2026-09-03'), checkIn: new Date('2026-09-03T10:00:00Z'), checkOut: new Date('2026-09-03T18:00:00Z'), status: 'present', attendanceStatus: 'FULL_DAY_PRESENT', workedMinutes: 480, requiredMinutes: 480, lateMinutes: 0, lateStatus: 'on_time', correctionOf: null, regularizationStatus: 'approved', regularizationNote: 'Client meeting', overtimeMinutes: 0 },
+          },
+          {
+            id: 'r-2',
+            attendanceLogId: 'l-2',
+            employeeId: 'e-2',
+            requestedCheckIn: null,
+            requestedCheckOut: null,
+            reason: 'Pending note fix',
+            status: 'pending',
+            type: 'full_day',
+            approverId: null,
+            createdAt: new Date('2026-09-04T08:00:00Z'),
+            employee: { id: 'e-2', firstName: 'Bob', lastName: 'Jones', employeeCode: 'E2', department: { name: 'Ops' }, designation: null, branch: null, company: { id: 'c-1', name: 'Acme', displayName: 'Acme Ltd' } },
+            attendanceLog: { id: 'l-2', date: new Date('2026-09-04'), checkIn: null, checkOut: null, status: 'absent', attendanceStatus: 'OFF_DAY_OR_INCOMPLETE', workedMinutes: null, requiredMinutes: 480, lateMinutes: 0, lateStatus: 'on_time', correctionOf: null, regularizationStatus: 'pending', regularizationNote: 'Pending note fix', overtimeMinutes: 0 },
+          },
+        ]),
+      },
+      attendanceAudit: {
+        findMany: jest.fn(async () => [
+          { attendanceLogId: 'l-1', action: 'REGULARIZATION_APPROVED', createdAt: new Date('2026-09-04T08:30:00Z') },
+        ]),
+      },
+      user: {
+        findMany: jest.fn(async () => [
+          { id: 'u-1', email: 'hr@x.com', employee: { firstName: 'Priya', lastName: 'Patel' } },
+        ]),
+      },
+    };
+    const notifications = { notifyApprover: jest.fn(async () => {}), notifyEmployee: jest.fn(async () => {}) };
+    const service = new AttendanceService(prisma as any, notifications as any);
+    return { service, prisma };
+  };
+
+  it('locks a non-group-wide user to their own company', async () => {
+    const { service, prisma } = buildService();
+    await service.getRegularizationReport(companyId, 'u-1', {});
+    expect(prisma.regularizationRequest.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { employee: { companyId } } }),
+    );
+  });
+
+  it('allows a group-wide user to scope to another company', async () => {
+    const { service, prisma } = buildService({ groupWide: true });
+    await service.getRegularizationReport(companyId, 'u-1', { companyId: 'c-x' });
+    expect(prisma.regularizationRequest.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { employee: { companyId: 'c-x', isSystem: false } } }),
+    );
+  });
+
+  it('applies status/type/employee and date-range filters', async () => {
+    const { service, prisma } = buildService();
+    await service.getRegularizationReport(companyId, 'u-1', {
+      status: 'approved',
+      type: 'regularization',
+      employeeId: 'e-1',
+      departmentId: 'd-1',
+      from: '2026-09-01',
+      to: '2026-09-30',
+    });
+    const called = (prisma.regularizationRequest.findMany as jest.Mock).mock.calls[0][0];
+    expect(called.where).toMatchObject({
+      employeeId: 'e-1',
+      status: 'approved',
+      type: 'regularization',
+      employee: { companyId, departmentId: 'd-1' },
+    });
+    expect(called.where.attendanceLog.date).toMatchObject({
+      gte: expect.any(Date),
+      lt: expect.any(Date),
+    });
+    expect(called.where.attendanceLog.date.lt.getTime()).toBeGreaterThan(called.where.attendanceLog.date.gte.getTime());
+  });
+
+  it('resolves approval info (audit timestamp + approver name) for approved rows and null for pending', async () => {
+    const { service } = buildService();
+    const rows = await service.getRegularizationReport(companyId, 'u-1', {});
+    expect(rows[0].approval).toEqual({
+      approverId: 'u-1',
+      approverName: 'Priya Patel',
+      resolvedAt: new Date('2026-09-04T08:30:00Z'),
+    });
+    expect(rows[1].approval).toEqual({ approverId: null, approverName: null, resolvedAt: null });
+    expect(rows[0].requestedCheckIn).toEqual(new Date('2026-09-04T09:00:00Z'));
+  });
+});
+
+describe('AttendanceService.getRegularizationSummary', () => {
+  const companyId = 'c-1';
+
+  const buildService = ({ groupWide = false } = {}) => {
+    mockGroupWide(groupWide);
+    const prisma: any = {
+      company: {
+        findUnique: jest.fn(async () => ({ timezone: 'Asia/Kolkata' })),
+      },
+      regularizationRequest: {
+        groupBy: jest.fn(async ({ by }) => {
+          if (by[0] === 'status') {
+            return [
+              { status: 'approved', _count: { _all: 2 } },
+              { status: 'pending', _count: { _all: 1 } },
+            ];
+          }
+          return [
+            { employeeId: 'e-1', status: 'approved', _count: { _all: 2 } },
+            { employeeId: 'e-2', status: 'pending', _count: { _all: 1 } },
+          ];
+        }),
+      },
+      employee: {
+        findMany: jest.fn(async () => [
+          { id: 'e-1', firstName: 'Alice', lastName: 'Smith', employeeCode: 'E1', department: { name: 'Eng' }, company: { id: 'c-1', name: 'Acme', displayName: 'Acme Ltd' } },
+          { id: 'e-2', firstName: 'Bob', lastName: 'Jones', employeeCode: 'E2', department: { name: 'Ops' }, company: { id: 'c-1', name: 'Acme', displayName: 'Acme Ltd' } },
+        ]),
+      },
+    };
+    const notifications = { notifyApprover: jest.fn(async () => {}), notifyEmployee: jest.fn(async () => {}) };
+    const service = new AttendanceService(prisma as any, notifications as any);
+    return { service, prisma };
+  };
+
+  it('aggregates totals by status and per-employee counts, sorted by total desc', async () => {
+    const { service } = buildService();
+    const result = await service.getRegularizationSummary(companyId, 'u-1', {});
+    expect(result.totals).toEqual({ total: 3, pending: 1, approved: 2, rejected: 0, cancelled: 0 });
+    expect(result.employees).toHaveLength(2);
+    expect(result.employees[0]).toMatchObject({ employeeCode: 'E1', name: 'Alice Smith', total: 2, approved: 2, pending: 0, rejected: 0, cancelled: 0 });
+    expect(result.employees[1]).toMatchObject({ employeeCode: 'E2', total: 1, pending: 1, approved: 0 });
+  });
+
+  it('aggregates in the database with the same company scope', async () => {
+    const { service, prisma } = buildService();
+    await service.getRegularizationSummary(companyId, 'u-1', {});
+    const groupByCalls = (prisma.regularizationRequest.groupBy as jest.Mock).mock.calls;
+    expect(groupByCalls).toHaveLength(2);
+    for (const [args] of groupByCalls) {
+      expect(args.where).toEqual({ employee: { companyId } });
+    }
+  });
+});

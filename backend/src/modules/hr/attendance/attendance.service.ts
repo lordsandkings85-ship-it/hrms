@@ -49,6 +49,30 @@ function toZonedDate(timeZone: string, input?: string | Date | null): Date | und
   return isNaN(dt.getTime()) ? undefined : dt;
 }
 
+/** Filters accepted by the regularization report/summary endpoints. */
+export interface RegularizationReportFilters {
+  from?: string;
+  to?: string;
+  employeeId?: string;
+  departmentId?: string;
+  designationId?: string;
+  branchId?: string;
+  companyId?: string;
+  status?: string; // pending | approved | rejected | all
+  type?: string; // regularization | full_day
+}
+
+/** Parse a naive YYYY-MM-DD string; returns null when not a valid date. */
+function parseYMD(value?: string): { y: number; m: number; d: number } | null {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const y = Number(match[1]);
+  const m = Number(match[2]);
+  const d = Number(match[3]);
+  return y && m && d ? { y, m, d } : null;
+}
+
 function zonedWallClock(timeZone: string, date: Date) {
   const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -1205,6 +1229,246 @@ export class AttendanceService {
       ...r,
       approverName: r.approverId ? (approverMap[r.approverId] ?? null) : null,
     }));
+  }
+
+  /**
+   * Build the shared company-scoped + filtered where clause for the
+   * regularization report/summary endpoints. Group-wide users may optionally
+   * restrict to a specific company; everyone else is locked to their own.
+   */
+  private async buildRegularizationWhere(
+    companyId: string,
+    userId: string,
+    filters: RegularizationReportFilters,
+  ) {
+    const groupWide = await isGroupWideUser(this.prisma, userId);
+
+    const where: any = {};
+    if (filters.employeeId) where.employeeId = filters.employeeId;
+
+    const employeeFilter: any = groupWide
+      ? filters.companyId
+        ? { companyId: filters.companyId, isSystem: false }
+        : { isSystem: false }
+      : { companyId };
+    if (filters.departmentId) employeeFilter.departmentId = filters.departmentId;
+    if (filters.designationId) employeeFilter.designationId = filters.designationId;
+    if (filters.branchId) employeeFilter.branchId = filters.branchId;
+    where.employee = employeeFilter;
+
+    if (filters.status && ['pending', 'approved', 'rejected'].includes(filters.status)) {
+      where.status = filters.status;
+    }
+    if (filters.type && ['regularization', 'full_day'].includes(filters.type)) {
+      where.type = filters.type;
+    }
+
+    const from = parseYMD(filters.from);
+    const to = parseYMD(filters.to);
+    if (from || to) {
+      const tzCompanyId = groupWide && filters.companyId ? filters.companyId : companyId;
+      const company = await this.prisma.company.findUnique({
+        where: { id: tzCompanyId },
+        select: { timezone: true },
+      });
+      const tz = company?.timezone || 'UTC';
+      const logDate: any = {};
+      if (from) logDate.gte = zonedDateTime(tz, from.y, from.m, from.d, 0, 0);
+      if (to) logDate.lt = zonedDateTime(tz, to.y, to.m, to.d + 1, 0, 0);
+      where.attendanceLog = { date: logDate };
+    }
+
+    return { where, groupWide };
+  }
+
+  /**
+   * Detailed regularization report for HR export — every request row enriched
+   * with employee/company/department/designation/branch, the stored attendance
+   * actuals, the regularized punch, and approval info resolved from the audit
+   * trail (batched, no N+1).
+   */
+  async getRegularizationReport(
+    companyId: string,
+    userId: string,
+    filters: RegularizationReportFilters,
+  ) {
+    const { where } = await this.buildRegularizationWhere(companyId, userId, filters);
+
+    const requests = await this.prisma.regularizationRequest.findMany({
+      where,
+      include: {
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            department: { select: { name: true } },
+            designation: { select: { title: true } },
+            branch: { select: { name: true } },
+            company: { select: { id: true, name: true, displayName: true } },
+          },
+        },
+        attendanceLog: {
+          select: {
+            id: true,
+            date: true,
+            checkIn: true,
+            checkOut: true,
+            status: true,
+            attendanceStatus: true,
+            workedMinutes: true,
+            requiredMinutes: true,
+            lateMinutes: true,
+            lateStatus: true,
+            correctionOf: true,
+            regularizationStatus: true,
+            regularizationNote: true,
+            overtimeMinutes: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+
+    // Resolve approval timestamps from the audit trail: latest matching
+    // REGULARIZATION_APPROVED/REJECTED event per log, batched to avoid N+1.
+    const logIds = [...new Set(requests.map(r => r.attendanceLogId))];
+    const audits = logIds.length
+      ? await this.prisma.attendanceAudit.findMany({
+          where: {
+            attendanceLogId: { in: logIds },
+            action: { in: ['REGULARIZATION_APPROVED', 'REGULARIZATION_REJECTED'] },
+          },
+          select: { attendanceLogId: true, action: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+        })
+      : [];
+    const resolvedByLog = new Map<string, Map<string, Date>>();
+    for (const audit of audits) {
+      if (!audit.attendanceLogId) continue;
+      const byAction = resolvedByLog.get(audit.attendanceLogId) ?? new Map<string, Date>();
+      if (!byAction.has(audit.action)) byAction.set(audit.action, audit.createdAt);
+      resolvedByLog.set(audit.attendanceLogId, byAction);
+    }
+
+    // Resolve approver display names (approverId = userId) from linked employees.
+    const approverIds = [...new Set(requests.map(r => r.approverId).filter(Boolean))] as string[];
+    let approverMap: Record<string, string> = {};
+    if (approverIds.length > 0) {
+      const approvers = await this.prisma.user.findMany({
+        where: { id: { in: approverIds } },
+        select: {
+          id: true,
+          email: true,
+          employee: { select: { firstName: true, lastName: true } },
+        },
+      });
+      approverMap = Object.fromEntries(
+        approvers.map(a => [a.id, a.employee
+          ? `${a.employee.firstName} ${a.employee.lastName || ''}`.trim()
+          : a.email]),
+      );
+    }
+
+    return requests.map(r => {
+      const expectedAction = r.status === 'approved'
+        ? 'REGULARIZATION_APPROVED'
+        : r.status === 'rejected'
+          ? 'REGULARIZATION_REJECTED'
+          : null;
+      const resolvedAt = expectedAction
+        ? resolvedByLog.get(r.attendanceLogId)?.get(expectedAction) ?? null
+        : null;
+      return {
+        id: r.id,
+        employee: r.employee,
+        attendanceLog: r.attendanceLog,
+        requestedCheckIn: r.requestedCheckIn,
+        requestedCheckOut: r.requestedCheckOut,
+        reason: r.reason,
+        type: r.type,
+        status: r.status,
+        resolutionNote: r.resolutionNote,
+        requestedAt: r.createdAt,
+        approval: {
+          approverId: r.approverId,
+          approverName: r.approverId ? (approverMap[r.approverId] ?? null) : null,
+          resolvedAt,
+        },
+      };
+    });
+  }
+
+  /**
+   * Aggregated regularization summary for HR export — global totals by status
+   * plus per-employee counts, aggregated in the database via groupBy.
+   */
+  async getRegularizationSummary(
+    companyId: string,
+    userId: string,
+    filters: RegularizationReportFilters,
+  ) {
+    const { where } = await this.buildRegularizationWhere(companyId, userId, filters);
+
+    const [byStatus, byEmployee] = await Promise.all([
+      this.prisma.regularizationRequest.groupBy({ by: ['status'], where, _count: { _all: true } }),
+      this.prisma.regularizationRequest.groupBy({ by: ['employeeId', 'status'], where, _count: { _all: true } }),
+    ]);
+
+    const totals = { total: 0, pending: 0, approved: 0, rejected: 0, cancelled: 0 };
+    for (const row of byStatus) {
+      const count = row._count._all;
+      totals.total += count;
+      if (row.status === 'pending') totals.pending = count;
+      else if (row.status === 'approved') totals.approved = count;
+      else if (row.status === 'rejected') totals.rejected = count;
+    }
+
+    const countsByEmployee = new Map<string, { pending: number; approved: number; rejected: number }>();
+    for (const row of byEmployee) {
+      const counts = countsByEmployee.get(row.employeeId) ?? { pending: 0, approved: 0, rejected: 0 };
+      if (row.status === 'pending') counts.pending += row._count._all;
+      else if (row.status === 'approved') counts.approved += row._count._all;
+      else if (row.status === 'rejected') counts.rejected += row._count._all;
+      countsByEmployee.set(row.employeeId, counts);
+    }
+
+    const employeeIds = [...countsByEmployee.keys()];
+    const employees = employeeIds.length
+      ? await this.prisma.employee.findMany({
+          where: { id: { in: employeeIds } },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            department: { select: { name: true } },
+            company: { select: { id: true, name: true, displayName: true } },
+          },
+        })
+      : [];
+
+    return {
+      totals,
+      employees: employees
+        .map(emp => {
+          const counts = countsByEmployee.get(emp.id)!;
+          return {
+            employeeId: emp.id,
+            employeeCode: emp.employeeCode,
+            name: `${emp.firstName} ${emp.lastName || ''}`.trim(),
+            companyName: emp.company?.displayName || emp.company?.name || '',
+            department: emp.department?.name ?? null,
+            total: counts.pending + counts.approved + counts.rejected,
+            approved: counts.approved,
+            pending: counts.pending,
+            rejected: counts.rejected,
+            cancelled: 0,
+          };
+        })
+        .sort((a, b) => b.total - a.total),
+    };
   }
 
   async requestRegularization(companyId: string, logId: string, employeeId: string, requestedCheckIn?: string | Date | null, requestedCheckOut?: string | Date | null, reason: string = '', type: string = 'regularization', userId?: string) {

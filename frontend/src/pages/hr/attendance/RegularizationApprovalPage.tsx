@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ShieldAlert, Search, Filter, Check, X, Clock, RefreshCw, User } from 'lucide-react';
+import { ShieldAlert, Search, Filter, Check, X, Clock, RefreshCw, User, FileSpreadsheet } from 'lucide-react';
 import { attendanceApi } from '../../../api/client';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { fmtTime12, fmtDateFull } from '../../../utils/formatDate';
+import RegularizationExportDialog from './RegularizationExportDialog';
 
 const TABS = [
   { key: 'pending', label: 'Pending' },
@@ -27,6 +28,7 @@ export default function RegularizationApprovalPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
   const queryClient = useQueryClient();
   const { success: toastSuccess, error: toastError } = useToast();
@@ -142,6 +144,12 @@ export default function RegularizationApprovalPage() {
             {tab === 'pending' ? 'Pending Correction Requests' : `${tab[0].toUpperCase()}${tab.slice(1)} Correction Requests`}
           </h3>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setExportOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors"
+            >
+              <FileSpreadsheet size={15} /> Export
+            </button>
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
               <input
@@ -335,6 +343,8 @@ export default function RegularizationApprovalPage() {
           </div>
         )}
       </div>
+
+      <RegularizationExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
     </div>
   );
 }
