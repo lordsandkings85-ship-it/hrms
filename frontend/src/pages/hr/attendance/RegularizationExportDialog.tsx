@@ -156,7 +156,7 @@ export default function RegularizationExportDialog({
     { header: 'Department', key: 'employee.department', width: 18 },
     { header: 'Designation', key: 'employee.designation', width: 18 },
     { header: 'Branch', key: 'employee.branch', width: 18 },
-    { header: 'Works Date', key: 'log.date', width: 14 },
+    { header: 'Attendance Date', key: 'log.date', width: 16 },
     { header: 'Actual Login Time (Before Regularization)', key: 'original.checkIn', width: 22 },
     { header: 'Actual Logout Time (Before Regularization)', key: 'original.checkOut', width: 22 },
     { header: 'Punch Source', key: 'original.source', width: 30 },
@@ -200,8 +200,8 @@ export default function RegularizationExportDialog({
           ? 'Not Retained'
           : orig.checkOut ? fmtTime12(orig.checkOut) : 'Not Recorded',
         'original.source': PUNCH_SOURCE_LABEL[orig.source] ?? orig.source ?? '',
-        requestedCheckIn: r.requestedCheckIn ? fmtTime12(r.requestedCheckIn) : 'Not Requested',
-        requestedCheckOut: r.requestedCheckOut ? fmtTime12(r.requestedCheckOut) : 'Not Requested',
+        requestedCheckIn: r.requestedCheckIn ? fmtTime12(r.requestedCheckIn) : 'Not Regularized',
+        requestedCheckOut: r.requestedCheckOut ? fmtTime12(r.requestedCheckOut) : 'Not Regularized',
         reason: r.reason ?? '',
         typeLabel: r.type === 'full_day' ? 'Full-Day' : 'Time Change',
         status: r.status ?? '',
@@ -309,6 +309,7 @@ export default function RegularizationExportDialog({
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
+              <option value="cancelled">Cancelled</option>
             </select>
           </label>
           <label className="block">
@@ -421,11 +422,13 @@ export default function RegularizationExportDialog({
                 <thead className="sticky top-0 bg-[var(--surface)]">
                   <tr className="text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
                     <th className="px-3 py-2 font-bold">Employee</th>
-                    <th className="px-3 py-2 font-bold">Date</th>
-                    <th className="px-3 py-2 font-bold">Actual In (Before)</th>
-                    <th className="px-3 py-2 font-bold">Actual Out (Before)</th>
-                    <th className="px-3 py-2 font-bold">Regularized In</th>
-                    <th className="px-3 py-2 font-bold">Regularized Out</th>
+                    {groupWide && <th className="px-3 py-2 font-bold">Company</th>}
+                    <th className="px-3 py-2 font-bold">Attendance Date</th>
+                    <th className="px-3 py-2 font-bold" title="The login time actually recorded, before regularization">Actual Login Time</th>
+                    <th className="px-3 py-2 font-bold" title="The logout time actually recorded, before regularization">Actual Logout Time</th>
+                    <th className="px-3 py-2 font-bold text-blue-600" title="The login time requested or approved through regularization">Regularized Login Time</th>
+                    <th className="px-3 py-2 font-bold text-blue-600" title="The logout time requested or approved through regularization">Regularized Logout Time</th>
+                    <th className="px-3 py-2 font-bold">Reason</th>
                     <th className="px-3 py-2 font-bold">Type</th>
                     <th className="px-3 py-2 font-bold">Status</th>
                   </tr>
@@ -440,11 +443,17 @@ export default function RegularizationExportDialog({
                         {r.employee?.firstName} {r.employee?.lastName}
                         <div className="text-[9px] text-[var(--text-muted)]">{r.employee?.employeeCode}</div>
                       </td>
+                      {groupWide && (
+                        <td className="px-3 py-2">{r.employee?.company?.displayName || r.employee?.company?.name || '—'}</td>
+                      )}
                       <td className="px-3 py-2">{r.attendanceLog?.date ? fmtDate(r.attendanceLog.date) : '—'}</td>
                       <td className="px-3 py-2">{notRetained ? 'Not Retained' : orig.checkIn ? fmtTime12(orig.checkIn) : 'Not Recorded'}</td>
                       <td className="px-3 py-2">{notRetained ? 'Not Retained' : orig.checkOut ? fmtTime12(orig.checkOut) : 'Not Recorded'}</td>
-                      <td className="px-3 py-2">{r.requestedCheckIn ? fmtTime12(r.requestedCheckIn) : 'Not Requested'}</td>
-                      <td className="px-3 py-2">{r.requestedCheckOut ? fmtTime12(r.requestedCheckOut) : 'Not Requested'}</td>
+                      <td className="px-3 py-2 text-blue-600">{r.requestedCheckIn ? fmtTime12(r.requestedCheckIn) : 'Not Regularized'}</td>
+                      <td className="px-3 py-2 text-blue-600">{r.requestedCheckOut ? fmtTime12(r.requestedCheckOut) : 'Not Regularized'}</td>
+                      <td className="px-3 py-2 max-w-[160px]">
+                        <span className="block truncate text-[var(--text-muted)]" title={r.reason}>{r.reason || '—'}</span>
+                      </td>
                       <td className="px-3 py-2">{r.type === 'full_day' ? 'Full-Day' : 'Time Change'}</td>
                       <td className="px-3 py-2 capitalize">{r.status}</td>
                     </tr>

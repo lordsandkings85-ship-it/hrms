@@ -1263,7 +1263,7 @@ export class AttendanceService {
     if (filters.branchId) employeeFilter.branchId = filters.branchId;
     where.employee = employeeFilter;
 
-    if (filters.status && ['pending', 'approved', 'rejected'].includes(filters.status)) {
+    if (filters.status && ['pending', 'approved', 'rejected', 'cancelled'].includes(filters.status)) {
       where.status = filters.status;
     }
     if (filters.type && ['regularization', 'full_day'].includes(filters.type)) {

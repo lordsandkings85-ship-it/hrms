@@ -494,6 +494,27 @@ describe('AttendanceService.getRegularizationReport', () => {
     expect(called.where.attendanceLog.date.lt.toISOString()).toBe('2026-09-30T18:30:00.000Z');
   });
 
+  it('accepts every documented status, including cancelled', async () => {
+    const { service, prisma } = buildService();
+    for (const status of ['pending', 'approved', 'rejected', 'cancelled']) {
+      await service.getRegularizationReport(companyId, 'u-1', { status });
+    }
+    const wheres = (prisma.regularizationRequest.findMany as jest.Mock).mock.calls.map((c) => c[0].where);
+    expect(wheres).toEqual([
+      { employee: { companyId }, status: 'pending' },
+      { employee: { companyId }, status: 'approved' },
+      { employee: { companyId }, status: 'rejected' },
+      { employee: { companyId }, status: 'cancelled' },
+    ]);
+  });
+
+  it('ignores an unknown status instead of filtering by it', async () => {
+    const { service, prisma } = buildService();
+    await service.getRegularizationReport(companyId, 'u-1', { status: 'bogus' });
+    const called = (prisma.regularizationRequest.findMany as jest.Mock).mock.calls[0][0];
+    expect(called.where.status).toBeUndefined();
+  });
+
   it('maps the date filter to the requested calendar month, not the next one', async () => {
     const { service, prisma } = buildService();
     await service.getRegularizationReport(companyId, 'u-1', { from: '2026-01-01', to: '2026-01-31' });
