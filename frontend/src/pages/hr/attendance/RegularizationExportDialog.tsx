@@ -157,11 +157,11 @@ export default function RegularizationExportDialog({
     { header: 'Designation', key: 'employee.designation', width: 18 },
     { header: 'Branch', key: 'employee.branch', width: 18 },
     { header: 'Works Date', key: 'log.date', width: 14 },
-    { header: 'Original Login Time', key: 'original.checkIn', width: 18 },
-    { header: 'Original Logout Time', key: 'original.checkOut', width: 18 },
+    { header: 'Actual Login Time (Before Regularization)', key: 'original.checkIn', width: 22 },
+    { header: 'Actual Logout Time (Before Regularization)', key: 'original.checkOut', width: 22 },
     { header: 'Punch Source', key: 'original.source', width: 30 },
-    { header: 'Regularized Login Time', key: 'requestedCheckIn', width: 18 },
-    { header: 'Regularized Logout Time', key: 'requestedCheckOut', width: 18 },
+    { header: 'Regularized Login Time (Requested)', key: 'requestedCheckIn', width: 20 },
+    { header: 'Regularized Logout Time (Requested)', key: 'requestedCheckOut', width: 20 },
     { header: 'Reason', key: 'reason', width: 40 },
     { header: 'Type', key: 'typeLabel', width: 14 },
     { header: 'Status', key: 'status', width: 12 },
@@ -200,8 +200,8 @@ export default function RegularizationExportDialog({
           ? 'Not Retained'
           : orig.checkOut ? fmtTime12(orig.checkOut) : 'Not Recorded',
         'original.source': PUNCH_SOURCE_LABEL[orig.source] ?? orig.source ?? '',
-        requestedCheckIn: r.requestedCheckIn ? fmtTime12(r.requestedCheckIn) : 'Not Recorded',
-        requestedCheckOut: r.requestedCheckOut ? fmtTime12(r.requestedCheckOut) : 'Not Recorded',
+        requestedCheckIn: r.requestedCheckIn ? fmtTime12(r.requestedCheckIn) : 'Not Requested',
+        requestedCheckOut: r.requestedCheckOut ? fmtTime12(r.requestedCheckOut) : 'Not Requested',
         reason: r.reason ?? '',
         typeLabel: r.type === 'full_day' ? 'Full-Day' : 'Time Change',
         status: r.status ?? '',
@@ -253,10 +253,12 @@ export default function RegularizationExportDialog({
               columns: detailColumns,
               rows: mapDetails(rows),
               footnote:
-                'Original Login/Logout = the punch the employee actually recorded. Punch Source explains its origin: '
-                + '"Raw punch (not yet corrected)" for pending/rejected requests, "Raw punch (kept, full-day)" for approved full-day requests, '
-                + '"Recorded before correction" when the pre-correction punch was captured at approval, and "Not Retained" for time-corrections '
-                + 'approved before this release — approving a time correction overwrites the stored punch, and those originals were never archived.',
+                'Actual Login/Logout = the punch the employee actually recorded, i.e. the time before regularization; it is never '
+                + 'overwritten by the regularized time. Punch Source explains its origin: "Raw punch (not yet corrected)" for pending/rejected '
+                + 'requests, "Raw punch (kept, full-day)" for approved full-day requests, "Recorded before correction" when the pre-correction '
+                + 'punch was captured at approval, and "Not Retained" for time-corrections approved before that capture existed — approving a '
+                + 'time correction overwrites the stored punch and those originals were never archived. '
+                + 'Regularized Login/Logout = the times requested on the correction ("Not Requested" when the request left that punch unchanged).',
             },
             {
               name: 'Employee Summary',
@@ -420,8 +422,8 @@ export default function RegularizationExportDialog({
                   <tr className="text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
                     <th className="px-3 py-2 font-bold">Employee</th>
                     <th className="px-3 py-2 font-bold">Date</th>
-                    <th className="px-3 py-2 font-bold">Original In</th>
-                    <th className="px-3 py-2 font-bold">Original Out</th>
+                    <th className="px-3 py-2 font-bold">Actual In (Before)</th>
+                    <th className="px-3 py-2 font-bold">Actual Out (Before)</th>
                     <th className="px-3 py-2 font-bold">Regularized In</th>
                     <th className="px-3 py-2 font-bold">Regularized Out</th>
                     <th className="px-3 py-2 font-bold">Type</th>
@@ -441,8 +443,8 @@ export default function RegularizationExportDialog({
                       <td className="px-3 py-2">{r.attendanceLog?.date ? fmtDate(r.attendanceLog.date) : '—'}</td>
                       <td className="px-3 py-2">{notRetained ? 'Not Retained' : orig.checkIn ? fmtTime12(orig.checkIn) : 'Not Recorded'}</td>
                       <td className="px-3 py-2">{notRetained ? 'Not Retained' : orig.checkOut ? fmtTime12(orig.checkOut) : 'Not Recorded'}</td>
-                      <td className="px-3 py-2">{r.requestedCheckIn ? fmtTime12(r.requestedCheckIn) : '—'}</td>
-                      <td className="px-3 py-2">{r.requestedCheckOut ? fmtTime12(r.requestedCheckOut) : '—'}</td>
+                      <td className="px-3 py-2">{r.requestedCheckIn ? fmtTime12(r.requestedCheckIn) : 'Not Requested'}</td>
+                      <td className="px-3 py-2">{r.requestedCheckOut ? fmtTime12(r.requestedCheckOut) : 'Not Requested'}</td>
                       <td className="px-3 py-2">{r.type === 'full_day' ? 'Full-Day' : 'Time Change'}</td>
                       <td className="px-3 py-2 capitalize">{r.status}</td>
                     </tr>
@@ -483,8 +485,8 @@ export default function RegularizationExportDialog({
         <p className="flex items-start gap-1.5 text-[10px] text-[var(--text-muted)]">
           <FileDown size={11} className="mt-0.5 shrink-0" />
           Excel exports two tabs: <strong>Regularization Details</strong> (full report) and <strong>Employee Summary</strong> (per-employee
-          counts). CSV exports the Details columns. Original punch (what the employee actually recorded) is shown next to the
-          regularized time, with a Punch Source column stating where each original came from.
+          counts). CSV exports the Details columns. Actual time is the punch before regularization and is never overwritten by the
+          regularized time; the Punch Source column states where each actual came from.
         </p>
       </div>
     </Modal>
