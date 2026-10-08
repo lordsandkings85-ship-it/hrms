@@ -333,6 +333,7 @@ export default function EmployeeDashboard() {
                            { label: 'On Leave', value: summary.onLeave, color: 'var(--warning)' },
                            { label: 'Absent', value: summary.absent, color: 'var(--danger)' },
                            { label: 'Half Day', value: summary.halfDay, color: 'var(--info)' },
+                           { label: 'Paid Holidays', value: summary.paidHolidays ?? summary.holidays ?? 0, color: '#06b6d4' },
                         ].map(row => (
                            <div key={row.label} className="flex items-center gap-2">
                               <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: row.color }} />
@@ -345,7 +346,7 @@ export default function EmployeeDashboard() {
                ) : (
                   <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>No data yet for this month.</p>
                )}
-               <Link to="/attendance" className="flex items-center gap-1 text-xs font-semibold mt-4 w-fit transition-colors" style={{ color: 'var(--info)' }} onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'} onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>
+               <Link to="/attendance/summary" className="flex items-center gap-1 text-xs font-semibold mt-4 w-fit transition-colors" style={{ color: 'var(--info)' }} onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'} onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>
                   View details <ArrowRight size={11} />
                </Link>
             </div>
