@@ -591,43 +591,96 @@ function EmployeeSummary() {
       {isLoading ? (
         <div className="flex justify-center p-12"><Spinner size="lg" /></div>
       ) : summary ? (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <CalendarIcon size={18} className="text-indigo-500" /> This Month's Attendance
-            </h3>
-            <span className="text-xs font-bold text-slate-500">
-              {new Date(0, month - 1).toLocaleString('default', { month: 'long' })} {year}
-            </span>
-          </div>
-          <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
-            <div className="relative flex-shrink-0">
-              <RingChart value={presentDays} max={totalExpected} color="var(--success)" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="font-mono text-lg font-bold text-slate-900 dark:text-white">{presentDays}</span>
-                <span className="text-[10px] text-slate-500">/ {totalExpected} days</span>
+        <>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <CalendarIcon size={18} className="text-indigo-500" /> This Month's Attendance
+              </h3>
+              <span className="text-xs font-bold text-slate-500">
+                {new Date(0, month - 1).toLocaleString('default', { month: 'long' })} {year}
+              </span>
+            </div>
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+              <div className="relative flex-shrink-0">
+                <RingChart value={presentDays} max={totalExpected} color="var(--success)" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="font-mono text-lg font-bold text-slate-900 dark:text-white">{presentDays}</span>
+                  <span className="text-[10px] text-slate-500">/ {totalExpected} days</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-3 flex-1 w-full">
+                {[
+                  { label: 'Total Working Days', value: summary.totalDays, color: 'var(--info)' },
+                  { label: 'Present', value: summary.present + summary.late, color: 'var(--success)' },
+                  { label: 'Late', value: summary.late, color: 'var(--warning)' },
+                  { label: 'Half Day', value: summary.halfDay, color: 'var(--info)' },
+                  { label: 'On Leave', value: summary.onLeave, color: 'var(--primary)' },
+                  { label: 'Absent', value: summary.absent, color: 'var(--danger)' },
+                  { label: 'Paid Holidays', value: summary.paidHolidays ?? summary.holidays ?? 0, color: '#8b5cf6' },
+                  { label: 'Permission', value: summary.permissions?.length ?? 0, color: 'var(--info)' },
+                ].map(row => (
+                  <div key={row.label} className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: row.color }} />
+                    <span className="text-xs flex-1 text-slate-500">{row.label}</span>
+                    <span className="font-mono text-xs font-semibold text-slate-900 dark:text-white">{row.value}</span>
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-3 flex-1 w-full">
-              {[
-                { label: 'Total Working Days', value: summary.totalDays, color: 'var(--info)' },
-                { label: 'Present', value: summary.present + summary.late, color: 'var(--success)' },
-                { label: 'Late', value: summary.late, color: 'var(--warning)' },
-                { label: 'Half Day', value: summary.halfDay, color: 'var(--info)' },
-                { label: 'On Leave', value: summary.onLeave, color: 'var(--primary)' },
-                { label: 'Absent', value: summary.absent, color: 'var(--danger)' },
-                { label: 'Paid Holidays', value: summary.paidHolidays ?? summary.holidays ?? 0, color: 'var(--info)' },
-                { label: 'Permission', value: summary.permissions?.length ?? 0, color: 'var(--info)' },
-              ].map(row => (
-                <div key={row.label} className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: row.color }} />
-                  <span className="text-xs flex-1 text-slate-500">{row.label}</span>
-                  <span className="font-mono text-xs font-semibold text-slate-900 dark:text-white">{row.value}</span>
-                </div>
-              ))}
-            </div>
           </div>
-        </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Daily Attendance Breakdown</h3>
+              <span className="text-xs font-semibold text-slate-500">
+                {summary.logs?.length ?? 0} record(s) found
+              </span>
+            </div>
+            <DataTable
+              columns={[
+                { key: 'date', header: 'Date', render: (row: any) => (
+                  <span className="font-mono text-xs font-bold text-[var(--text-primary)]">
+                    {row.date ? new Date(row.date).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' }) : '--'}
+                  </span>
+                )},
+                { key: 'checkIn', header: 'Check In', render: (row: any) => (
+                  <span className="font-mono text-xs text-emerald-500 font-semibold">
+                    {row.checkIn ? fmtTime12(row.checkIn) : '--'}
+                  </span>
+                )},
+                { key: 'checkOut', header: 'Check Out', render: (row: any) => (
+                  <span className="font-mono text-xs text-rose-500 font-semibold">
+                    {row.checkOut ? fmtTime12(row.checkOut) : '--'}
+                  </span>
+                )},
+                { key: 'hours', header: 'Hours', render: (row: any) => (
+                  <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{fmtDuration(row.checkIn, row.checkOut)}</span>
+                )},
+                { key: 'method', header: 'Method', render: (row: any) => (
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 capitalize">{row.method || 'WEB'}</span>
+                )},
+                { key: 'status', header: 'Status', render: (row: any) => {
+                  const map: Record<string, string> = {
+                    present: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+                    late: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+                    absent: 'bg-red-500/10 text-red-500 border-red-500/20',
+                    half_day: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+                    on_leave: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20',
+                    paid_holiday: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
+                  };
+                  const label = row.status === 'paid_holiday' ? 'Paid Holiday' : (row.status || '').replace('_', ' ');
+                  return <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold uppercase tracking-wider ${map[row.status] || ''}`}>{label}{row.holiday && row.status === 'paid_holiday' ? ` · ${row.holiday}` : ''}</span>;
+                }},
+              ]}
+              data={[...(summary.logs || [])].sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime())}
+              loading={false}
+              keyField="id"
+              showToolbar={false}
+              selectable={false}
+            />
+          </div>
+        </>
       ) : (
         <div className="text-center p-12 text-slate-500 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
           No summary data found for this period.

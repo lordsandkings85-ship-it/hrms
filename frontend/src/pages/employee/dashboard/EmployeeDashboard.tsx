@@ -296,7 +296,7 @@ export default function EmployeeDashboard() {
                {todayStatus.attendanceStatus === 'OFF_DAY_OR_INCOMPLETE' &&
                   todayStatus.checkOut &&
                   todayStatus.regularizationStatus !== 'pending' && (
-                     <Link to="/attendance" className="flex items-center gap-1 text-xs font-semibold w-fit" style={{ color: 'var(--warning-text)' }}>
+                     <Link to="/attendance/correction-request" className="flex items-center gap-1 text-xs font-semibold w-fit cursor-pointer hover:underline" style={{ color: 'var(--warning-text)' }}>
                         <AlertTriangle size={12} /> Shift marked incomplete — raise correction
                      </Link>
                   )}
@@ -329,11 +329,11 @@ export default function EmployeeDashboard() {
                      </div>
                      <div className="space-y-2 flex-1">
                         {[
-                           { label: 'Present', value: summary.present + summary.late, color: 'var(--success)' },
-                           { label: 'On Leave', value: summary.onLeave, color: 'var(--warning)' },
-                           { label: 'Absent', value: summary.absent, color: 'var(--danger)' },
-                           { label: 'Half Day', value: summary.halfDay, color: 'var(--info)' },
-                           { label: 'Paid Holidays', value: summary.paidHolidays ?? summary.holidays ?? 0, color: '#06b6d4' },
+                           { label: 'Present', value: (summary.present ?? 0) + (summary.late ?? 0), color: 'var(--success)' },
+                           { label: 'On Leave', value: summary.onLeave ?? 0, color: 'var(--warning)' },
+                           { label: 'Absent', value: summary.absent ?? 0, color: 'var(--danger)' },
+                           { label: 'Half Day', value: summary.halfDay ?? 0, color: 'var(--info)' },
+                           { label: 'Paid Holidays', value: summary.paidHolidays ?? summary.holidays ?? 0, color: '#8b5cf6' },
                         ].map(row => (
                            <div key={row.label} className="flex items-center gap-2">
                               <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: row.color }} />
@@ -346,7 +346,7 @@ export default function EmployeeDashboard() {
                ) : (
                   <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>No data yet for this month.</p>
                )}
-               <Link to="/attendance/summary" className="flex items-center gap-1 text-xs font-semibold mt-4 w-fit transition-colors" style={{ color: 'var(--info)' }} onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'} onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>
+               <Link to="/attendance/summary" className="flex items-center gap-1 text-xs font-semibold mt-4 w-fit transition-colors cursor-pointer hover:underline" style={{ color: 'var(--info)' }}>
                   View details <ArrowRight size={11} />
                </Link>
             </div>
