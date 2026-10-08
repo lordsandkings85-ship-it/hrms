@@ -9,6 +9,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { DataTable } from '../../../components/ui/DataTable';
 import { generatePayslipPDF } from '../../../utils/payslipPDF';
 import { PayslipPreviewModal } from '../../../components/payroll/PayslipPreviewModal';
+import { sortPayslipsNewestFirst } from '../../../utils/formatDate';
 
 type TabKey = 'payslips' | 'structure';
 
@@ -53,7 +54,8 @@ export default function MyPayrollPage() {
     enabled: !!myEmpId,
   });
 
-  const latestPayslip = payslips && payslips.length > 0 ? payslips[0] : null;
+  const sortedPayslips = sortPayslipsNewestFirst(payslips);
+  const latestPayslip = sortedPayslips.length > 0 ? sortedPayslips[0] : null;
   const latestBreakdown = latestPayslip?.breakdown || {};
 
   // Resolve active salary components (prioritizing explicit structure, fallback to latest payslip breakdown)
@@ -222,7 +224,7 @@ export default function MyPayrollPage() {
                 Could not load payslips: {(payslipsError as any)?.message || 'Something went wrong'}
               </div>
             ) : payslips && payslips.length > 0 ? (
-              <DataTable data={payslips} columns={payslipColumns} keyField="id" />
+              <DataTable data={sortedPayslips} columns={payslipColumns} keyField="id" />
             ) : (
               <p className="text-xs text-slate-400 py-8 text-center">No payslips generated yet.</p>
             )}

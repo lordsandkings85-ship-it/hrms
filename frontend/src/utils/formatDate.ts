@@ -45,6 +45,16 @@ export function fmtTime12(value: any): string {
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')} ${d.getHours() >= 12 ? 'PM' : 'AM'}`;
 }
 
+/** Sort payslips so the most recently generated appears first (stable; items without generatedAt go last). */
+export function sortPayslipsNewestFirst(list: any[] | null | undefined): any[] {
+  const items = Array.isArray(list) ? [...list] : [];
+  return items.sort((a, b) => {
+    const ta = a?.generatedAt ? new Date(a.generatedAt).getTime() : 0;
+    const tb = b?.generatedAt ? new Date(b.generatedAt).getTime() : 0;
+    return tb - ta;
+  });
+}
+
 /** Format a "HH:mm" (or "HH:mm:ss") wall-clock string as 12-hour time, e.g. "15:00" → "03:00 PM". */
 export function fmt24To12(hhmm?: string | null): string {
   if (!hhmm) return '';

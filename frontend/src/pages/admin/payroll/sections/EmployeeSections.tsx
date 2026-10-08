@@ -8,7 +8,7 @@ import { fmtINR, SectionCard, EmployeeSelect } from './shared';
 import { MONTHS } from './shared';
 import { generatePayslipPDF } from '../../../../utils/payslipPDF';
 import { useAuthStore } from '../../../../store/useAuthStore';
-import { fmtDate } from '../../../../utils/formatDate';
+import { fmtDate, sortPayslipsNewestFirst } from '../../../../utils/formatDate';
 import { PayslipPreviewModal } from '../../../../components/payroll/PayslipPreviewModal';
 
 async function downloadPayslip(payslip: any) {
@@ -51,7 +51,7 @@ export function PayslipSection() {
     <SectionCard title="Employee Payslips" icon={FileText} right={<div className="w-72"><EmployeeSelect value={employeeId} onChange={setEmployeeId} label="Select employee to view payslips…" /></div>}>
       {employeeId ? (
         <>
-          <DataTable columns={columns} data={data ?? []} loading={isLoading} keyField="id" emptyTitle="No payslips" emptyMessage="No payslips generated for this employee." />
+          <DataTable columns={columns} data={sortPayslipsNewestFirst(data)} loading={isLoading} keyField="id" emptyTitle="No payslips" emptyMessage="No payslips generated for this employee." />
           <PayslipPreviewModal
             open={!!previewingPayslipId}
             onClose={() => setPreviewingPayslipId(null)}

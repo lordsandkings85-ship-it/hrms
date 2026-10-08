@@ -722,6 +722,7 @@ let payslipCount = 0;
     if (!cycle) throw new NotFoundException('Payroll cycle not found');
     return this.prisma.payslip.findMany({
       where: { payrollCycleId: cycleId },
+      orderBy: { generatedAt: 'desc' },
       include: {
         employee: {
           select: {

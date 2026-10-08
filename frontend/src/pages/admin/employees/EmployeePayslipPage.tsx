@@ -7,6 +7,7 @@ import { StatusBadge } from '../../../components/ui/Badge';
 import { generatePayslipPDF } from '../../../utils/payslipPDF';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { PayslipPreviewModal } from '../../../components/payroll/PayslipPreviewModal';
+import { sortPayslipsNewestFirst } from '../../../utils/formatDate';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -29,7 +30,7 @@ export default function EmployeePayslipPage() {
     queryFn: () => payrollApi.getPayslips(employeeId),
     enabled: !!employeeId,
   });
-  const payslipList = Array.isArray(payslips) ? payslips : [];
+  const payslipList = sortPayslipsNewestFirst(payslips);
 
   const handleDownload = async (payslip: any) => {
     try {

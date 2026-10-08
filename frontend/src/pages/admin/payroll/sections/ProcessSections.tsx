@@ -7,7 +7,7 @@ import { DataTable, Column } from '../../../../components/ui/DataTable';
 import { Modal } from '../../../../components/ui/Modal';
 import { useToast } from '../../../../components/ui/ToastProvider';
 import { MONTHS, currentMonthYear, fmtINR, SectionCard, MonthYearControls, EmployeeSelect, useEmployeeList } from './shared';
-import { fmtDate } from '../../../../utils/formatDate';
+import { fmtDate, sortPayslipsNewestFirst } from '../../../../utils/formatDate';
 import { generatePayslipPDF } from '../../../../utils/payslipPDF';
 import { useAuthStore } from '../../../../store/useAuthStore';
 
@@ -361,7 +361,7 @@ export function ProcessedSection() {
       >
         <DataTable
           columns={payslipColumns}
-          data={cyclePayslips ?? []}
+          data={sortPayslipsNewestFirst(cyclePayslips)}
           loading={loadingPayslips}
           keyField="id"
           showToolbar={false}
@@ -439,7 +439,7 @@ export function SendPayslipsSection() {
     { key: 'net', header: 'Net Pay', render: (p: any) => <span className="font-mono font-bold text-emerald-500">{fmtINR(p.netPay)}</span> },
     { key: 'gross', header: 'Gross Pay', render: (p: any) => <span className="font-mono font-semibold">{fmtINR(p.grossPay)}</span> },
   ];
-  const paySlips = pickPayslips ?? [];
+  const paySlips = sortPayslipsNewestFirst(pickPayslips);
 
   const columns: Column<any>[] = [
     { key: 'label', header: 'Period', render: (r: any) => <span className="font-bold text-[var(--text-primary)]">{MONTHS[(r.month || 1) - 1]} {r.year}</span> },

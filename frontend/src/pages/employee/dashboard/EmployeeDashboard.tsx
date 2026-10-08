@@ -13,7 +13,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useServerTime } from '../../../hooks/useServerTime';
 import { useShiftRemaining, fmtShiftHM } from '../../../hooks/useShiftRemaining';
 import { getServerDate, getServerYear, getServerMonth } from '../../../utils/serverTime';
-import { fmtDate, fmt24To12 } from '../../../utils/formatDate';
+import { fmtDate, fmt24To12, sortPayslipsNewestFirst } from '../../../utils/formatDate';
 
 const LiveClock = React.memo(function LiveClock() {
    const { now } = useServerTime();
@@ -139,7 +139,8 @@ export default function EmployeeDashboard() {
       );
    }
 
-   const latestPayslip = payslips?.[0];
+   const sortedPayslips = sortPayslipsNewestFirst(payslips);
+   const latestPayslip = sortedPayslips[0];
    const latestBreakdown = latestPayslip?.breakdown || {};
    const grossMonthly = salaryStructure
       ? (Number(salaryStructure.basic || 0) + Number(salaryStructure.hra || 0) + Number(salaryStructure.da || 0) +
