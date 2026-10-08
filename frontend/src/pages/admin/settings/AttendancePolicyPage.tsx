@@ -24,6 +24,8 @@ const DEFAULTS = [
   { key: 'custom.incompleteShiftStatus', name: 'Incomplete Shift Status', value: 'OFF_DAY_OR_INCOMPLETE' },
   { key: 'custom.secondSaturdayOff', name: '2nd Saturday Weekly-Off', value: 'false' },
   { key: 'custom.secondSaturdayCompOffCredit', name: '2nd Saturday Comp Off Credit (days)', value: '1' },
+  { key: 'custom.maxLatesPerMonth', name: 'Monthly Late Allowance (count)', value: '6' },
+  { key: 'custom.maxPermissionsPerMonth', name: 'Monthly Permission Requests (count)', value: '6' },
   { key: 'custom.monthlyCasualLeave', name: 'Monthly Casual Leave', value: 'true' },
   { key: 'custom.monthlyCasualLeaveAmount', name: 'Monthly Casual Leave (days/mo)', value: '1' },
 ];

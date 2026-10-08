@@ -18,6 +18,10 @@ export interface MonthlySummaryRow {
   paidHolidays?: number;
   present: number;
   late: number;
+  /** Lates beyond the monthly allowance: each is a half-day LOP. */
+  lateLop?: number;
+  /** Monthly late allowance this row was charged against (default 6). */
+  maxLateAllowance?: number;
   halfDay: number;
   onLeave: number;
   absent: number;
@@ -58,6 +62,7 @@ export const SUMMARY_EXPORT_COLUMNS: ExcelColumn[] = [
   { header: 'Paid Holidays', key: 'paidHolidays', width: 13, type: 'number' },
   { header: 'Present', key: 'present', width: 11, type: 'number' },
   { header: 'Late', key: 'late', width: 11, type: 'number' },
+  { header: 'Late → LOP', key: 'lateLop', width: 12, type: 'number' },
   { header: 'Half Days', key: 'halfDay', width: 12, type: 'number' },
   { header: 'On Leave', key: 'onLeave', width: 11, type: 'number' },
   { header: 'Absent', key: 'absent', width: 11, type: 'number' },
@@ -78,7 +83,8 @@ export const DAY_DETAIL_COLUMNS: ExcelColumn[] = [
 export const SUMMARY_FOOTNOTE =
   'Total Working Days includes configured paid holidays. Paid Holidays are paid working days that need no punch; '
   + 'Half Days counts 0.5 per half day (half-day leave, or an incomplete shift once checked out). On Leave counts whole '
-  + 'working days only. Absent is derived as Total Working Days minus the other categories, so the row reconciles to the total.';
+  + 'working days only. Absent is derived as Total Working Days minus the other categories, so the row reconciles to the total. '
+  + 'Late → LOP counts the lates beyond the monthly allowance (default 6) — each is a half-day LOP in payroll, but still a worked/late day above.';
 
 export const monthLabel = (month: number, year: number) =>
   `${new Date(0, month - 1).toLocaleString('default', { month: 'long' })} ${year}`;
@@ -105,6 +111,7 @@ export const summaryExportRow = (r: MonthlySummaryRow, month: number, year: numb
   paidHolidays: r.paidHolidays ?? r.holidays ?? 0,
   present: r.present,
   late: r.late,
+  lateLop: r.lateLop ?? 0,
   halfDay: r.halfDay,
   onLeave: r.onLeave,
   absent: r.absent,
@@ -128,9 +135,13 @@ const localDay = (value: any): string => {
 export const dayDetailRow = (log: any, permissions: DayPermission[] = []) => {
   const key = log.date ? fmtDate(log.date) : '';
   // Match on the UTC day, not the locale-formatted label, or no permission ever joins up.
-  const perm = permissions.find((p) => p.date === isoDay(log.date));
+  const perm = permissions.find((p) => p.date === isoDay(log.date)) || log.permission;
   const punched = !!(log.checkIn || log.checkOut);
-  const label = STATUS_LABEL[log.status] || log.status || '';
+  let label = STATUS_LABEL[log.status] || log.status || '';
+  // An approved permission marks the whole day present; a late beyond the monthly
+  // allowance is a half-day LOP but still a worked/late day.
+  if (log.permission) label = 'Present / Permission';
+  else if (log.status === 'late' && log.lateLop) label = 'Late / Half LOP';
   return {
     date: key,
     day: log.date ? new Date(log.date).toLocaleDateString('en-IN', { weekday: 'short' }) : '',

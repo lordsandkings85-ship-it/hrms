@@ -53,10 +53,15 @@ describe('PermissionRequestService', () => {
       company: {
         findUnique: jest.fn(async () => ({ timezone: 'UTC' })),
       },
+      attendancePolicy: {
+        findMany: jest.fn(async () => []),
+        findFirst: jest.fn(async () => null),
+      },
       permissionRequest: {
         create: jest.fn(async () => baseRequest()),
         findFirst: jest.fn(async () => null),
         aggregate: jest.fn(async () => ({ _sum: { minutes: 0 } })),
+        count: jest.fn(async () => 0),
         findMany: jest.fn(async () => []),
         findUnique: jest.fn(async () => baseRequest()),
         update: jest.fn(async (args: any) => ({ ...baseRequest(), ...(args.data as any) })),
@@ -67,6 +72,7 @@ describe('PermissionRequestService', () => {
       attendanceLog: {
         findMany: jest.fn(async () => []),
         update: jest.fn(async () => ({})),
+        create: jest.fn(async () => ({ id: 'created-log' })),
       },
       attendanceAudit: {
         create: jest.fn(async () => ({ id: 'att-audit-1' })),
@@ -142,6 +148,30 @@ describe('PermissionRequestService', () => {
       const req = await service.create({ ...baseInput(), fromTime: '10:30', toTime: '11:00' });
       expect(req.minutes).toBe(30);
     });
+
+    it('rejects the 7th permission request in a month (default cap of 6)', async () => {
+      (prisma.permissionRequest.count as jest.Mock).mockResolvedValue(6);
+      await expect(service.create(baseInput())).rejects.toThrow(
+        'You can submit at most 6 permission requests per month',
+      );
+    });
+
+    it('honours a configured company cap on requests per month (3 → 4th rejected)', async () => {
+      (prisma.attendancePolicy.findMany as jest.Mock).mockResolvedValue([{
+        companyId: 'company-1', key: 'custom.maxPermissionsPerMonth', value: '3',
+      }]);
+      (prisma.permissionRequest.count as jest.Mock).mockResolvedValue(3);
+      await expect(service.create(baseInput())).rejects.toThrow(
+        'You can submit at most 3 permission requests per month',
+      );
+    });
+
+    it('still allows a request when the month count is below the cap', async () => {
+      (prisma.permissionRequest.count as jest.Mock).mockResolvedValue(5);
+      const req = await service.create(baseInput());
+      expect(req.minutes).toBe(30);
+      expect(prisma.permissionRequest.create).toHaveBeenCalled();
+    });
   });
 
   describe('company scoping', () => {
@@ -186,6 +216,60 @@ describe('PermissionRequestService', () => {
         expect.objectContaining({ data: expect.objectContaining({ action: 'PERMISSION_EXCUSED' }) }),
       );
       expect(notifications.notifyEmployee).toHaveBeenCalled();
+    });
+
+    it('flips every log of the day to present (day-wide excuse, one audit per log)', async () => {
+      (prisma.attendanceLog.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'log-1',
+          date: new Date('2026-09-25T00:00:00.000Z'),
+          checkIn: new Date('2026-09-25T10:45:00.000Z'),
+          checkOut: null,
+          lateStatus: 'late',
+          status: 'late',
+          attendanceStatus: 'OFF_DAY_OR_INCOMPLETE',
+        },
+        {
+          id: 'log-2',
+          date: new Date('2026-09-25T00:00:00.000Z'),
+          checkIn: new Date('2026-09-25T09:00:00.000Z'),
+          checkOut: null,
+          lateStatus: 'on_time',
+          status: 'present',
+          attendanceStatus: null,
+        },
+      ]);
+      await service.approve('req-1', 'company-1', 'user-2');
+
+      expect(prisma.attendanceLog.update).toHaveBeenCalledTimes(2);
+      const updates = (prisma.attendanceLog.update as jest.Mock).mock.calls.map((c: any[]) => c[0]);
+      expect(updates[0].data).toMatchObject({
+        status: 'present',
+        lateStatus: 'on_time',
+        lateMinutes: 0,
+        correctionOf: 'req-1',
+        attendanceStatus: 'FULL_DAY_PRESENT',
+      });
+      expect(updates[1].data).toMatchObject({ status: 'present', attendanceStatus: 'FULL_DAY_PRESENT' });
+      expect(prisma.attendanceAudit.create).toHaveBeenCalledTimes(2);
+    });
+
+    it('creates a paid present log when the employee has no log on the permission day', async () => {
+      (prisma.attendanceLog.findMany as jest.Mock).mockResolvedValue([]);
+      await service.approve('req-1', 'company-1', 'user-2');
+
+      expect(prisma.attendanceLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            date: new Date(2026, 8, 25),
+            status: 'present',
+            attendanceStatus: 'FULL_DAY_PRESENT',
+            method: 'permission',
+            correctionOf: 'req-1',
+          }),
+        }),
+      );
+      expect(prisma.attendanceLog.update).not.toHaveBeenCalled();
     });
 
     it('rejects without a reason', async () => {

@@ -4,6 +4,7 @@ import { computeIncomeTax, computePF, computeESI, TaxInput } from './tax.calcula
 import { decryptPiiFields, decryptNestedPii } from '../../../utils/crypto.util';
 import { MailService } from '../../../common/mail/mail.service';
 import { isGroupWideUser } from '../../../utils/group-access.util';
+import { computeLatePenalty, MAX_LATES_FALLBACK } from '../attendance/late-allowance.util';
 
 @Injectable()
 export class PayrollService {
@@ -188,6 +189,22 @@ export class PayrollService {
     });
     const secondSatByCompany = new Map(satPolicies.map((p) => [p.companyId, p.value === 'true']));
 
+    // Monthly late allowance per employee company (default 6): lates beyond it become
+    // half-day LOP days. Mirrors the attendance summary's lateLop count.
+    const latePolicies = await this.prisma.attendancePolicy.findMany({
+      where: { companyId: { in: empCompanyIds }, key: 'custom.maxLatesPerMonth' },
+      select: { companyId: true, value: true },
+    });
+    const latePolicyGlobal = await this.prisma.attendancePolicy.findFirst({
+      where: { key: 'custom.maxLatesPerMonth' },
+      select: { value: true },
+    });
+    const maxLatesByCompany = new Map(
+      latePolicies.map((p) => [p.companyId, Number(p.value ?? MAX_LATES_FALLBACK)]),
+    );
+    const maxLatesFor = (c?: string | null) =>
+      maxLatesByCompany.get(c ?? '') ?? Number(latePolicyGlobal?.value ?? MAX_LATES_FALLBACK);
+
     // Fetch all additional payouts for this month/year in bulk
     const allPayouts = await this.prisma.additionalPayout.findMany({
       where: { ...(groupWide ? {} : { employee: { companyId } }), month, year },
@@ -297,7 +314,22 @@ let payslipCount = 0;
         );
         const paidDays = new Set([...paidCalendarDays, ...holidayPaidDays]).size;
         const holidayDays = holidayPaidDays.size;
-        const lopDays = Math.max(0, totalWorkingDays - paidDays);
+        const baseLopDays = Math.max(0, totalWorkingDays - paidDays);
+
+        // Late allowance: lates beyond the monthly allowance (chronological) become
+        // half-day LOP. Penalized lates are still worked/paid days (so they are in
+        // paidDays above) and simply add 0.5 days of LOP each.
+        const lateDayKeys = [
+          ...new Set(
+            emp.attendanceLog
+              .filter((log) => log.status === 'late' && isNetWorkingDay(log.date))
+              .map((log) => holidayKey(log.date)),
+          ),
+        ].sort();
+        const latePenalty = computeLatePenalty(lateDayKeys, maxLatesFor(emp.companyId));
+        const lateLopCount = latePenalty.penalizedCount;
+        const lateLopDays = 0.5 * lateLopCount;
+        const lopDays = baseLopDays + lateLopDays;
         let lopAmount = totalWorkingDays > 0 ? (gross / totalWorkingDays) * lopDays : 0;
 
         // Safety Clamp: LOP cannot exceed gross salary & rounded to nearest rupee
@@ -374,6 +406,8 @@ let payslipCount = 0;
           taxableAnnual: taxResult.taxableIncome,
           effectiveTaxRate: taxResult.effectiveRate,
           lopDays,
+          lateLopDays: Math.round(lateLopDays * 100) / 100,
+          lateLopCount,
           lopAmount: Math.round(lopAmount),
           totalWorkingDays,
           paidDays,
@@ -534,6 +568,7 @@ let payslipCount = 0;
           firstName: true,
           lastName: true,
           workingDaysPerWeek: true,
+          companyId: true,
           department: { select: { name: true } },
           company: { select: { name: true, displayName: true } },
         }
@@ -559,6 +594,21 @@ let payslipCount = 0;
       }
       return workingDays;
     };
+
+    // Monthly late allowance (default 6) so the preview can show half-LOP lates too.
+    const maxLatesPolicies = await this.prisma.attendancePolicy.findMany({
+      where: { key: 'custom.maxLatesPerMonth' },
+      select: { companyId: true, value: true },
+    });
+    const maxLatesByCompany = new Map(
+      maxLatesPolicies.map((p) => [p.companyId, Number(p.value ?? MAX_LATES_FALLBACK)]),
+    );
+    const maxLatesGlobal = await this.prisma.attendancePolicy.findFirst({
+      where: { key: 'custom.maxLatesPerMonth' },
+      select: { value: true },
+    });
+    const allowFor = (c?: string | null) =>
+      maxLatesByCompany.get(c ?? '') ?? Number(maxLatesGlobal?.value ?? MAX_LATES_FALLBACK);
 
     return employees.map((emp) => {
       const wd = emp.workingDaysPerWeek ?? 5;
@@ -592,11 +642,20 @@ let payslipCount = 0;
       const totalDays = Math.max(0, grossDays - holidaysCount);
       const absent = Math.max(0, totalDays - present - late - halfDay - onLeave);
 
+      const lateDayKeys = uniqueLogs
+        .filter((l) => l.status === 'late')
+        .map((l) => l.date.getUTCFullYear() * 10000 + (l.date.getUTCMonth() + 1) * 100 + l.date.getUTCDate())
+        .map(String)
+        .sort();
+      const latePenalty = computeLatePenalty(lateDayKeys, allowFor(emp.companyId));
+
       return {
         ...emp,
         totalDays,
         present,
         late,
+        lateLop: latePenalty.penalizedCount,
+        maxLateAllowance: allowFor(emp.companyId),
         halfDay,
         onLeave,
         absent,

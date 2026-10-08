@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../../../prisma/prisma.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { isGroupWideUser } from '../../../utils/group-access.util';
+import { MAX_PERMISSIONS_FALLBACK } from '../attendance/late-allowance.util';
 
 export const PERMISSION_MIN_MINUTES = 30;
 export const PERMISSION_MAX_MINUTES = 180;
@@ -26,43 +27,6 @@ function hoursMinutes(total: number): string {
 
 function startOfUtcDay(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
-}
-
-function tzOffsetMs(timeZone: string, date: Date): number {
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23',
-  });
-  const parts = dtf.formatToParts(date);
-  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
-  const asUTC = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
-  return asUTC - date.getTime();
-}
-
-function zonedDateTime(timeZone: string, y: number, m: number, d: number, h: number, min: number, s = 0): Date {
-  const guess = new Date(Date.UTC(y, m, d, h, min, s));
-  return new Date(guess.getTime() - tzOffsetMs(timeZone, guess));
-}
-
-/** Interpret "HH:mm" on the given UTC-stored calendar day in the company timezone. */
-function toTzInstant(timeZone: string, date: Date, hhmm: string): Date {
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hourCycle: 'h23',
-  });
-  const parts = dtf.formatToParts(date);
-  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
-  const [hh, mm] = hhmm.split(':').map(Number);
-  return zonedDateTime(timeZone, get('year'), get('month') - 1, get('day'), hh || 0, mm || 0);
 }
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -121,6 +85,33 @@ export class PermissionRequestService {
       _sum: { minutes: true },
     });
     return aggr._sum.minutes ?? 0;
+  }
+
+  /** Number of permission requests already pending/approved in the same UTC month. */
+  private async usedCount(employeeId: string, date: Date): Promise<number> {
+    const monthStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+    const monthEnd = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
+    return this.prisma.permissionRequest.count({
+      where: {
+        employeeId,
+        date: { gte: monthStart, lt: monthEnd },
+        status: { in: ['pending', 'approved'] },
+      },
+    });
+  }
+
+  /** Monthly permission request cap (default 6), company policy then global fallback. */
+  private async maxPermissionsPerMonth(targetCompanyId: string): Promise<number> {
+    const local = await this.prisma.attendancePolicy.findMany({
+      where: { companyId: targetCompanyId, key: 'custom.maxPermissionsPerMonth' },
+      select: { value: true },
+    });
+    if (local.length > 0) return Number(local[0].value ?? MAX_PERMISSIONS_FALLBACK);
+    const global = await this.prisma.attendancePolicy.findFirst({
+      where: { key: 'custom.maxPermissionsPerMonth' },
+      select: { value: true },
+    });
+    return Number(global?.value ?? MAX_PERMISSIONS_FALLBACK);
   }
 
   private validateWindow(companyId: string, date: Date, fromTime: string, toTime: string) {
@@ -187,6 +178,14 @@ export class PermissionRequestService {
     if (used + duration > PERMISSION_MONTHLY_QUOTA_MINUTES) {
       throw new BadRequestException(
         `Monthly permission limit (${hoursMinutes(PERMISSION_MONTHLY_QUOTA_MINUTES)}) reached — you have ${hoursMinutes(PERMISSION_MONTHLY_QUOTA_MINUTES - used)} left`,
+      );
+    }
+
+    const maxPermissions = await this.maxPermissionsPerMonth(targetCompanyId);
+    const usedCount = await this.usedCount(employee.id, date);
+    if (usedCount >= maxPermissions) {
+      throw new BadRequestException(
+        `You can submit at most ${maxPermissions} permission requests per month — you have used all ${usedCount}`,
       );
     }
 
@@ -335,54 +334,64 @@ export class PermissionRequestService {
     }
   }
 
-  /** Excuse late/early punches that fall inside the approved permission window. */
-  private async applyExcuse(req: any, timezone: string, approverId: string) {
-    const windowStart = toTzInstant(timezone, req.date, req.fromTime);
-    const windowEnd = toTzInstant(timezone, req.date, req.toTime);
-    const logs = await this.prisma.attendanceLog.findMany({
-      where: { employeeId: req.employeeId, date: req.date },
-    });
+  /**
+   * An approved permission marks the WHOLE calendar day as present (paid): the
+   * employee is never late, never half-day, never LOP on that day. All attendance
+   * logs for the day are flipped to present; if the employee has no log that day
+   * (approved in advance), one is created so the day is paid and never auto-marked
+   * absent.
+   */
+  private async applyExcuse(req: any, approverId: string) {
     const targetCompanyId = req.employee?.companyId ?? req.companyId;
+    const localDay = new Date(req.date.getFullYear(), req.date.getMonth(), req.date.getDate());
+    const dayEnd = new Date(localDay.getTime() + 24 * 60 * 60 * 1000);
+    const logs = await this.prisma.attendanceLog.findMany({
+      where: { employeeId: req.employeeId, date: { gte: localDay, lt: dayEnd } },
+    });
+
+    if (logs.length === 0) {
+      await this.prisma.attendanceLog.create({
+        data: {
+          employeeId: req.employeeId,
+          date: localDay,
+          status: 'present',
+          lateMinutes: 0,
+          lateStatus: 'on_time',
+          attendanceStatus: 'FULL_DAY_PRESENT',
+          method: 'permission',
+          correctionOf: req.id,
+        },
+      });
+      return;
+    }
 
     for (const log of logs) {
-      const updates: Record<string, any> = {};
-      let excused = false;
-
-      if (log.checkIn && log.checkIn >= windowStart && log.checkIn <= windowEnd) {
-        if (log.lateStatus === 'late' || log.status === 'late') {
-          updates.lateMinutes = 0;
-          updates.lateStatus = 'on_time';
-          updates.status = 'present';
-          excused = true;
-        }
+      const updates: Record<string, any> = {
+        lateMinutes: 0,
+        lateStatus: 'on_time',
+        status: 'present',
+        correctionOf: req.id,
+      };
+      if (log.attendanceStatus === null || log.attendanceStatus === 'OFF_DAY_OR_INCOMPLETE') {
+        updates.attendanceStatus = 'FULL_DAY_PRESENT';
       }
-      if (log.checkOut && log.checkOut >= windowStart && log.checkOut <= windowEnd) {
-        if (log.attendanceStatus === 'OFF_DAY_OR_INCOMPLETE' || log.attendanceStatus === null) {
-          updates.attendanceStatus = 'FULL_DAY_PRESENT';
-          updates.status = 'present';
-          excused = true;
-        }
-      }
-
-      if (excused) {
-        await this.prisma.attendanceLog.update({
-          where: { id: log.id },
-          data: { ...updates, correctionOf: req.id },
-        });
-        await this.prisma.attendanceAudit.create({
-          data: {
-            companyId: targetCompanyId,
-            employeeId: req.employeeId,
-            attendanceLogId: log.id,
-            action: 'PERMISSION_EXCUSED',
-            fromValue: log.lateStatus ?? null,
-            toValue: 'on_time',
-            actorId: approverId,
-            actorRole: 'hr',
-            notes: `Approved permission window ${req.fromTime}–${req.toTime} excused in-window punch (in ${log.checkIn?.toISOString() ?? '—'}, out ${log.checkOut?.toISOString() ?? '—'}).`,
-          },
-        }).catch(() => undefined);
-      }
+      await this.prisma.attendanceLog.update({
+        where: { id: log.id },
+        data: updates,
+      });
+      await this.prisma.attendanceAudit.create({
+        data: {
+          companyId: targetCompanyId,
+          employeeId: req.employeeId,
+          attendanceLogId: log.id,
+          action: 'PERMISSION_EXCUSED',
+          fromValue: log.lateStatus ?? null,
+          toValue: 'present',
+          actorId: approverId,
+          actorRole: 'hr',
+          notes: `Approved permission (${req.fromTime}–${req.toTime}) marks ${localDay.toISOString().slice(0, 10)} as present.`,
+        },
+      }).catch(() => undefined);
     }
   }
 
@@ -394,12 +403,7 @@ export class PermissionRequestService {
       throw new ForbiddenException('Employees cannot approve their own permission request');
     }
 
-    const tz = (await this.prisma.company.findUnique({
-      where: { id: req.employee.companyId || companyId },
-      select: { timezone: true },
-    }))?.timezone || 'UTC';
-
-    await this.applyExcuse(req, tz, userId);
+    await this.applyExcuse(req, userId);
 
     const updated = await this.prisma.permissionRequest.update({
       where: { id: requestId },
@@ -504,29 +508,32 @@ export class PermissionRequestService {
       orderBy: { createdAt: 'desc' },
     });
 
-    const byCompany = new Map<string, { companyId: string; companyName: string; used: number; pending: number; approved: number; employees: Set<string> }>();
+    const byCompany = new Map<string, { companyId: string; companyName: string; used: number; pending: number; approved: number; requestCount: number; employees: Set<string> }>();
     for (const r of requests) {
       const e = r.employee;
       const cid = e.companyId;
       let bucket = byCompany.get(cid);
       if (!bucket) {
-        bucket = { companyId: cid, companyName: e.company?.name ?? cid, used: 0, pending: 0, approved: 0, employees: new Set() };
+        bucket = { companyId: cid, companyName: e.company?.name ?? cid, used: 0, pending: 0, approved: 0, requestCount: 0, employees: new Set() };
         byCompany.set(cid, bucket);
       }
       if (r.status === 'pending' || r.status === 'approved') bucket.used += r.minutes;
       if (r.status === 'pending') bucket.pending++;
       if (r.status === 'approved') bucket.approved++;
+      bucket.requestCount++;
       bucket.employees.add(e.employeeCode || e.id);
     }
 
     return {
       month: `${y}-${String(m).padStart(2, '0')}`,
       quotaPerEmployee: PERMISSION_MONTHLY_QUOTA_MINUTES,
+      maxPermissionsPerMonth: MAX_PERMISSIONS_FALLBACK,
       companies: [...byCompany.values()].map((b) => ({
         companyId: b.companyId,
         companyName: b.companyName,
         usedMinutes: b.used,
         quotaMinutes: PERMISSION_MONTHLY_QUOTA_MINUTES,
+        requestCount: b.requestCount,
         pending: b.pending,
         approved: b.approved,
         employees: b.employees.size,

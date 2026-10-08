@@ -207,7 +207,8 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
         }]),
       },
       attendancePolicy: {
-        findMany: jest.fn(async () => [{ companyId: 'c-1', value: 'true' }]),
+        findMany: jest.fn(async () => [{ companyId: 'c-1', key: 'custom.secondSaturdayOff', value: 'true' }]),
+        findFirst: jest.fn(async () => null),
       },
       holiday: {
         findMany: jest.fn()
@@ -244,7 +245,8 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
         }]),
       },
       attendancePolicy: {
-        findMany: jest.fn(async () => [{ companyId: 'c-1', value: 'true' }]),
+        findMany: jest.fn(async () => [{ companyId: 'c-1', key: 'custom.secondSaturdayOff', value: 'true' }]),
+        findFirst: jest.fn(async () => null),
       },
       holiday: {
         findMany: jest.fn(async () => [{ date: new Date(2026, 8, 16) }]),
@@ -375,6 +377,7 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
       },
       attendancePolicy: {
         findMany: jest.fn(async () => []),
+        findFirst: jest.fn(async () => null),
       },
       holiday: {
         findMany: jest.fn()
@@ -397,6 +400,60 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
     });
   });
 
+  it('getMonthlySummary annotates penalized lates and approved-permission days on the logs', async () => {
+    const lateDates = [4, 7, 8, 9, 11, 14, 15].map((d) => new Date(2026, 8, d)); // 7 lates → 1 beyond allowance
+    const prisma: any = {
+      employee: {
+        findFirst: jest.fn(async () => ({ workingDaysPerWeek: 5, companyId: 'c-1' })),
+      },
+      attendanceLog: {
+        findMany: jest.fn(async () => [
+          ...lateDates.map((date) => ({
+            id: `late-${date.getDate()}`,
+            employeeId: 'e-1',
+            date,
+            status: 'late',
+            attendanceStatus: null,
+            overtimeMinutes: 0,
+          })),
+          {
+            id: 'perm-16',
+            employeeId: 'e-1',
+            date: new Date(2026, 8, 16),
+            status: 'present',
+            attendanceStatus: 'FULL_DAY_PRESENT',
+            overtimeMinutes: 0,
+          },
+        ]),
+      },
+      permissionRequest: {
+        findMany: jest.fn(async () => [
+          { id: 'p-1', date: new Date('2026-09-16T00:00:00.000Z'), fromTime: '10:30', toTime: '11:30', minutes: 60 },
+        ]),
+      },
+      holiday: {
+        findMany: jest.fn(async () => []),
+      },
+      attendancePolicy: {
+        findFirst: jest.fn(async () => null),
+        findMany: jest.fn(async () => []),
+      },
+    };
+    const service = new AttendanceService(prisma as any, notifications as any);
+    const summary = await service.getMonthlySummary('c-1', 'e-1', 2026, 9);
+    // 7 lates with a default allowance of 6 → exactly the chronological 7th is half-LOP.
+    expect(summary.late).toBe(7);
+    expect(summary.lateLop).toBe(1);
+    expect(summary.maxLateAllowance).toBe(6);
+    const lateLog: any = summary.logs.find((l: any) => l.id === 'late-15');
+    expect(lateLog?.lateLop).toBe(true);
+    const freeLog: any = summary.logs.find((l: any) => l.id === 'late-14');
+    expect(freeLog?.lateLop).toBeUndefined();
+    // The approved permission on Sep 16 surfaces on the log for "Present / Permission" labels.
+    const permLog: any = summary.logs.find((l: any) => l.id === 'perm-16');
+    expect(permLog?.permission).toMatchObject({ fromTime: '10:30', toTime: '11:30', minutes: 60 });
+  });
+
   // Sept 2026: Sundays 6/13/20/27, Saturdays 5/12/19/26 (12th is the 2nd Saturday).
   describe('day classification', () => {
     const buildSummaries = async (opts: {
@@ -414,7 +471,10 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
             companyId: 'c-1', department: { name: 'Eng' },
           }]),
         },
-        attendancePolicy: { findMany: jest.fn(async () => opts.policies ?? []) },
+        attendancePolicy: {
+          findMany: jest.fn(async () => opts.policies ?? []),
+          findFirst: jest.fn(async () => null),
+        },
         holiday: {
           findMany: jest.fn()
             .mockImplementationOnce(async () => [])
@@ -512,7 +572,7 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
     it('never lets the categories exceed the total working days', async () => {
       const row = await buildSummaries({
         workingDaysPerWeek: 6,
-        policies: [{ companyId: 'c-1', value: 'true' }],
+        policies: [{ companyId: 'c-1', key: 'custom.secondSaturdayOff', value: 'true' }],
         logs: [
           punch(5, 'on_leave'),   // Saturday — counts for a 6-day week
           punch(6, 'on_leave'),   // Sunday — never counts
@@ -553,6 +613,74 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
       expect(row.present).toBe(1);
       expect(row.paidHolidays).toBe(1);
       expect(row.absent).toBe(21); // the worked holiday counts once, not twice
+      expect(row.reconciles).toBe(true);
+    });
+  });
+
+  describe('monthly late allowance', () => {
+    const buildSummaries = async (opts: {
+      workingDaysPerWeek?: number;
+      policies?: any[];
+      logs?: any[];
+    }) => {
+      const prisma: any = {
+        employee: {
+          findMany: jest.fn(async () => [{
+            id: 'e-1', firstName: 'Alice', lastName: 'Smith', employeeCode: 'E1',
+            workingDaysPerWeek: opts.workingDaysPerWeek ?? 5,
+            companyId: 'c-1', department: { name: 'Eng' },
+          }]),
+        },
+        attendancePolicy: {
+          findMany: jest.fn(async () => opts.policies ?? []),
+          findFirst: jest.fn(async () => null),
+        },
+        holiday: {
+          findMany: jest.fn()
+            .mockImplementationOnce(async () => [])
+            .mockImplementation(async () => []),
+        },
+        attendanceLog: { findMany: jest.fn(async () => opts.logs ?? []) },
+        leaveRequest: { findMany: jest.fn(async () => []) },
+      };
+      const service = new AttendanceService(prisma as any, notifications as any);
+      const rows = await service.monthlyWorkdaySummaries('c-1', 2026, 9);
+      return rows[0];
+    };
+
+    const punch = (day: number, status: string) => ({
+      employeeId: 'e-1', date: new Date(2026, 8, day), status,
+      checkIn: null, checkOut: null, attendanceStatus: null,
+    });
+
+    it('flags lates beyond the default allowance of 6 as half-LOP (8 lates → lateLop 2)', async () => {
+      // All 8 days are Mon-Fri working days in Sept 2026.
+      const row = await buildSummaries({
+        logs: [4, 7, 8, 9, 11, 14, 15, 16].map((d) => punch(d, 'late')),
+      });
+      expect(row.late).toBe(8);
+      expect(row.lateLop).toBe(2); // first 6 chronologically are free, the last 2 are penalized
+      expect(row.maxLateAllowance).toBe(6);
+      expect(row.reconciles).toBe(true);
+    });
+
+    it('uses the configured company maxLatesPerMonth policy (allowance 3 → lateLop 5)', async () => {
+      const row = await buildSummaries({
+        policies: [{ companyId: 'c-1', key: 'custom.maxLatesPerMonth', value: '3' }],
+        logs: [4, 7, 8, 9, 11, 14, 15, 16].map((d) => punch(d, 'late')),
+      });
+      expect(row.late).toBe(8);
+      expect(row.lateLop).toBe(5);
+      expect(row.maxLateAllowance).toBe(3);
+      expect(row.reconciles).toBe(true);
+    });
+
+    it('keeps lates free up to the allowance (exactly 6 lates → lateLop 0)', async () => {
+      const row = await buildSummaries({
+        logs: [4, 7, 8, 9, 11, 14].map((d) => punch(d, 'late')),
+      });
+      expect(row.lateLop).toBe(0);
+      expect(row.maxLateAllowance).toBe(6);
       expect(row.reconciles).toBe(true);
     });
   });

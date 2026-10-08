@@ -82,6 +82,8 @@ export function PayslipPreviewModal({
                 epfEmployer: 1800,
                 professionalTax: 200,
                 tdsMonthly: 10500,
+                lateLopDays: 0,
+                lateLopCount: 0,
               },
             },
             employee: {

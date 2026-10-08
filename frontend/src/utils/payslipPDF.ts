@@ -534,6 +534,9 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   // Working days band (full width)
   const workingDays = payslip?.workingDays || b.totalWorkingDays || 30;
   const lopDays = payslip?.lossOfPayDays || b.lopDays || 0;
+  const lateLopDays = Number(b.lateLopDays ?? 0);
+  const lateLopCount = Number(b.lateLopCount ?? 0);
+  const totalLopDays = lopDays + lateLopDays;
   const paidDays = payslip?.paidDays || b.paidDays || Math.max(0, workingDays - lopDays);
   const formatRegime = (regime?: string) => {
     if (!regime) return 'New Regime';
@@ -546,7 +549,7 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   y = infoBand(doc, colLeft, y, pageWidth - 28, [
     ['Total Working Days', `${workingDays} Days`],
     ['Paid Days', `${paidDays} Days`],
-    ['Loss of Pay', `${lopDays} Day${lopDays === 1 ? '' : 's'}`],
+    ['Loss of Pay', `${totalLopDays} Day${totalLopDays === 1 ? '' : 's'}`],
     ['Tax Regime', formatRegime(b.taxRegime || payslip?.taxRegime)],
   ]);
   y += 6;
@@ -572,7 +575,7 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
       text: `${effectiveRate ? effectiveRate.toFixed(2) + '% ' : ''}computed on annual taxable income`,
       amount: Number(b.tdsMonthly || 0),
     },
-    { label: 'Loss of Pay Adjustment', text: `${lopDays} day(s)  (${fmt(b.lopAmount || 0)})`, amount: Number(b.lopAmount || 0) },
+    { label: 'Loss of Pay Adjustment', text: `${totalLopDays} day(s)${lateLopCount ? `  (incl. ${lateLopCount} late → half LOP)` : ''}  (${fmt(b.lopAmount || 0)})`, amount: Number(b.lopAmount || 0) },
   ];
   y = drawTable(doc, colLeft, y, pageWidth - 28, 'Statutory Contribution & Compliance', statutoryRows, {
     showHeader: true,

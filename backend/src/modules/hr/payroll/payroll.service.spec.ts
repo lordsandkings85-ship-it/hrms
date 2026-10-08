@@ -210,6 +210,62 @@ describe('PayrollService', () => {
       expect(breakdown.lopDays).toBe(20);
     });
 
+    it('charges half-day LOP for lates beyond the monthly allowance (8 lates → lateLopDays 1.0)', async () => {
+      const lateDays = [3, 4, 5, 6, 7, 10, 11, 12]; // Mon-Fri weekdays of Aug 2026
+      const emp = baseEmployee({
+        salaryStructures: [baseStructure()],
+        attendanceLog: lateDays.map((d) => ({ date: new Date(2026, 7, d), status: 'late' })),
+      });
+      prisma.employee.findMany.mockResolvedValueOnce([emp]);
+
+      await service.runPayroll('company-1', 8, 2026, 'new');
+
+      const breakdown = prisma.payslip.create.mock.calls[0][0].data.breakdown;
+      // Penalized lates are still paid days; only the 2 beyond the allowance (11th, 12th)
+      // add a half day of LOP each, on top of the base LOP for unworked days.
+      expect(breakdown.paidDays).toBe(8);
+      expect(breakdown.lateLopCount).toBe(2);
+      expect(breakdown.lateLopDays).toBe(1);
+      expect(breakdown.lopDays).toBe(21 - 8 + 1);
+      expect(breakdown.lopAmount).toBe(Math.round((10000 / 21) * (21 - 8 + 1)));
+    });
+
+    it('uses the configured maxLatesPerMonth allowance (3 → 8 lates give 5 half-LOP days)', async () => {
+      const lateDays = [3, 4, 5, 6, 7, 10, 11, 12];
+      const emp = baseEmployee({
+        salaryStructures: [baseStructure()],
+        attendanceLog: lateDays.map((d) => ({ date: new Date(2026, 7, d), status: 'late' })),
+      });
+      prisma.employee.findMany.mockResolvedValueOnce([emp]);
+      // First findMany = second-Saturday policies (none), second = maxLatesPerMonth.
+      (prisma.attendancePolicy.findMany as jest.Mock)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ companyId: 'company-1', value: '3' }]);
+
+      await service.runPayroll('company-1', 8, 2026, 'new');
+
+      const breakdown = prisma.payslip.create.mock.calls[0][0].data.breakdown;
+      expect(breakdown.lateLopCount).toBe(5);
+      expect(breakdown.lateLopDays).toBe(2.5);
+      expect(breakdown.lopDays).toBe(21 - 8 + 2.5);
+    });
+
+    it('keeps lates within the allowance free (6 lates → no LOP)', async () => {
+      const lateDays = [3, 4, 5, 6, 7, 10];
+      const emp = baseEmployee({
+        salaryStructures: [baseStructure()],
+        attendanceLog: lateDays.map((d) => ({ date: new Date(2026, 7, d), status: 'late' })),
+      });
+      prisma.employee.findMany.mockResolvedValueOnce([emp]);
+
+      await service.runPayroll('company-1', 8, 2026, 'new');
+
+      const breakdown = prisma.payslip.create.mock.calls[0][0].data.breakdown;
+      expect(breakdown.lateLopCount).toBe(0);
+      expect(breakdown.lateLopDays).toBe(0);
+      expect(breakdown.lopDays).toBe(21 - 6);
+    });
+
     it('queries shift assignments active during the month (effectiveFrom before month end)', async () => {
       prisma.employee.findMany.mockImplementationOnce(async (args: any) => {
         employeeQueryArgs = args;

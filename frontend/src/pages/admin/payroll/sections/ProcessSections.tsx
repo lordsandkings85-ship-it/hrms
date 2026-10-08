@@ -24,6 +24,12 @@ export function AttendanceProcessSection() {
     { key: 'present', header: 'Present Days', render: (r: any) => <span className="font-semibold text-emerald-500">{r.present ?? 0}</span> },
     { key: 'absent', header: 'Absent Days', render: (r: any) => <span className="font-semibold text-rose-500">{r.absent ?? 0}</span> },
     { key: 'lop', header: 'LOP Days', render: (r: any) => <span className="font-semibold">{r.lop ?? 0}</span> },
+    { key: 'late', header: 'Late', render: (r: any) => (
+        <span className="text-amber-500 font-semibold">{r.late ?? 0}<span className="text-[var(--text-muted)]">/{r.maxLateAllowance ?? 6}</span></span>
+      ) },
+    { key: 'lateLop', header: 'Late → LOP', render: (r: any) => (
+        <span className={`${(r.lateLop ?? 0) > 0 ? 'text-rose-500' : 'text-[var(--text-muted)]'} font-semibold`}>{r.lateLop ?? 0}</span>
+      ) },
     { key: 'totalDays', header: 'Working Days', render: (r: any) => <span className="text-[var(--text-muted)] text-xs">{r.totalDays ?? 0}</span> },
   ];
   return (

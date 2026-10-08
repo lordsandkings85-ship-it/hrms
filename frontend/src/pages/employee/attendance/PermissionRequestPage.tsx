@@ -15,6 +15,7 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 const MONTHLY_QUOTA_MINUTES = 180;
+const MONTHLY_MAX_REQUESTS = 6;
 
 const minutesBetween = (from: string, to: string) => {
   const [fh, fm] = from.split(':').map(Number);
@@ -65,6 +66,14 @@ export default function PermissionRequestPage() {
     [myRequests, nowYearMonth],
   );
   const quotaLeft = Math.max(0, MONTHLY_QUOTA_MINUTES - monthUsage);
+  const monthCount = useMemo(
+    () =>
+      (myRequests || []).filter(
+        (r: any) => (r.status === 'pending' || r.status === 'approved') && (r.date || '').startsWith(nowYearMonth),
+      ).length,
+    [myRequests, nowYearMonth],
+  );
+  const countLeft = Math.max(0, MONTHLY_MAX_REQUESTS - monthCount);
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -98,7 +107,7 @@ export default function PermissionRequestPage() {
 
   const duration = minutesBetween(form.fromTime, form.toTime);
   const withinRange = duration >= 30 && duration <= 180 && duration % 15 === 0;
-  const canSubmit = !!form.reason.trim() && withinRange && quotaLeft >= duration && duration > 0;
+  const canSubmit = !!form.reason.trim() && withinRange && quotaLeft >= duration && duration > 0 && countLeft > 0;
 
   const statusBadge = (status: string) =>
     STATUS_BADGE[status] || 'bg-[var(--surface-alt)] text-[var(--text-muted)] border-[var(--border)]';
@@ -122,7 +131,7 @@ export default function PermissionRequestPage() {
         </div>
         <div className="relative z-10 flex items-center gap-3">
           <div className="px-4 py-2 border bg-indigo-500/10 border-indigo-500/20 text-indigo-500 rounded-xl text-xs font-bold">
-            {Math.floor(quotaLeft / 60)}h {quotaLeft % 60}m left this month
+            {monthCount}/{MONTHLY_MAX_REQUESTS} requests · {Math.floor(quotaLeft / 60)}h {quotaLeft % 60}m left this month
           </div>
         </div>
       </div>
@@ -197,6 +206,12 @@ export default function PermissionRequestPage() {
             {withinRange && duration > quotaLeft && (
               <p className="text-xs text-red-500">Exceeds your remaining monthly allowance ({Math.floor(quotaLeft / 60)}h {quotaLeft % 60}m).</p>
             )}
+            {countLeft === 0 && (
+              <p className="text-xs text-red-500">You can submit at most {MONTHLY_MAX_REQUESTS} permission requests per month — you have used all {monthCount}.</p>
+            )}
+            <p className="text-xs text-[var(--text-muted)] flex items-center gap-1.5">
+              <Info size={13} /> Approved requests mark the whole day as Present (never Late/LOP).
+            </p>
           </div>
         </div>
 

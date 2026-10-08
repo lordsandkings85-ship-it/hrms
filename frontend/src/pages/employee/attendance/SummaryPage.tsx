@@ -251,6 +251,8 @@ function AdminSummary() {
       paidHolidays: w.paidHolidays,
       present: w.present,
       late: w.late,
+      lateLop: w.lateLop,
+      maxLateAllowance: w.maxLateAllowance,
       halfDay: w.halfDay,
       onLeave: w.onLeave,
       absent: w.absent,
@@ -300,9 +302,20 @@ function AdminSummary() {
     { key: 'present', header: 'Present', render: (p: any) => (
       <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${(row(p)?.present ?? p.present) ? 'bg-emerald-500/10 text-emerald-500' : 'text-slate-400'}`}>{row(p)?.present ?? p.present}</span>
     )},
-    { key: 'late', header: 'Late', render: (p: any) => (
-      <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${(row(p)?.late ?? p.late) ? 'bg-amber-500/10 text-amber-500' : 'text-slate-400'}`}>{row(p)?.late ?? p.late}</span>
-    )},
+    { key: 'late', header: 'Late', render: (p: any) => {
+      const w = row(p);
+      const late = w?.late ?? p.late;
+      const allow = w?.maxLateAllowance;
+      return (
+        <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${late ? 'bg-amber-500/10 text-amber-500' : 'text-slate-400'}`}>
+          {late}{allow ? <span className="ml-1 text-[9px] opacity-70">/ {allow}</span> : null}
+        </span>
+      );
+    }},
+    { key: 'lateLop', header: 'Late → LOP', render: (p: any) => {
+      const v = row(p)?.lateLop ?? 0;
+      return <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${v ? 'bg-rose-500/10 text-rose-500' : 'text-slate-400'}`}>{v}</span>;
+    }},
     { key: 'halfDay', header: 'Half Day', render: (p: any) => (
       <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${(row(p)?.halfDay ?? p.halfDay) ? 'bg-blue-500/10 text-blue-500' : 'text-slate-400'}`}>{row(p)?.halfDay ?? p.halfDay}</span>
     )},
@@ -354,8 +367,15 @@ function AdminSummary() {
         on_leave: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20',
         paid_holiday: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
       };
-      const label = row.status === 'paid_holiday' ? 'Paid Holiday' : (row.status || '').replace('_', ' ');
-      return <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold uppercase tracking-wider ${map[row.status] || ''}`}>{label}{row.holiday && row.status === 'paid_holiday' ? ` · ${row.holiday}` : ''}</span>;
+      const label = row.permission
+        ? 'Present / Permission'
+        : row.status === 'late' && row.lateLop
+          ? 'Late / Half LOP'
+          : row.status === 'paid_holiday'
+            ? 'Paid Holiday'
+            : (row.status || '').replace('_', ' ');
+      const tone = row.permission ? map.present : row.status === 'late' && row.lateLop ? map.late : (map[row.status] || '');
+      return <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold uppercase tracking-wider ${tone}`}>{label}{row.holiday && row.status === 'paid_holiday' ? ` · ${row.holiday}` : ''}</span>;
     }},
   ];
 
@@ -542,6 +562,8 @@ function EmployeeSummary() {
         paidHolidays: summary.paidHolidays ?? summary.holidays,
         present: summary.present,
         late: summary.late,
+        lateLop: summary.lateLop ?? 0,
+        maxLateAllowance: summary.maxLateAllowance,
         halfDay: summary.halfDay,
         onLeave: summary.onLeave,
         absent: summary.absent,
@@ -614,6 +636,7 @@ function EmployeeSummary() {
                   { label: 'Total Working Days', value: summary.totalDays, color: 'var(--info)' },
                   { label: 'Present', value: summary.present + summary.late, color: 'var(--success)' },
                   { label: 'Late', value: summary.late, color: 'var(--warning)' },
+                  { label: 'Late LOP', value: summary.lateLop ?? 0, color: 'var(--danger)' },
                   { label: 'Half Day', value: summary.halfDay, color: 'var(--info)' },
                   { label: 'On Leave', value: summary.onLeave, color: 'var(--primary)' },
                   { label: 'Absent', value: summary.absent, color: 'var(--danger)' },
@@ -669,8 +692,15 @@ function EmployeeSummary() {
                     on_leave: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20',
                     paid_holiday: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
                   };
-                  const label = row.status === 'paid_holiday' ? 'Paid Holiday' : (row.status || '').replace('_', ' ');
-                  return <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold uppercase tracking-wider ${map[row.status] || ''}`}>{label}{row.holiday && row.status === 'paid_holiday' ? ` · ${row.holiday}` : ''}</span>;
+                  const label = row.permission
+                    ? 'Present / Permission'
+                    : row.status === 'late' && row.lateLop
+                      ? 'Late / Half LOP'
+                      : row.status === 'paid_holiday'
+                        ? 'Paid Holiday'
+                        : (row.status || '').replace('_', ' ');
+                  const tone = row.permission ? map.present : row.status === 'late' && row.lateLop ? map.late : (map[row.status] || '');
+                  return <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold uppercase tracking-wider ${tone}`}>{label}{row.holiday && row.status === 'paid_holiday' ? ` · ${row.holiday}` : ''}</span>;
                 }},
               ]}
               data={[...(summary.logs || [])].sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime())}

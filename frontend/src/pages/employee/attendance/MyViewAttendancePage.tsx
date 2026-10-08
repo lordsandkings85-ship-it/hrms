@@ -62,6 +62,7 @@ export default function MyViewAttendancePage() {
         if (row.status === 'late') {
           title = 'Late';
           color = '#f59e0b'; // Amber
+          if (row.lateLop) title = 'Late / Half LOP';
         } else if (row.status === 'half_day') {
           title = 'Half Day';
           color = '#3b82f6'; // Blue
@@ -71,6 +72,9 @@ export default function MyViewAttendancePage() {
         } else if (row.status === 'absent') {
           title = 'Absent';
           color = '#ef4444'; // Red
+        } else if (row.permission) {
+          title = 'Present / Permission';
+          color = '#10b981';
         }
         acc[dateStr] = {
           id: row.id,
@@ -195,6 +199,8 @@ export default function MyViewAttendancePage() {
               {[
                 { label: 'Present', color: '#10b981' },
                 { label: 'Late', color: '#f59e0b' },
+                { label: 'Late / Half LOP', color: '#f97316' },
+                { label: 'Present / Permission', color: '#34d399' },
                 { label: 'Half Day', color: '#3b82f6' },
                 { label: 'Leave', color: '#8b5cf6' },
                 { label: 'Absent', color: '#ef4444' },
@@ -241,7 +247,7 @@ export default function MyViewAttendancePage() {
                       </span>
                     ) : (
                       <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border bg-green-500/10 text-green-400 border-green-500/20">
-                        {row.status === 'late' ? 'Late' : 'Regular'}
+                        {row.permission ? 'Present / Permission' : row.status === 'late' ? (row.lateLop ? 'Late / Half LOP' : 'Late') : 'Regular'}
                       </span>
                     )}
                   </div>

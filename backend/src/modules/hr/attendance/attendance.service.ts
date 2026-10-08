@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ConflictException, 
 import { PrismaService } from '../../../prisma/prisma.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { isGroupWideUser } from '../../../utils/group-access.util';
+import { computeLatePenalty, MAX_LATES_FALLBACK } from './late-allowance.util';
 
 /** Haversine formula — returns distance in metres between two GPS points */
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -864,7 +865,7 @@ export class AttendanceService {
     const start = new Date(y, m - 1, 1);
     const end = new Date(y, m, 1);
 
-    return this.prisma.attendanceLog.findMany({
+    const logs = await this.prisma.attendanceLog.findMany({
       where: {
         ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId, isSystem: false } }),
         date: { gte: start, lt: end },
@@ -872,13 +873,77 @@ export class AttendanceService {
       include: {
         employee: {
           select: {
-            firstName: true, lastName: true, employeeCode: true,
+            firstName: true, lastName: true, employeeCode: true, companyId: true,
             department: { select: { name: true } },
             company: { select: { name: true, displayName: true } },
           },
         },
       },
       orderBy: [{ date: 'desc' }, { checkIn: 'asc' }],
+    });
+
+    if (logs.length === 0) return logs;
+
+    // Monthly late allowance per company (+ global fallback) for lateLop flags.
+    const maxLatesPolicies = await this.prisma.attendancePolicy.findMany({
+      where: { key: 'custom.maxLatesPerMonth' },
+      select: { companyId: true, value: true },
+    });
+    const maxLatesByCompany = new Map(
+      maxLatesPolicies.map((p) => [p.companyId, Number(p.value ?? MAX_LATES_FALLBACK)]),
+    );
+    const globalMaxLates = await this.prisma.attendancePolicy.findFirst({
+      where: { key: 'custom.maxLatesPerMonth' },
+      select: { value: true },
+    });
+    const allowFor = (empCompanyId?: string | null) =>
+      maxLatesByCompany.get(empCompanyId ?? '') ?? Number(globalMaxLates?.value ?? MAX_LATES_FALLBACK);
+
+    const dk = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    // Approved permissions for the month, keyed per employee by local day.
+    const approvedPerms = await this.prisma.permissionRequest.findMany({
+      where: { date: { gte: new Date(Date.UTC(y, m - 1, 1)), lt: new Date(Date.UTC(y, m, 1)) }, status: 'approved' },
+      select: { employeeId: true, date: true, fromTime: true, toTime: true, minutes: true },
+    });
+    const permByEmployee = new Map<string, Map<string, { fromTime: string | null; toTime: string | null; date: string; minutes: number }>>();
+    for (const p of approvedPerms) {
+      const k = dk(new Date(p.date));
+      let byDay = permByEmployee.get(p.employeeId);
+      if (!byDay) {
+        byDay = new Map();
+        permByEmployee.set(p.employeeId, byDay);
+      }
+      if (!byDay.has(k)) byDay.set(k, { fromTime: p.fromTime, toTime: p.toTime, date: k, minutes: p.minutes });
+    }
+
+    // Penalize, per employee, the lates beyond the allowance in chronological order.
+    const penalizedByEmployee = new Map<string, Set<string>>();
+    const byEmployeeIds = new Map<string, { companyId: string | null; keys: string[] }>();
+    for (const log of logs) {
+      if (log.status !== 'late') continue;
+      const eid = log.employeeId;
+      const k = dk(log.date);
+      let entry = byEmployeeIds.get(eid);
+      if (!entry) {
+        entry = { companyId: log.employee?.companyId ?? null, keys: [] };
+        byEmployeeIds.set(eid, entry);
+      }
+      if (!entry.keys.includes(k)) entry.keys.push(k);
+    }
+    for (const [eid, entry] of byEmployeeIds) {
+      const penalty = computeLatePenalty(entry.keys, allowFor(entry.companyId));
+      if (penalty.penalizedKeys.size > 0) penalizedByEmployee.set(eid, penalty.penalizedKeys);
+    }
+
+    return logs.map((log) => {
+      const k = dk(log.date);
+      const out: any = { ...log };
+      if (log.status === 'late' && penalizedByEmployee.get(log.employeeId)?.has(k)) out.lateLop = true;
+      const perm = permByEmployee.get(log.employeeId)?.get(k);
+      if (perm) out.permission = perm;
+      return out;
     });
   }
 
@@ -928,10 +993,21 @@ export class AttendanceService {
 
     const companyIds = [...new Set(employees.map((e) => e.companyId))];
     const policies = await this.prisma.attendancePolicy.findMany({
-      where: { companyId: { in: companyIds }, key: 'custom.secondSaturdayOff' },
-      select: { companyId: true, value: true },
+      where: { companyId: { in: companyIds }, key: { in: ['custom.secondSaturdayOff', 'custom.maxLatesPerMonth'] } },
+      select: { companyId: true, key: true, value: true },
     });
-    const secondSatOff = new Set(policies.filter((p) => p.value === 'true').map((p) => p.companyId));
+    const secondSatOff = new Set(
+      policies.filter((p) => p.key === 'custom.secondSaturdayOff' && p.value === 'true').map((p) => p.companyId),
+    );
+    const maxLatesByCompany = new Map(
+      policies
+        .filter((p) => p.key === 'custom.maxLatesPerMonth')
+        .map((p) => [p.companyId, Number(p.value ?? MAX_LATES_FALLBACK)]),
+    );
+    const globalMaxLates = await this.prisma.attendancePolicy.findFirst({
+      where: { key: 'custom.maxLatesPerMonth' },
+      select: { value: true },
+    });
 
     const holidayCache = new Map<string, Set<string>>();
     const holidaySetFor = async (empCompanyId: string) => {
@@ -1054,6 +1130,7 @@ export class AttendanceService {
       let late = 0;
       let halfDay = 0;
       let onLeave = 0;
+      const lateDayKeys: string[] = [];
       const coveredHolidayDays = new Set<string>();
       for (const [k, day] of uniqueDays) {
         if (!workingDaySet.has(k)) continue;
@@ -1062,7 +1139,10 @@ export class AttendanceService {
         // the paid holiday already covers the day.
         if (holidayWorkingDays.has(k)) {
           if (day.status === 'present') present += 1;
-          else if (day.status === 'late') late += 1;
+          else if (day.status === 'late') {
+            late += 1;
+            lateDayKeys.push(k);
+          }
           if (day.status === 'present' || day.status === 'late') coveredHolidayDays.add(k);
           continue;
         }
@@ -1075,6 +1155,7 @@ export class AttendanceService {
           present += 1;
         } else if (day.status === 'late') {
           late += 1;
+          lateDayKeys.push(k);
         } else if (day.status === 'half_day') {
           halfDay += 0.5;
         }
@@ -1093,6 +1174,8 @@ export class AttendanceService {
       // so they reduce absent exactly like the other classified categories.
       const uncoveredPaidHolidays = Math.max(0, paidHolidays - coveredHolidayDays.size);
       const absent = Math.max(0, totalWorkingDays - classified - uncoveredPaidHolidays);
+      const maxLateAllowance = maxLatesByCompany.get(emp.companyId) ?? Number(globalMaxLates?.value ?? MAX_LATES_FALLBACK);
+      const latePenalty = computeLatePenalty(lateDayKeys, maxLateAllowance);
       results.push({
         employeeId: emp.id,
         employeeCode: emp.employeeCode,
@@ -1107,6 +1190,8 @@ export class AttendanceService {
         paidHolidayDates: Array.from(holidayWorkingDays),
         present,
         late,
+        lateLop: latePenalty.penalizedCount,
+        maxLateAllowance,
         halfDay,
         onLeave,
         absent,
@@ -1194,6 +1279,20 @@ export class AttendanceService {
             select: { value: true },
           }))?.value === 'true';
 
+    // Monthly late allowance (default 6): extra lates become half-day LOP days.
+    const maxLatesPolicies = await this.prisma.attendancePolicy.findMany({
+      where: { companyId: targetCompanyId, key: 'custom.maxLatesPerMonth' },
+      select: { value: true },
+    });
+    const globalMaxLates = await this.prisma.attendancePolicy.findFirst({
+      where: { key: 'custom.maxLatesPerMonth' },
+      select: { value: true },
+    });
+    const maxLateAllowance =
+      maxLatesPolicies.length > 0
+        ? Number(maxLatesPolicies[0].value ?? MAX_LATES_FALLBACK)
+        : Number(globalMaxLates?.value ?? MAX_LATES_FALLBACK);
+
     // Paid holidays = configured holidays that fall on an otherwise-working day. The
     // date must pass the same boundary the working-day loop uses below (Sunday off,
     // Saturday only for 6-day weeks, 2nd Saturday exempted under the policy). Holiday
@@ -1238,6 +1337,11 @@ export class AttendanceService {
     }
     const uncoveredPaidHolidays = Math.max(0, paidHolidays - coveredHolidayDays.size);
     const absent = Math.max(0, totalWorkingDays - present - late - halfDay - onLeave - uncoveredPaidHolidays);
+
+    // Monthly late allowance: lates beyond the allowance (chronological) are half-LOP.
+    const lateDayKeys = uniqueLogs.filter((l) => l.status === 'late').map((l) => dk(l.date));
+    const latePenalty = computeLatePenalty(lateDayKeys, maxLateAllowance);
+    const lateLop = latePenalty.penalizedCount;
 
     // Emit an explicit "Paid Holiday" row for each working-day holiday the employee did
     // not punch on, so day-detail UIs and the report export show it with its name.
@@ -1284,9 +1388,25 @@ export class AttendanceService {
       minutes: p.minutes,
     }));
 
+    // Flag penalized late days and permission days on the log rows so day-detail
+    // UIs/exports can label them ("Late / Half LOP", "Present / Permission").
+    const permByDay = new Map<string, { fromTime: string | null; toTime: string | null; date: string; minutes: number }>();
+    for (const p of approvedPerms) {
+      const k = dk(new Date(p.date));
+      if (!permByDay.has(k)) permByDay.set(k, { fromTime: p.fromTime, toTime: p.toTime, date: k, minutes: p.minutes });
+    }
+    for (const log of logs) {
+      const k = dk(log.date);
+      if (log.status === 'late' && latePenalty.penalizedKeys.has(k)) (log as any).lateLop = true;
+      const perm = permByDay.get(k);
+      if (perm) (log as any).permission = perm;
+    }
+
     return {
       present,
       late,
+      lateLop,
+      maxLateAllowance,
       halfDay,
       onLeave,
       absent,
