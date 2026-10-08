@@ -220,19 +220,22 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
       attendanceLog: {
         findMany: jest.fn(async () => []),
       },
+      leaveRequest: { findMany: jest.fn(async () => []) },
     };
     const service = new AttendanceService(prisma as any, notifications as any);
     const rows = await service.monthlyWorkdaySummaries('c-1', 2026, 9, 'admin-1');
     expect(rows).toHaveLength(1);
-    // 25 Mon-Sat minus 2nd Saturday - 2 holidays = 23.
+    // 26 Mon-Sat minus the 2nd Saturday = 25 working days; the 2 holidays stay inside
+    // that count as paid holidays and are not absent.
     expect(rows[0]).toMatchObject({
-      totalWorkingDays: 23,
+      totalWorkingDays: 25,
+      paidHolidays: 2,
       present: 0,
       absent: 23,
     });
   });
 
-  it('counts 6-day working days minus second Saturday (policy) and holidays; derives absent', async () => {
+  it('counts 6-day working days minus the 2nd Saturday policy; holidays are paid, not absent', async () => {
     const prisma: any = {
       employee: {
         findMany: jest.fn(async () => [{
@@ -253,17 +256,19 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
           })),
         ),
       },
+      leaveRequest: { findMany: jest.fn(async () => []) },
     };
     const service = new AttendanceService(prisma as any, notifications as any);
     const rows = await service.monthlyWorkdaySummaries('c-1', 2026, 9);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       employeeCode: 'E1',
-      totalWorkingDays: 24, // 25 (Mon-Sat minus second Sat) - 1 holiday
+      totalWorkingDays: 25, // 26 (Mon-Sat minus the 2nd Saturday); the holiday stays inside
       present: 10,
       late: 0,
       halfDay: 0,
       onLeave: 0,
+      paidHolidays: 1,
       absent: 14,
     });
   });
@@ -290,13 +295,15 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
     };
     const service = new AttendanceService(prisma as any, notifications as any);
     const summary = await service.getMonthlySummary('c-1', 'e-1', 2026, 9);
-    // Sept 2026: 25 Mon-Sat working days (26 minus 2nd Saturday) - 1 holiday = 24.
-    expect(summary.totalDays).toBe(24);
+    // Sept 2026: 26 Mon-Sat minus the 2nd Saturday = 25 working days. The holiday on
+    // Sep 16 is a paid working day (visible separately, still paid, not absent).
+    expect(summary.totalDays).toBe(25);
     expect(summary.holidays).toBe(1);
+    expect(summary.paidHolidays).toBe(1);
     expect(summary.absent).toBe(24);
   });
 
-  it('getMonthlySummary counts 5-day working days correctly (Mon-Fri minus holidays)', async () => {
+  it('getMonthlySummary counts 5-day working days correctly (Mon-Fri, holidays included)', async () => {
     const notifications = { notifyApprover: jest.fn(async () => {}), notifyEmployee: jest.fn(async () => {}) };
     const prisma: any = {
       employee: {
@@ -318,8 +325,9 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
     };
     const service = new AttendanceService(prisma as any, notifications as any);
     const summary = await service.getMonthlySummary('c-2', 'e-2', 2026, 9);
-    // Sept 2026: 22 Mon-Fri - 1 holiday = 21.
-    expect(summary.totalDays).toBe(21);
+    // Sept 2026: 22 Mon-Fri, and the Sep 16 holiday stays inside as a paid working day.
+    expect(summary.totalDays).toBe(22);
+    expect(summary.paidHolidays).toBe(1);
   });
 
   it('getMonthlySummary applies global holidays for group-wide viewers when the company has none', async () => {
@@ -350,9 +358,11 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
     };
     const service = new AttendanceService(prisma as any, notifications as any);
     const summary = await service.getMonthlySummary('c-1', 'e-1', 2026, 9, 'admin-1');
-    // 25 Mon-Sat minus 2nd Saturday - 2 holidays = 23.
-    expect(summary.totalDays).toBe(23);
+    // 26 Mon-Sat minus the 2nd Saturday = 25 working days; both holidays stay inside
+    // as paid holidays, so no absent accrues on them.
+    expect(summary.totalDays).toBe(25);
     expect(summary.holidays).toBe(2);
+    expect(summary.paidHolidays).toBe(2);
   });
 
   it('counts 5-day working days for employees of companies without the second-Saturday policy', async () => {
@@ -374,14 +384,176 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
       attendanceLog: {
         findMany: jest.fn(async () => []),
       },
+      leaveRequest: { findMany: jest.fn(async () => []) },
     };
     const service = new AttendanceService(prisma as any, notifications as any);
     const rows = await service.monthlyWorkdaySummaries('c-2', 2026, 9);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      totalWorkingDays: 21, // 22 (Mon-Fri) - 1 holiday
+      totalWorkingDays: 22, // 22 (Mon-Fri); the holiday stays inside as a paid day
       present: 0,
+      paidHolidays: 1,
       absent: 21,
+    });
+  });
+
+  // Sept 2026: Sundays 6/13/20/27, Saturdays 5/12/19/26 (12th is the 2nd Saturday).
+  describe('day classification', () => {
+    const buildSummaries = async (opts: {
+      workingDaysPerWeek?: number;
+      policies?: any[];
+      holidays?: Date[];
+      logs?: any[];
+      halfDayLeaves?: any[];
+    }) => {
+      const prisma: any = {
+        employee: {
+          findMany: jest.fn(async () => [{
+            id: 'e-1', firstName: 'Alice', lastName: 'Smith', employeeCode: 'E1',
+            workingDaysPerWeek: opts.workingDaysPerWeek ?? 5,
+            companyId: 'c-1', department: { name: 'Eng' },
+          }]),
+        },
+        attendancePolicy: { findMany: jest.fn(async () => opts.policies ?? []) },
+        holiday: {
+          findMany: jest.fn()
+            .mockImplementationOnce(async () => [])
+            .mockImplementation(async () => (opts.holidays ?? []).map((date) => ({ date }))),
+        },
+        attendanceLog: { findMany: jest.fn(async () => opts.logs ?? []) },
+        leaveRequest: { findMany: jest.fn(async () => opts.halfDayLeaves ?? []) },
+      };
+      const service = new AttendanceService(prisma as any, notifications as any);
+      const rows = await service.monthlyWorkdaySummaries('c-1', 2026, 9);
+      return rows[0];
+    };
+
+    const punch = (day: number, status: string, extra: any = {}) => ({
+      employeeId: 'e-1', date: new Date(2026, 8, day), status,
+      checkIn: null, checkOut: null, attendanceStatus: null, ...extra,
+    });
+
+    it('counts a half-day leave as 0.5 instead of a whole leave day', async () => {
+      const row = await buildSummaries({
+        logs: [punch(15, 'on_leave')],
+        halfDayLeaves: [{
+          employeeId: 'e-1',
+          startDate: new Date(2026, 8, 15),
+          endDate: new Date(2026, 8, 15),
+        }],
+      });
+      // leave.service writes a FULL-day on_leave log for a 0.5-day leave; the report
+      // must not credit a whole day.
+      expect(row.halfDay).toBe(0.5);
+      expect(row.onLeave).toBe(0);
+      expect(row.totalWorkingDays).toBe(22);
+      expect(row.absent).toBe(21.5);
+      expect(row.reconciles).toBe(true);
+    });
+
+    it('counts a half-day leave even when no attendance log exists for it', async () => {
+      const row = await buildSummaries({
+        halfDayLeaves: [{
+          employeeId: 'e-1',
+          startDate: new Date(2026, 8, 15),
+          endDate: new Date(2026, 8, 15),
+        }],
+      });
+      expect(row.halfDay).toBe(0.5);
+      expect(row.absent).toBe(21.5);
+    });
+
+    it('ignores an on_leave log on a Saturday for a 5-day employee', async () => {
+      const row = await buildSummaries({
+        logs: [punch(5, 'on_leave'), punch(4, 'on_leave')],
+      });
+      // Sept 5 is a Saturday — not counted for a 5-day week. Sept 4 (Fri) is.
+      expect(row.onLeave).toBe(1);
+      expect(row.totalWorkingDays).toBe(22);
+      expect(row.absent).toBe(21);
+      expect(row.reconciles).toBe(true);
+    });
+
+    it('derives a half day from an incomplete shift once the employee checks out', async () => {
+      const row = await buildSummaries({
+        logs: [punch(2, 'present', {
+          checkIn: new Date(2026, 8, 2, 9),
+          checkOut: new Date(2026, 8, 2, 13),
+          attendanceStatus: 'INCOMPLETE',
+        })],
+      });
+      expect(row.halfDay).toBe(0.5);
+      expect(row.present).toBe(0);
+    });
+
+    it('keeps a present day when the incomplete shift has no check-out yet', async () => {
+      const row = await buildSummaries({
+        logs: [punch(2, 'present', {
+          checkIn: new Date(2026, 8, 2, 9),
+          checkOut: null,
+          attendanceStatus: 'INCOMPLETE',
+        })],
+      });
+      expect(row.present).toBe(1);
+      expect(row.halfDay).toBe(0);
+    });
+
+    it('counts Sundays as working days for a 7-day week', async () => {
+      const row = await buildSummaries({
+        workingDaysPerWeek: 7,
+        logs: [punch(6, 'present'), punch(13, 'present')],
+      });
+      // Every day of Sept 2026 is a working day for a 7-day week.
+      expect(row.totalWorkingDays).toBe(30);
+      expect(row.present).toBe(2);
+      expect(row.absent).toBe(28);
+    });
+
+    it('never lets the categories exceed the total working days', async () => {
+      const row = await buildSummaries({
+        workingDaysPerWeek: 6,
+        policies: [{ companyId: 'c-1', value: 'true' }],
+        logs: [
+          punch(5, 'on_leave'),   // Saturday — counts for a 6-day week
+          punch(6, 'on_leave'),   // Sunday — never counts
+          punch(7, 'present'),
+        ],
+        halfDayLeaves: [{
+          employeeId: 'e-1',
+          startDate: new Date(2026, 8, 8),
+          endDate: new Date(2026, 8, 8),
+        }],
+      });
+      // Mon-Sat (26) minus the 2nd Saturday (12th) = 25 working days.
+      expect(row.totalWorkingDays).toBe(25);
+      expect(row.onLeave).toBe(1);
+      expect(row.present).toBe(1);
+      expect(row.halfDay).toBe(0.5);
+      expect(row.reconciles).toBe(true);
+      expect(row.present + row.late + row.halfDay + row.onLeave + row.absent).toBe(row.totalWorkingDays);
+    });
+
+    it('treats a working-day holiday as a paid day (not absent) and ignores a weekly-off holiday', async () => {
+      const row = await buildSummaries({
+        holidays: [new Date(2026, 8, 16), new Date(2026, 8, 6)], // Sep 16 (Wed, working), Sep 6 (Sunday, off)
+        logs: [],
+      });
+      expect(row.totalWorkingDays).toBe(22); // holidays stay inside the working-day count
+      expect(row.paidHolidays).toBe(1);      // the Sunday holiday is not a paid working day
+      expect(row.absent).toBe(21);           // 22 working days - 1 paid holiday
+      expect(row.reconciles).toBe(true);
+    });
+
+    it('counts a worked holiday once — the punch absorbs the paid holiday', async () => {
+      const row = await buildSummaries({
+        holidays: [new Date(2026, 8, 16)],
+        logs: [punch(16, 'present')],
+      });
+      expect(row.totalWorkingDays).toBe(22);
+      expect(row.present).toBe(1);
+      expect(row.paidHolidays).toBe(1);
+      expect(row.absent).toBe(21); // the worked holiday counts once, not twice
+      expect(row.reconciles).toBe(true);
     });
   });
 });

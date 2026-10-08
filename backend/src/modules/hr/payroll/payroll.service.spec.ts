@@ -105,8 +105,10 @@ describe('PayrollService', () => {
       expect(employeeQueryArgs.include.salaryStructures.orderBy).toEqual({ effectiveFrom: 'desc' });
     });
 
-    it('deducts LOP for working days with no attendance log, excluding holidays', async () => {
-      // Aug 2026: 21 weekdays (5-day week), minus 1 holiday (Fri Aug 14) = 20 net working days
+    it('deducts LOP for working days with no attendance, treating holidays as paid', async () => {
+      // Aug 2026: 21 weekdays (5-day week). Fri Aug 14 is a company holiday — it stays
+      // inside the working-day count and is paid automatically, so LOP only accrues on
+      // genuinely unworked working days.
       const emp = baseEmployee({
         salaryStructures: [baseStructure()],
         attendanceLog: [
@@ -126,13 +128,50 @@ describe('PayrollService', () => {
 
       const createArgs = prisma.payslip.create.mock.calls[0][0];
       const breakdown = createArgs.data.breakdown;
-      expect(breakdown.totalWorkingDays).toBe(20);
+      expect(breakdown.totalWorkingDays).toBe(21);
       expect(breakdown.holidayDays).toBe(1);
-      expect(breakdown.paidDays).toBe(5);
-      expect(breakdown.lopDays).toBe(20 - 5);
-      expect(breakdown.lopAmount).toBe(Math.round((10000 / 20) * 15));
+      expect(breakdown.paidHolidays).toBe(1);
+      expect(breakdown.paidDays).toBe(6);
+      expect(breakdown.lopDays).toBe(21 - 6);
+      expect(breakdown.lopAmount).toBe(Math.round((10000 / 21) * 15));
       // net = gross - pf(1200) - esi(75) - lopAmount (rounded to nearest rupee)
-      expect(createArgs.data.netPay).toBe(10000 - 1200 - 75 - Math.round((10000 / 20) * 15));
+      expect(createArgs.data.netPay).toBe(10000 - 1200 - 75 - Math.round((10000 / 21) * 15));
+    });
+
+    it('counts a holiday the employee worked exactly once (punch absorbs the paid holiday)', async () => {
+      const emp = baseEmployee({
+        salaryStructures: [baseStructure()],
+        attendanceLog: [{ date: new Date('2026-08-14T00:00:00Z'), status: 'present' }], // worked on the holiday
+      });
+      prisma.employee.findMany.mockResolvedValueOnce([emp]);
+      prisma.holiday.findMany.mockResolvedValueOnce([{ id: 'h1', companyId: 'company-1', date: new Date('2026-08-14T00:00:00Z') }]);
+
+      await service.runPayroll('company-1', 8, 2026, 'new');
+
+      const breakdown = prisma.payslip.create.mock.calls[0][0].data.breakdown;
+      expect(breakdown.holidayDays).toBe(1);
+      // The worked holiday counts once — not once as a punch plus once as a holiday.
+      expect(breakdown.paidDays).toBe(1);
+      expect(breakdown.lopDays).toBe(21 - 1);
+    });
+
+    it('does not count a holiday that falls on a weekly off as a paid working day', async () => {
+      const emp = baseEmployee({
+        salaryStructures: [baseStructure()],
+        attendanceLog: [],
+      });
+      prisma.employee.findMany.mockResolvedValueOnce([emp]);
+      // Sunday Aug 2 2026 is a weekly off — the holiday must not be a paid day.
+      prisma.holiday.findMany.mockResolvedValueOnce([{ id: 'h1', companyId: 'company-1', date: new Date(2026, 7, 2) }]);
+
+      await service.runPayroll('company-1', 8, 2026, 'new');
+
+      const breakdown = prisma.payslip.create.mock.calls[0][0].data.breakdown;
+      expect(breakdown.totalWorkingDays).toBe(21);
+      expect(breakdown.holidayDays).toBe(0);
+      expect(breakdown.paidHolidays).toBe(0);
+      expect(breakdown.paidDays).toBe(0);
+      expect(breakdown.lopDays).toBe(21);
     });
 
     it('pays full shift allowance for assignments active the whole month and prorates mid-month starts', async () => {

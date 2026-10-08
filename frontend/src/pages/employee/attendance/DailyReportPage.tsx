@@ -69,7 +69,8 @@ function AdminDailyReport() {
         row.status === 'late' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
         row.status === 'absent' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
         row.status === 'half_day_leave' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
-        'bg-indigo-500/10 text-indigo-500 border-indigo-500/20'}`}>{row.status === 'half_day_leave' ? 'Present / Half Day' : row.status?.replace('_', ' ')}</span>
+        row.status === 'paid_holiday' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' :
+        'bg-indigo-500/10 text-indigo-500 border-indigo-500/20'}`}>{row.status === 'half_day_leave' ? 'Present / Half Day' : row.status === 'paid_holiday' ? 'Paid Holiday' : row.status?.replace('_', ' ')}</span>
     )},
   ];
 
@@ -178,6 +179,7 @@ function EmployeeDailyReport() {
         row.actualStatus === 'late' ? 'bg-amber-500/10 text-amber-500' :
         row.actualStatus === 'on_leave' ? 'bg-indigo-500/10 text-indigo-500' :
         row.actualStatus === 'half_day' ? 'bg-blue-500/10 text-blue-500' :
+        row.actualStatus === 'paid_holiday' ? 'bg-purple-500/10 text-purple-500' :
         'bg-emerald-500/10 text-emerald-500'}`}>
         {row.status}
       </span>

@@ -198,7 +198,7 @@ export default function MyViewAttendancePage() {
                 { label: 'Half Day', color: '#3b82f6' },
                 { label: 'Leave', color: '#8b5cf6' },
                 { label: 'Absent', color: '#ef4444' },
-                { label: 'Holiday', color: '#06b6d4' },
+                { label: 'Paid Holiday', color: '#06b6d4' },
               ].map(({ label, color }) => (
                 <span key={label} className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
                   <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }}></span>

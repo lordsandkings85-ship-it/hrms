@@ -62,8 +62,12 @@ export class AttendanceController {
     return this.attendanceService.getTodayStatus(user.companyId, employeeId, user.userId);
   }
 
+  // Bulk month-wide endpoints. These return EVERY active employee in scope and take no
+  // employeeId, so the PermissionsGuard self-service bypass can never apply to them and a
+  // plain `attendance:view` grant would read the whole group. Require `export` instead —
+  // employees self-serve through `GET attendance/summary/:employeeId`.
   @Get('monthly')
-  @Permissions({ module: 'attendance', action: 'view' })
+  @Permissions({ module: 'attendance', action: 'export' })
   listMonthly(
     @CurrentUser() user: AuthUser,
     @Query('year') year?: string,
@@ -78,7 +82,7 @@ export class AttendanceController {
   }
 
   @Get('monthly/working-days')
-  @Permissions({ module: 'attendance', action: 'view' })
+  @Permissions({ module: 'attendance', action: 'export' })
   monthlyWorkdays(
     @CurrentUser() user: AuthUser,
     @Query('year') year?: string,

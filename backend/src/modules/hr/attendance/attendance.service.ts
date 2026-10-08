@@ -62,6 +62,19 @@ export interface RegularizationReportFilters {
   type?: string; // regularization | full_day
 }
 
+/**
+ * `attendanceStatus` values that mean "worked, but only part of the shift" once the
+ * employee has checked out. A half day is derived from these because nothing ever
+ * persists `AttendanceLog.status = 'half_day'`.
+ */
+const HALF_DAY_ATTENDANCE_STATUSES = new Set([
+  'HALF_DAY',
+  'INCOMPLETE',
+  'INCOMPLETE_SHIFT',
+  'OFF_DAY_OR_INCOMPLETE',
+  'OFF_DAY',
+]);
+
 /** Parse a naive YYYY-MM-DD string; returns null when not a valid date. */
 function parseYMD(value?: string): { y: number; m: number; d: number } | null {
   if (!value) return null;
@@ -554,13 +567,7 @@ export class AttendanceService {
     const loggedEmployeeIds = new Set(logs.map((l) => l.employeeId));
     const halfDayEmployeeIds = new Set(halfDayLeaves.map((l) => l.employeeId));
 
-    const OVERRIDE_INCOMPLETE = new Set([
-      'OFF_DAY_OR_INCOMPLETE',
-      'INCOMPLETE',
-      'INCOMPLETE_SHIFT',
-      'HALF_DAY',
-      'OFF_DAY',
-    ]);
+    const OVERRIDE_INCOMPLETE = HALF_DAY_ATTENDANCE_STATUSES;
 
     const enrichedLogs = logs.map((l) => {
       if (halfDayEmployeeIds.has(l.employeeId)) {
@@ -878,9 +885,18 @@ export class AttendanceService {
   /**
    * Per-employee end-of-month attendance summary for the admin report/export.
    * For each active employee in scope it computes the month's calendar working days
-   * (workingDaysPerWeek minus holidays, and second-Saturday off when the company policy
-   * `custom.secondSaturdayOff` is set) plus the logged present/late/half_day/on_leave counts.
-   * `absent` is derived so the row reconciles with the total working days.
+   * (weekly offs per `workingDaysPerWeek`, minus holidays, and second-Saturday off when
+   * the company policy `custom.secondSaturdayOff` is set) plus the logged
+   * present/late/on_leave counts.
+   *
+   * Half days are DERIVED, never read from `AttendanceLog.status` (nothing writes
+   * `'half_day'`): they come from approved half-day leave requests (0.5) and from punches
+   * whose `attendanceStatus` marks an incomplete shift once checked out (0.5).
+   * Classification only counts working days, so the `on_leave` rows that `leave.service`
+   * writes for Saturdays it should not have written no longer inflate leave.
+   *
+   * `absent` is derived by subtraction; `reconciles` is false when the logged data
+   * exceeded the working-day total and the subtraction had to be clamped.
    */
   async monthlyWorkdaySummaries(companyId: string, year?: number, month?: number, userId?: string) {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
@@ -937,13 +953,42 @@ export class AttendanceService {
         ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId, isSystem: false } }),
         date: { gte: start, lt: end },
       },
-      select: { employeeId: true, date: true, status: true },
+      select: { employeeId: true, date: true, status: true, checkIn: true, checkOut: true, attendanceStatus: true },
     });
-    const logsByEmployee = new Map<string, { date: Date; status: string }[]>();
+    const logsByEmployee = new Map<string, { date: Date; status: string; checkIn: Date | null; checkOut: Date | null; attendanceStatus: string | null }[]>();
     for (const log of logs) {
       const arr = logsByEmployee.get(log.employeeId);
       if (arr) arr.push(log);
       else logsByEmployee.set(log.employeeId, [log]);
+    }
+
+    // Nothing ever persists `status = 'half_day'`, so half days are derived the same way
+    // `listForCompany` does it: from approved half-day leave requests, batched per month.
+    const halfDayLeaves = await this.prisma.leaveRequest.findMany({
+      where: {
+        status: 'approved',
+        isHalfDay: true,
+        ...(groupWide ? { employee: { isSystem: false } } : { employee: { companyId, isSystem: false } }),
+        startDate: { lt: end },
+        endDate: { gte: start },
+      },
+      select: { employeeId: true, startDate: true, endDate: true },
+    });
+    const halfDayLeaveDays = new Map<string, Set<string>>();
+    for (const req of halfDayLeaves) {
+      let set = halfDayLeaveDays.get(req.employeeId);
+      if (!set) {
+        set = new Set<string>();
+        halfDayLeaveDays.set(req.employeeId, set);
+      }
+      const d = new Date(req.startDate);
+      d.setHours(0, 0, 0, 0);
+      const last = new Date(req.endDate);
+      last.setHours(0, 0, 0, 0);
+      while (d <= last) {
+        set.add(dateKey(d));
+        d.setDate(d.getDate() + 1);
+      }
     }
 
     const daysInMonth = new Date(y, m, 0).getDate();
@@ -952,28 +997,56 @@ export class AttendanceService {
       const workingDaysPerWeek = emp.workingDaysPerWeek ?? 5;
       const holidaySet = await holidaySetFor(emp.companyId);
 
-      let totalWorkingDays = 0;
+      // Sunday is the weekly off for 5- and 6-day weeks; Saturday is off for a 5-day week.
+      // A 7-day week has no weekly off at all (it used to lose every Sunday here).
+      const weeklyOff = new Set<number>();
+      if (workingDaysPerWeek < 7) weeklyOff.add(0);
+      if (workingDaysPerWeek === 5) weeklyOff.add(6);
+
+      const workingDaySet = new Set<string>();
       for (let i = 1; i <= daysInMonth; i++) {
         const d = new Date(y, m - 1, i);
         const dow = d.getDay();
-        if (dow === 0) continue;
-        if (dow === 6) {
-          if (workingDaysPerWeek !== 6) continue;
-          // Second Saturday is a weekly off for 6-day companies with the policy enabled
-          if (this.isSecondSaturday(d) && secondSatOff.has(emp.companyId)) continue;
-        }
-        if (holidaySet.has(dateKey(d))) continue;
-        totalWorkingDays++;
+        if (weeklyOff.has(dow)) continue;
+        // Second Saturday is a weekly off for 6-day companies with the policy enabled
+        if (dow === 6 && this.isSecondSaturday(d) && secondSatOff.has(emp.companyId)) continue;
+        const k = dateKey(d);
+        workingDaySet.add(k);
       }
+      // Paid holidays are working days for the monthly calendar but carry no
+      // attendance requirement. Holidays that fall on a weekly off are not working
+      // days at all (never added above), so they are excluded from the paid count.
+      const holidayWorkingDays = new Set<string>();
+      for (const k of holidaySet) {
+        if (workingDaySet.has(k)) holidayWorkingDays.add(k);
+      }
+      const totalWorkingDays = workingDaySet.size;
+      const paidHolidays = holidayWorkingDays.size;
 
-      // Group logs by day (prioritize late/half_day over present like the summary UI)
-      const uniqueDays = new Map<string, string>();
+      const empHalfDayLeaves = halfDayLeaveDays.get(emp.id) ?? new Set<string>();
+
+      // Group logs by calendar day (late/half_day take priority over present, matching
+      // the summary UI). Only working days count: `on_leave` logs are written for every
+      // non-Sunday day of a leave regardless of the employee's week length, so counting
+      // them blind inflates leave and silently deflates absent.
+      const uniqueDays = new Map<string, { status: string; isHalfDayAttendance: boolean }>();
       for (const log of logsByEmployee.get(emp.id) ?? []) {
         const k = dateKey(log.date);
+        const isHalfDayAttendance =
+          !!log.checkOut &&
+          HALF_DAY_ATTENDANCE_STATUSES.has(String(log.attendanceStatus ?? '').trim().toUpperCase());
+        const effectiveStatus =
+          isHalfDayAttendance ? 'half_day' : log.status === 'half_day' ? 'half_day' : log.status;
         const existing = uniqueDays.get(k);
-        if (!existing) uniqueDays.set(k, log.status);
-        else if ((log.status === 'late' || log.status === 'half_day') && existing === 'present') {
-          uniqueDays.set(k, log.status);
+        if (!existing) {
+          uniqueDays.set(k, { status: effectiveStatus, isHalfDayAttendance });
+        } else {
+          const rank = (s: string) => (s === 'half_day' ? 2 : s === 'late' ? 1 : s === 'present' ? 0 : -1);
+          if (rank(effectiveStatus) > rank(existing.status)) {
+            uniqueDays.set(k, { status: effectiveStatus, isHalfDayAttendance });
+          } else if (effectiveStatus === existing.status) {
+            existing.isHalfDayAttendance = existing.isHalfDayAttendance || isHalfDayAttendance;
+          }
         }
       }
 
@@ -981,14 +1054,45 @@ export class AttendanceService {
       let late = 0;
       let halfDay = 0;
       let onLeave = 0;
-      for (const status of uniqueDays.values()) {
-        if (status === 'present') present++;
-        else if (status === 'late') late++;
-        else if (status === 'half_day') halfDay++;
-        else if (status === 'on_leave') onLeave++;
+      const coveredHolidayDays = new Set<string>();
+      for (const [k, day] of uniqueDays) {
+        if (!workingDaySet.has(k)) continue;
+        // A holiday is a paid working day: an actual punch still counts as worked
+        // (present/late), but half-day / leave rows on it must not be double-counted —
+        // the paid holiday already covers the day.
+        if (holidayWorkingDays.has(k)) {
+          if (day.status === 'present') present += 1;
+          else if (day.status === 'late') late += 1;
+          if (day.status === 'present' || day.status === 'late') coveredHolidayDays.add(k);
+          continue;
+        }
+        // A half-day leave is counted as a half day (0.5), never as a whole leave day.
+        // `leave.service` writes a full-day `on_leave` log for it, so ignore that row here.
+        if (day.status === 'on_leave') {
+          if (empHalfDayLeaves.has(k)) halfDay += 0.5;
+          else onLeave += 1;
+        } else if (day.status === 'present') {
+          present += 1;
+        } else if (day.status === 'late') {
+          late += 1;
+        } else if (day.status === 'half_day') {
+          halfDay += 0.5;
+        }
+      }
+      // A half-day leave on a day with no attendance log at all still counts —
+      // except on a holiday, where the paid holiday covers the day instead.
+      for (const k of empHalfDayLeaves) {
+        if (!workingDaySet.has(k)) continue;
+        if (holidayWorkingDays.has(k)) continue;
+        if (uniqueDays.has(k)) continue;
+        halfDay += 0.5;
       }
 
-      const absent = Math.max(0, totalWorkingDays - present - late - halfDay - onLeave);
+      const classified = present + late + halfDay + onLeave;
+      // Paid holidays the employee did not punch on are covered (paid) without a log,
+      // so they reduce absent exactly like the other classified categories.
+      const uncoveredPaidHolidays = Math.max(0, paidHolidays - coveredHolidayDays.size);
+      const absent = Math.max(0, totalWorkingDays - classified - uncoveredPaidHolidays);
       results.push({
         employeeId: emp.id,
         employeeCode: emp.employeeCode,
@@ -997,11 +1101,19 @@ export class AttendanceService {
         department: emp.department?.name ?? '--',
         workingDaysPerWeek,
         totalWorkingDays,
+        paidHolidays,
+        // Local "YYYY-MM-DD" keys of every paid holiday so UIs/exports can render the
+        // individual days (holiday name resolution stays on the frontend holiday list).
+        paidHolidayDates: Array.from(holidayWorkingDays),
         present,
         late,
         halfDay,
         onLeave,
         absent,
+        // false means the log data exceeded the working-day total (e.g. punches on
+        // holidays with no matching paid holiday); absent was clamped, so the row
+        // does not reconcile.
+        reconciles: classified + uncoveredPaidHolidays + absent === totalWorkingDays,
       });
     }
     return results;
@@ -1055,23 +1167,6 @@ export class AttendanceService {
       });
     }
 
-    // Second-Saturday-off policy (mirrors monthlyWorkdaySummaries): when a 6-day company
-    // has the policy enabled, the 2nd Saturday of the month is not a working day.
-    const secondSatPolicy = await this.prisma.attendancePolicy.findFirst({
-      where: {
-        companyId: targetCompanyId,
-        key: 'custom.secondSaturdayOff',
-      },
-      select: { value: true },
-    });
-    const secondSaturdayOff =
-      secondSatPolicy?.value === 'true' ||
-      (secondSatPolicy === null &&
-        (await this.prisma.attendancePolicy.findFirst({
-          where: { key: 'custom.secondSaturdayOff' },
-          select: { value: true },
-        }))?.value === 'true');
-
     const monthHolidays = holidays.filter((h) => {
       const hd = new Date(h.date);
       return (
@@ -1080,19 +1175,10 @@ export class AttendanceService {
       );
     });
 
-    const holidayCount = monthHolidays.filter((h) => {
-      const hd = new Date(h.date);
-      const dow = hd.getDay();
-      const utcdow = hd.getUTCDay();
-      const isWd = (d: number) =>
-        workingDaysPerWeek === 5 ? d >= 1 && d <= 5 : workingDaysPerWeek === 6 ? d >= 1 && d <= 6 : true;
-      return isWd(dow) || isWd(utcdow);
-    }).length;
-
     const daysInMonth = new Date(year, month, 0).getDate();
 
-    // Second-Saturday-off policy: skip 2nd Saturday from the working-day total just like
-    // monthlyWorkdaySummaries does, so the dashboard card agrees with the monthly report/export.
+    // Second-Saturday-off policy (mirrors monthlyWorkdaySummaries): when a 6-day company
+    // has the policy enabled, the 2nd Saturday of the month is not a working day.
     const secondSatPolicies = await this.prisma.attendancePolicy.findMany({
       where: {
         companyId: targetCompanyId,
@@ -1108,7 +1194,20 @@ export class AttendanceService {
             select: { value: true },
           }))?.value === 'true';
 
-    let workingDaysInMonth = 0;
+    // Paid holidays = configured holidays that fall on an otherwise-working day. The
+    // date must pass the same boundary the working-day loop uses below (Sunday off,
+    // Saturday only for 6-day weeks, 2nd Saturday exempted under the policy). Holiday
+    // names are kept so day-detail UIs/exports can label each paid holiday.
+    const dk = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const holidaysByDate = new Map<string, any>();
+    for (const h of monthHolidays) {
+      const d = new Date(h.date);
+      if (!holidaysByDate.has(dk(d))) holidaysByDate.set(dk(d), h);
+    }
+
+    const workingDayKeys: string[] = [];
+    const holidayWorkingDayKeys: string[] = [];
     for (let i = 1; i <= daysInMonth; i++) {
       const d = new Date(year, month - 1, i);
       const dow = d.getDay();
@@ -1119,11 +1218,50 @@ export class AttendanceService {
         if (workingDaysPerWeek !== 6) continue;
         if (this.isSecondSaturday(d) && secondSatOff) continue;
       }
-      workingDaysInMonth++;
+      const k = dk(d);
+      workingDayKeys.push(k);
+      if (holidaysByDate.has(k)) holidayWorkingDayKeys.push(k);
     }
 
-    const totalWorkingDays = Math.max(0, workingDaysInMonth - holidayCount);
-    const absent = Math.max(0, totalWorkingDays - present - late - halfDay - onLeave);
+    const totalWorkingDays = workingDayKeys.length;
+    const paidHolidays = holidayWorkingDayKeys.length;
+
+    // Worked holidays still count as worked (present/late) and, having been counted,
+    // are not paid a second time. Holidays the employee did not punch on are covered
+    // by the paid holiday itself, so they reduce absent like the classified categories.
+    const coveredHolidayDays = new Set<string>();
+    for (const log of uniqueLogs) {
+      if (log.status === 'present' || log.status === 'late') {
+        const k = dk(log.date);
+        if (holidaysByDate.has(k)) coveredHolidayDays.add(k);
+      }
+    }
+    const uncoveredPaidHolidays = Math.max(0, paidHolidays - coveredHolidayDays.size);
+    const absent = Math.max(0, totalWorkingDays - present - late - halfDay - onLeave - uncoveredPaidHolidays);
+
+    // Emit an explicit "Paid Holiday" row for each working-day holiday the employee did
+    // not punch on, so day-detail UIs and the report export show it with its name.
+    const loggedKeys = new Set(logs.map((l) => dk(l.date)));
+    for (const k of holidayWorkingDayKeys) {
+      if (loggedKeys.has(k)) continue;
+      const h = holidaysByDate.get(k);
+      const [yy, mm, dd] = k.split('-').map(Number);
+      logs.push({
+        id: undefined,
+        employeeId,
+        date: new Date(yy, mm - 1, dd),
+        checkIn: null,
+        checkOut: null,
+        method: 'holiday',
+        status: 'paid_holiday',
+        attendanceStatus: null,
+        totalMinutes: null,
+        overtimeMinutes: 0,
+        isWithinGeofence: null,
+        shiftId: null,
+        holiday: h?.name ?? 'Holiday',
+      } as any);
+    }
 
     // Approved 3-Hour Permission requests for the month, surfaced so UIs can show
     // a "Permission" indicator on the relevant dates (display-only; does not change
@@ -1152,7 +1290,8 @@ export class AttendanceService {
       halfDay,
       onLeave,
       absent,
-      holidays: holidayCount,
+      holidays: paidHolidays,
+      paidHolidays,
       totalOvertimeMins,
       totalDays: totalWorkingDays,
       logs,

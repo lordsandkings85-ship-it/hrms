@@ -8,21 +8,18 @@ import { RingChart } from '../../../components/ui/RingChart';
 import { DataTable, Column } from '../../../components/ui/DataTable';
 import { getServerYear, getServerMonth } from '../../../utils/serverTime';
 import { fmtTime12 } from '../../../utils/formatDate';
-import { downloadXlsx } from '../../../utils/excelExport';
+import {
+  exportAllReport,
+  exportEmployeeReport,
+  fmtDuration,
+  mergePaidHolidayRows,
+  type MonthlySummaryRow,
+} from './monthlyAttendanceExport';
 
 function useIsAdmin() {
   const { user } = useAuthStore();
   const role = user?.role?.name?.toLowerCase() || '';
   return !!user?.isSuperAdmin || !!user?.role?.isSystem || ['admin','hr','human resource','manager'].some(r => role.includes(r));
-}
-
-function fmtDuration(checkIn?: string | null, checkOut?: string | null) {
-  if (!checkIn || !checkOut) return '--';
-  const a = new Date(checkIn).getTime();
-  const b = new Date(checkOut).getTime();
-  if (isNaN(a) || isNaN(b) || b < a) return '--';
-  const mins = Math.round((b - a) / 60000);
-  return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
 }
 
 function AdminSummary() {
@@ -36,7 +33,7 @@ function AdminSummary() {
     queryFn: async () => { const r = await attendanceApi.listMonthly(year, month); return Array.isArray(r) ? r : []; },
   });
 
-  const { data: workdays } = useQuery({
+  const { data: workdays, isLoading: workdaysLoading } = useQuery({
     queryKey: ['attendance-monthly-workdays', year, month],
     queryFn: async () => { const r = await attendanceApi.monthlyWorkdays(year, month); return Array.isArray(r) ? r : []; },
   });
@@ -59,9 +56,32 @@ function AdminSummary() {
     );
   }, [holidays]);
 
+  const holidayNameByDate = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const h of holidays || []) {
+      const d = new Date(h.date);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (!m.has(key)) m.set(key, h.name || 'Holiday');
+    }
+    return m;
+  }, [holidays]);
+
+  // Backend-derived paid-holiday dates per employee (local "YYYY-MM-DD") — the
+  // authoritative working-day-aware day set for rendering the individual days.
+  const paidHolidayMap = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const w of workdays || []) {
+      if (Array.isArray(w.paidHolidayDates)) m.set(w.employeeId, w.paidHolidayDates);
+    }
+    return m;
+  }, [workdays]);
+
   const filtered = (logs || []).filter((log: any) => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return true;
     const name = ((log.employee?.firstName || '') + ' ' + (log.employee?.lastName || '')).toLowerCase();
-    return name.includes(searchTerm.toLowerCase());
+    const code = (log.employee?.employeeCode || '').toLowerCase();
+    return name.includes(term) || code.includes(term);
   });
 
   // Dedupe by employee+day so multiple punches on the same day count once.
@@ -159,8 +179,19 @@ function AdminSummary() {
   }
   // Bring in active employees that have no logged attendance rows this month
   // (working-day totals/absences still apply to them from the backend summary).
+  // The search term must apply here too — otherwise typing a name ADDS every
+  // zero-log employee back to the table and to the export.
+  const search = searchTerm.trim().toLowerCase();
+  const matchesSearch = (first?: string, last?: string, code?: string) => {
+    if (!search) return true;
+    return (
+      `${first || ''} ${last || ''}`.toLowerCase().includes(search) ||
+      (code || '').toLowerCase().includes(search)
+    );
+  };
   for (const w of workdays || []) {
     if (!w?.employeeId || personMap.has(w.employeeId)) continue;
+    if (!matchesSearch(w.firstName, w.lastName, w.employeeCode)) continue;
     personMap.set(w.employeeId, {
       employeeId: w.employeeId,
       firstName: w.firstName,
@@ -187,38 +218,58 @@ function AdminSummary() {
     ? [...selectedPerson.logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     : [];
 
-  const exportExcel = async () => {
-    if (!personRows.length) return;
-    const monthName = new Date(0, month - 1).toLocaleString('default', { month: 'long' });
-    await downloadXlsx({
-      filename: `Monthly_Attendance_${monthName}_${year}.xlsx`,
-      sheetName: `${monthName} ${year}`,
-      columns: [
-        { header: 'Employee Name', key: 'employeeName', width: 24 },
-        { header: 'Employee Code', key: 'employeeCode', width: 14 },
-        { header: 'Department', key: 'department', width: 22 },
-        { header: 'Total Working Days', key: 'totalWorkingDays', width: 18, type: 'number' },
-        { header: 'Present', key: 'present', width: 11, type: 'number' },
-        { header: 'Absent', key: 'absent', width: 11, type: 'number' },
-        { header: 'On Leave', key: 'onLeave', width: 11, type: 'number' },
-        { header: 'Half Days', key: 'halfDay', width: 11, type: 'number' },
-        { header: 'Late', key: 'late', width: 11, type: 'number' },
-      ],
-      rows: personRows.map((p: any) => {
-        const w = workdayMap.get(p.employeeId) || {};
-        return {
-          employeeName: `${p.firstName || ''} ${p.lastName || ''}`.trim(),
-          employeeCode: p.employeeCode || '',
-          department: p.department || '',
-          totalWorkingDays: w.totalWorkingDays ?? p.daysWorked,
-          present: w.present ?? p.present,
-          absent: w.absent ?? p.absent,
-          onLeave: w.onLeave ?? p.onLeave,
-          halfDay: w.halfDay ?? p.halfDay,
-          late: w.late ?? p.late,
-        };
-      }),
-    });
+  // Paid holidays the employee did not punch on render as explicit "Paid Holiday"
+  // rows (with the holiday name) in both the day detail and the report export.
+  const selectedPersonHolidays = selectedPerson
+    ? (paidHolidayMap.get(selectedPerson.employeeId) ?? []).map((key: string) => ({
+        date: key,
+        name: holidayNameByDate.get(key) || 'Holiday',
+      }))
+    : [];
+  const mergedPersonLogs = selectedPerson
+    ? mergePaidHolidayRows(selectedPersonLogs, selectedPersonHolidays)
+        .slice()
+        .sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime())
+    : [];
+
+  // Every export must run off the backend summary. The old code fell back to the
+  // frontend-derived p.* counts when workdayMap had not loaded, which silently
+  // relabelled "days worked" as "Total Working Days" and counted absent differently.
+  // The button is disabled while either query is in flight instead.
+  const summariesLoaded = !logsLoading && !workdaysLoading && (workdays?.length ?? 0) >= 0;
+
+  const summaryFor = (p: any): MonthlySummaryRow | null => {
+    const w = workdayMap.get(p.employeeId);
+    if (!w) return null;
+    return {
+      employeeId: w.employeeId,
+      employeeCode: w.employeeCode,
+      firstName: w.firstName,
+      lastName: w.lastName,
+      department: w.department,
+      totalWorkingDays: w.totalWorkingDays,
+      paidHolidays: w.paidHolidays,
+      present: w.present,
+      late: w.late,
+      halfDay: w.halfDay,
+      onLeave: w.onLeave,
+      absent: w.absent,
+      reconciles: w.reconciles,
+    };
+  };
+
+  const exportAllExcel = async () => {
+    if (!personRows.length || !summariesLoaded) return;
+    const summaries = personRows.map((p: any) => summaryFor(p)).filter(Boolean) as MonthlySummaryRow[];
+    if (!summaries.length) return;
+    await exportAllReport({ summaries, year, month });
+  };
+
+  const exportSelectedExcel = async () => {
+    if (!selectedPerson || !summariesLoaded) return;
+    const summary = summaryFor(selectedPerson);
+    if (!summary) return;
+    await exportEmployeeReport({ summary, logs: mergedPersonLogs, paidHolidays: selectedPersonHolidays, year, month });
   };
 
   // ---- Per-person summary columns ----
@@ -242,6 +293,9 @@ function AdminSummary() {
     )},
     { key: 'totalWorkingDays', header: 'Total Working Days', render: (p: any) => (
       <span className="font-mono text-sm font-black text-slate-900 dark:text-white">{row(p)?.totalWorkingDays ?? p.daysWorked}</span>
+    )},
+    { key: 'paidHolidays', header: 'Paid Holidays', render: (p: any) => (
+      <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${(row(p)?.paidHolidays ?? 0) ? 'bg-purple-500/10 text-purple-500' : 'text-slate-400'}`}>{row(p)?.paidHolidays ?? 0}</span>
     )},
     { key: 'present', header: 'Present', render: (p: any) => (
       <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${(row(p)?.present ?? p.present) ? 'bg-emerald-500/10 text-emerald-500' : 'text-slate-400'}`}>{row(p)?.present ?? p.present}</span>
@@ -298,8 +352,10 @@ function AdminSummary() {
         absent: 'bg-red-500/10 text-red-500 border-red-500/20',
         half_day: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
         on_leave: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20',
+        paid_holiday: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
       };
-      return <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold uppercase tracking-wider ${map[row.status] || ''}`}>{row.status?.replace('_', ' ')}</span>;
+      const label = row.status === 'paid_holiday' ? 'Paid Holiday' : (row.status || '').replace('_', ' ');
+      return <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold uppercase tracking-wider ${map[row.status] || ''}`}>{label}{row.holiday && row.status === 'paid_holiday' ? ` · ${row.holiday}` : ''}</span>;
     }},
   ];
 
@@ -404,9 +460,17 @@ function AdminSummary() {
                   <input type="text" placeholder="Search employee..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64" />
                 </div>
-                <button onClick={exportExcel}
-                  className="px-4 py-2 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 rounded-lg hover:bg-indigo-500/20 transition-colors flex items-center gap-1.5">
-                  <Download size={14} /> Export Excel
+                {selectedPerson && (
+                  <button onClick={exportSelectedExcel} disabled={!summariesLoaded}
+                    title="Export the selected employee's summary and day-by-day detail"
+                    className="px-4 py-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/20 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <Download size={14} /> Export Selected
+                  </button>
+                )}
+                <button onClick={exportAllExcel} disabled={!summariesLoaded || !personRows.length}
+                  title={summariesLoaded ? `Export all ${personRows.length} matching employee(s)` : 'Loading attendance data...'}
+                  className="px-4 py-2 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 rounded-lg hover:bg-indigo-500/20 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Download size={14} /> Export All
                 </button>
               </div>
             </div>
@@ -439,7 +503,7 @@ function AdminSummary() {
                   Close
                 </button>
               </div>
-              <DataTable columns={detailColumns} data={selectedPersonLogs} loading={false} keyField="id" showToolbar={false} selectable={false} />
+              <DataTable columns={detailColumns} data={mergedPersonLogs} loading={false} keyField="id" showToolbar={false} selectable={false} />
             </div>
           )}
         </>
@@ -463,6 +527,33 @@ function EmployeeSummary() {
 
   const presentDays = summary ? summary.present + summary.late + (summary.halfDay * 0.5) : 0;
   const totalExpected = summary ? summary.totalDays : 0;
+
+  // The employee's own report: one summary row plus every day's punches. Same file shape
+  // as the admin's "Export Selected", built from the summary this view already fetched.
+  const exportMyReport = async () => {
+    if (!summary) return;
+    await exportEmployeeReport({
+      summary: {
+        employeeId: empId!,
+        firstName: user?.employee?.firstName,
+        lastName: user?.employee?.lastName,
+        employeeCode: user?.employee?.employeeCode,
+        totalWorkingDays: summary.totalDays,
+        paidHolidays: summary.paidHolidays ?? summary.holidays,
+        present: summary.present,
+        late: summary.late,
+        halfDay: summary.halfDay,
+        onLeave: summary.onLeave,
+        absent: summary.absent,
+        holidays: summary.holidays,
+        totalOvertimeMins: summary.totalOvertimeMins,
+      },
+      logs: summary.logs || [],
+      permissions: summary.permissions || [],
+      year,
+      month,
+    });
+  };
 
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto animate-fade">
@@ -489,6 +580,11 @@ function EmployeeSummary() {
               <option key={i} value={getServerYear() - i}>{getServerYear() - i}</option>
             ))}
           </select>
+          <button onClick={exportMyReport} disabled={!summary}
+            title="Export your summary and day-by-day detail"
+            className="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-bold hover:bg-indigo-600 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+            <Download size={15} /> Export Report
+          </button>
         </div>
       </div>
 
@@ -520,7 +616,7 @@ function EmployeeSummary() {
                 { label: 'Half Day', value: summary.halfDay, color: 'var(--info)' },
                 { label: 'On Leave', value: summary.onLeave, color: 'var(--primary)' },
                 { label: 'Absent', value: summary.absent, color: 'var(--danger)' },
-                { label: 'Holidays', value: summary.holidays ?? 0, color: 'var(--success)' },
+                { label: 'Paid Holidays', value: summary.paidHolidays ?? summary.holidays ?? 0, color: 'var(--info)' },
                 { label: 'Permission', value: summary.permissions?.length ?? 0, color: 'var(--info)' },
               ].map(row => (
                 <div key={row.label} className="flex items-center gap-2">

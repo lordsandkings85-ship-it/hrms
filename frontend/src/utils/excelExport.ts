@@ -57,7 +57,7 @@ function styleHeader(headerRow: any): void {
   });
 }
 
-function appendSheet(wb: any, sheet: ExcelSheet): void {
+export function appendSheet(wb: any, sheet: ExcelSheet): void {
   const ws = wb.addWorksheet(sheet.name.length > 31 ? sheet.name.slice(0, 31) : sheet.name);
   ws.columns = sheet.columns.map((c) => ({ header: c.header, key: c.key, width: c.width ?? 18 }));
 
@@ -65,6 +65,10 @@ function appendSheet(wb: any, sheet: ExcelSheet): void {
     const values: (string | number)[] = sheet.columns.map((c) => cellValue(row[c.key], c.type));
     ws.addRow(values);
   }
+
+  // Data ends here: header + one row per record. Captured before any footnote rows are
+  // appended, so totals formulas can't accidentally span the spacer/footnote.
+  const lastDataRow = ws.rowCount;
 
   styleHeader(ws.getRow(1));
 
@@ -85,7 +89,6 @@ function appendSheet(wb: any, sheet: ExcelSheet): void {
     sheet.columns.forEach((c, i) => {
       if (c.type === 'number') {
         const letter = colLetter(i);
-        const lastDataRow = ws.rowCount - 1;
         const sum = sheet.rows.reduce((s, r) => s + (Number(r[c.key]) || 0), 0);
         total.getCell(i + 1).value = {
           formula: `SUM(${letter}2:${letter}${lastDataRow})`,
@@ -159,6 +162,8 @@ export async function downloadXlsx(options: ExcelExportOptions): Promise<void> {
     ws.addRow(values);
   }
 
+  const lastDataRow = ws.rowCount;
+
   const headerRow = ws.getRow(1);
   headerRow.height = 20;
   headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -178,7 +183,6 @@ export async function downloadXlsx(options: ExcelExportOptions): Promise<void> {
     options.columns.forEach((c, i) => {
       if (c.type === 'number') {
         const letter = colLetter(i);
-        const lastDataRow = ws.rowCount - 1;
         const sum = options.rows.reduce((s, r) => s + (Number(r[c.key]) || 0), 0);
         total.getCell(i + 1).value = {
           formula: `SUM(${letter}2:${letter}${lastDataRow})`,

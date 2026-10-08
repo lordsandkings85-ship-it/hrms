@@ -255,7 +255,7 @@ let payslipCount = 0;
             if (wdPerWeek !== 6) return false; // Saturday only for 6-day week
             if (d.getDate() >= 8 && d.getDate() <= 14 && secondSatOff) return false; // 2nd Saturday off
           }
-          return !holidaySet.has(holidayKey(d));
+          return true;
         };
 
         const daysInMonth = new Date(year, month, 0).getDate();
@@ -264,18 +264,39 @@ let payslipCount = 0;
           if (isNetWorkingDay(new Date(year, month - 1, i))) totalWorkingDays++;
         }
 
+        // Configured holidays are working days for the monthly/payroll calculation and
+        // are paid even when the employee does not punch. A holiday on a weekly off
+        // (Sunday, a non-6-day Saturday, or a 2nd Saturday under the policy) is not a
+        // working day and is never counted here.
+        const holidayPaidDays = new Set(
+          Array.from(holidaySet)
+            .map((k) => {
+              const [yy, mm, dd] = k.split('-').map(Number);
+              return { d: new Date(yy, mm - 1, dd) };
+            })
+            .filter(({ d }) => {
+              const dow = d.getDay();
+              if (dow === 0) return false;
+              if (dow === 6) {
+                if (wdPerWeek !== 6) return false;
+                if (d.getDate() >= 8 && d.getDate() <= 14 && secondSatOff) return false;
+              }
+              return true;
+            })
+            .map(({ d }) => d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()),
+        );
+
         const paidStatuses = new Set(['present', 'late', 'half_day', 'on_leave']);
         // Dedupe by stored calendar date (UTC) — multiple punches per day count once.
-        const paidDays = new Set(
+        // A holiday the employee worked counts once: the punch is paid as worked, and
+        // the same date is not paid a second time as a paid holiday.
+        const paidCalendarDays = new Set(
           emp.attendanceLog
             .filter((log) => paidStatuses.has(log.status) && isNetWorkingDay(log.date))
             .map((log) => log.date.getUTCFullYear() * 10000 + (log.date.getUTCMonth() + 1) * 100 + log.date.getUTCDate()),
-        ).size;
-        const holidayDays = Array.from(holidaySet).filter((k) => {
-          const [yy, mm, dd] = k.split('-').map(Number);
-          const dow = new Date(yy, mm - 1, dd).getDay();
-          return wdPerWeek === 5 ? dow >= 1 && dow <= 5 : wdPerWeek === 6 ? dow >= 1 && dow <= 6 : true;
-        }).length;
+        );
+        const paidDays = new Set([...paidCalendarDays, ...holidayPaidDays]).size;
+        const holidayDays = holidayPaidDays.size;
         const lopDays = Math.max(0, totalWorkingDays - paidDays);
         let lopAmount = totalWorkingDays > 0 ? (gross / totalWorkingDays) * lopDays : 0;
 
@@ -357,6 +378,7 @@ let payslipCount = 0;
           totalWorkingDays,
           paidDays,
           holidayDays,
+          paidHolidays: holidayDays,
         };
 
         const empComp = emp.company;

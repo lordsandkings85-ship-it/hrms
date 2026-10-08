@@ -68,8 +68,9 @@ function AdminGeofence() {
         present: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
         late: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
         absent: 'bg-red-500/10 text-red-500 border-red-500/20',
+        paid_holiday: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
       };
-      return <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold uppercase tracking-wider ${map[log.status] || ''}`}>{log.status?.replace('_', ' ')}</span>;
+      return <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold uppercase tracking-wider ${map[log.status] || ''}`}>{log.status === 'paid_holiday' ? 'Paid Holiday' : (log.status || '').replace('_', ' ')}</span>;
     }},
     { key: 'time', header: 'Check In/Out', render: (log: any) => (
       <div className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
