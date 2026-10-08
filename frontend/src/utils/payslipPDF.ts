@@ -336,12 +336,13 @@ function infoBand(doc: jsPDF, x: number, y: number, width: number, items: [strin
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...MUTED);
-    const labelW = doc.getTextWidth(`${item[0]} :`);
-    doc.text(`${item[0]} :`, cx + 2.5, y + 6);
+    const labelStr = `${item[0]}: `;
+    const labelW = doc.getTextWidth(labelStr);
+    doc.text(labelStr, cx + 2.5, y + 6);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...DARK);
     doc.setFontSize(8);
-    fitText(doc, item[1], Math.max(8, step - labelW - 6), 6);
+    fitText(doc, item[1], Math.max(8, step - labelW - 5), 6);
     doc.text(item[1], cx + 2.5 + labelW, y + 6);
   });
 
@@ -534,11 +535,19 @@ export async function generatePayslipPDF(data: PayslipData, opts?: { save?: bool
   const workingDays = payslip?.workingDays || b.totalWorkingDays || 30;
   const lopDays = payslip?.lossOfPayDays || b.lopDays || 0;
   const paidDays = payslip?.paidDays || b.paidDays || Math.max(0, workingDays - lopDays);
+  const formatRegime = (regime?: string) => {
+    if (!regime) return 'New Regime';
+    const r = String(regime).trim();
+    if (r.toLowerCase().includes('old')) return 'Old Regime';
+    if (r.toLowerCase().includes('new')) return 'New Regime';
+    return r.charAt(0).toUpperCase() + r.slice(1);
+  };
+
   y = infoBand(doc, colLeft, y, pageWidth - 28, [
     ['Total Working Days', `${workingDays} Days`],
     ['Paid Days', `${paidDays} Days`],
     ['Loss of Pay', `${lopDays} Day${lopDays === 1 ? '' : 's'}`],
-    ['Tax Regime', b.taxRegime ? `${b.taxRegime} Regime` : 'New Tax Regime'],
+    ['Tax Regime', formatRegime(b.taxRegime || payslip?.taxRegime)],
   ]);
   y += 6;
 
