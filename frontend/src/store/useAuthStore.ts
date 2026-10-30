@@ -26,6 +26,8 @@ export interface UserProfile {
     aadhaar?: string;
     status: string;
     workingDaysPerWeek?: number;
+    saturdayOffRule?: 'SECOND' | 'FOURTH' | 'NONE' | null;
+    saturdayOffEffectiveFrom?: string | null;
   };
   company?: {
     name: string;

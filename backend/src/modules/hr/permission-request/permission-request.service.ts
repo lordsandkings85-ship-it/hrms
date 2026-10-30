@@ -29,6 +29,12 @@ function startOfUtcDay(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
 }
 
+/** Coerce a stored policy/shift grace value to a non-negative minute count (default 10). */
+function normalizeGrace(value: unknown): number {
+  const n = Number(value ?? 10);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : 10;
+}
+
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 @Injectable()
@@ -51,11 +57,32 @@ export class PermissionRequestService {
         effectiveFrom: { lte: startOfDay },
         OR: [{ effectiveTo: null }, { effectiveTo: { gte: startOfDay } }],
       },
-      include: { shift: true },
+      include: { shift: { include: { shiftType: { select: { graceMinutes: true } } } } },
       orderBy: { effectiveFrom: 'desc' },
     });
     if (!assignment) return null;
-    return { startTime: assignment.shift.startTime, endTime: assignment.shift.endTime };
+    return {
+      startTime: assignment.shift.startTime,
+      endTime: assignment.shift.endTime,
+      graceMinutes: assignment.shift.shiftType?.graceMinutes ?? null,
+    };
+  }
+
+  /**
+   * Grace minutes used to extend the shift end for permission windows.
+   * Mirrors attendance: shift-type graceMinutes → company policy custom.gracePeriodMins → 10.
+   */
+  private async policyGraceMinutes(targetCompanyId: string): Promise<number> {
+    const local = await this.prisma.attendancePolicy.findMany({
+      where: { companyId: targetCompanyId, key: 'custom.gracePeriodMins' },
+      select: { value: true },
+    });
+    if (local.length > 0) return normalizeGrace(local[0].value);
+    const global = await this.prisma.attendancePolicy.findFirst({
+      where: { key: 'custom.gracePeriodMins' },
+      select: { value: true },
+    });
+    return normalizeGrace(global?.value);
   }
 
   private async resolveApproverNames(reqs: { approvedBy?: string | null }[]) {
@@ -161,10 +188,14 @@ export class PermissionRequestService {
     if (shift && TIME_RE.test(shift.startTime) && TIME_RE.test(shift.endTime)) {
       const shiftStart = totalMinutes(shift.startTime);
       const shiftEnd = totalMinutes(shift.endTime);
+      const graceMinutes = shift.graceMinutes ?? (await this.policyGraceMinutes(targetCompanyId));
       const fromMin = totalMinutes(input.fromTime);
       const toMin = totalMinutes(input.toTime);
-      if (fromMin < shiftStart || toMin > shiftEnd) {
-        throw new BadRequestException(`Permission must be within your shift (${shift.startTime}–${shift.endTime})`);
+      if (fromMin < shiftStart || toMin > shiftEnd + graceMinutes) {
+        const window = graceMinutes > 0
+          ? `${shift.startTime}–${shift.endTime} plus ${graceMinutes} min grace`
+          : `${shift.startTime}–${shift.endTime}`;
+        throw new BadRequestException(`Permission must be within your shift (${window})`);
       }
     }
 

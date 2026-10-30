@@ -2,7 +2,7 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { payrollApi, payrollApiExt, attendanceApiExt, leaveApi, dashboardApi, dashboardSummaryKey, attendanceApi, announcementsApi } from '../../../api/client';
-import { Fingerprint, Calendar, Download, Eye, Shield, ArrowRight, TrendingUp, Megaphone, Bell, Clock, User, Banknote, CalendarDays, Receipt, Headphones, Target, ChevronRight, UserMinus, AlertTriangle } from 'lucide-react';
+import { Fingerprint, Calendar, Download, Eye, Shield, ArrowRight, TrendingUp, Megaphone, Bell, Clock, User, Banknote, CalendarDays, Receipt, Headphones, Target, ChevronRight, UserMinus, AlertTriangle, CalendarOff } from 'lucide-react';
 import { Spinner } from '../../../components/ui/Spinner';
 import { RingChart } from '../../../components/ui/RingChart';
 import { generatePayslipPDF } from '../../../utils/payslipPDF';
@@ -13,7 +13,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useServerTime } from '../../../hooks/useServerTime';
 import { useShiftRemaining, fmtShiftHM } from '../../../hooks/useShiftRemaining';
 import { getServerDate, getServerYear, getServerMonth } from '../../../utils/serverTime';
-import { fmtDate, fmt24To12, sortPayslipsNewestFirst } from '../../../utils/formatDate';
+import { fmtDate, fmt24To12, fmtDateShort, sortPayslipsNewestFirst } from '../../../utils/formatDate';
 
 const LiveClock = React.memo(function LiveClock() {
    const { now } = useServerTime();
@@ -162,6 +162,44 @@ export default function EmployeeDashboard() {
    const liveRemaining = useShiftRemaining(todayStatus) ?? todayStatus?.remainingMinutes ?? null;
    const pct = required && worked != null ? Math.min((worked / required) * 100, 100) : 0;
 
+   // Week-off summary for the "Today's Shift" card. The server-computed rule wins (it is
+   // refreshed every minute and knows the company fallback); the auth-store employee record
+   // is only a fallback while the status request is still in flight.
+   const weekOffLine = useMemo(() => {
+      const workDays = emp?.workingDaysPerWeek ?? 5;
+      if (workDays === 5) return 'Saturday off: every Saturday';
+      if (workDays !== 6) return 'Saturday off: none';
+
+      const saturdayOff = todayStatus?.saturdayOff;
+      const configuredRule: string | null = saturdayOff?.configuredRule ?? emp?.saturdayOffRule ?? null;
+      const effectiveToday: string | null = saturdayOff?.effectiveToday ?? null;
+      const effectiveFrom = saturdayOff?.effectiveFrom ?? emp?.saturdayOffEffectiveFrom ?? null;
+
+      const labelFor = (rule?: string | null) =>
+         rule === 'SECOND' ? '2nd Saturday' : rule === 'FOURTH' ? '4th Saturday' : rule === 'NONE' ? 'none' : null;
+
+      const configuredLabel = labelFor(configuredRule);
+      const activeLabel = labelFor(effectiveToday);
+      const fromText = effectiveFrom && fmtDateShort(effectiveFrom) !== '—' ? fmtDateShort(effectiveFrom) : null;
+
+      // A future effective date keeps the old rule in force, so say what it becomes and when.
+      if (configuredLabel && activeLabel && configuredLabel !== activeLabel && fromText) {
+         return configuredLabel === 'none'
+            ? `Saturday off becomes none from ${fromText}`
+            : `Saturday off changes to ${configuredLabel} from ${fromText}`;
+      }
+      if (configuredLabel) {
+         return fromText ? `Saturday off: ${configuredLabel} · from ${fromText}` : `Saturday off: ${configuredLabel}`;
+      }
+      if (activeLabel) return `Saturday off: ${activeLabel}`;
+      return todayStatus ? 'Saturday off: none' : 'Saturday off: as per company policy';
+   }, [
+      emp?.workingDaysPerWeek,
+      emp?.saturdayOffRule,
+      emp?.saturdayOffEffectiveFrom,
+      todayStatus?.saturdayOff,
+   ]);
+
    return (
       <div className="page-container space-y-6">
 
@@ -227,9 +265,9 @@ export default function EmployeeDashboard() {
             <h2 className="text-xs font-bold uppercase tracking-wider flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
                <Clock size={16} /> Today's Shift
             </h2>
-            {todayStatus?.todayIsSecondSaturday && (
+            {todayStatus?.todayWeeklyOffLabel && (
                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--success-bg)', color: 'var(--success-text)' }}>
-                  Weekly Off · 2nd Saturday
+                  Weekly Off · {todayStatus.todayWeeklyOffLabel}
                </span>
             )}
          </div>
@@ -250,6 +288,13 @@ export default function EmployeeDashboard() {
                      <p className="font-mono text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{fmtMin(required)}</p>
                   </div>
                </div>
+
+               {/* Week-off rule — hidden on the off Saturday itself, where the header badge already says it */}
+               {!todayStatus.todayWeeklyOffLabel && (
+                  <p className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                     <CalendarOff size={12} className="shrink-0" /> {weekOffLine}
+                  </p>
+               )}
 
                <div>
                   <div className="flex justify-between text-[11px] mb-1">

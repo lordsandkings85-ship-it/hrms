@@ -5,6 +5,7 @@ import { decryptPiiFields, decryptNestedPii } from '../../../utils/crypto.util';
 import { MailService } from '../../../common/mail/mail.service';
 import { isGroupWideUser } from '../../../utils/group-access.util';
 import { computeLatePenalty, MAX_LATES_FALLBACK } from '../attendance/late-allowance.util';
+import { resolveSaturdayWeeklyOff } from '../attendance/weekly-off.util';
 
 @Injectable()
 export class PayrollService {
@@ -270,7 +271,15 @@ let payslipCount = 0;
           if (dow === 0) return false; // Sunday
           if (dow === 6) {
             if (wdPerWeek !== 6) return false; // Saturday only for 6-day week
-            if (d.getDate() >= 8 && d.getDate() <= 14 && secondSatOff) return false; // 2nd Saturday off
+            // Employee override (2nd / 4th / none) wins over the company 2nd-Saturday policy.
+            const saturdayOff = resolveSaturdayWeeklyOff({
+              date: d,
+              workingDaysPerWeek: wdPerWeek,
+              employeeRule: (emp as any).saturdayOffRule,
+              effectiveFrom: (emp as any).saturdayOffEffectiveFrom,
+              companySecondSatOff: secondSatOff,
+            });
+            if (saturdayOff.isOff) return false;
           }
           return true;
         };
@@ -296,7 +305,14 @@ let payslipCount = 0;
               if (dow === 0) return false;
               if (dow === 6) {
                 if (wdPerWeek !== 6) return false;
-                if (d.getDate() >= 8 && d.getDate() <= 14 && secondSatOff) return false;
+                const saturdayOff = resolveSaturdayWeeklyOff({
+                  date: d,
+                  workingDaysPerWeek: wdPerWeek,
+                  employeeRule: (emp as any).saturdayOffRule,
+                  effectiveFrom: (emp as any).saturdayOffEffectiveFrom,
+                  companySecondSatOff: secondSatOff,
+                });
+                if (saturdayOff.isOff) return false;
               }
               return true;
             })
@@ -568,6 +584,8 @@ let payslipCount = 0;
           firstName: true,
           lastName: true,
           workingDaysPerWeek: true,
+          saturdayOffRule: true,
+          saturdayOffEffectiveFrom: true,
           companyId: true,
           department: { select: { name: true } },
           company: { select: { name: true, displayName: true } },
@@ -584,13 +602,40 @@ let payslipCount = 0;
       logsByEmployee.set(log.employeeId, list);
     }
 
-    const countWorkingDays = (from: Date, to: Date, workingDaysPerWeek: number) => {
+    // Saturday-off policy per company (6-day weeks), same source as the payroll run.
+    const previewCompanyIds = [...new Set(employees.map((e) => e.companyId).filter(Boolean))];
+    const previewSatPolicies = await this.prisma.attendancePolicy.findMany({
+      where: { companyId: { in: previewCompanyIds }, key: 'custom.secondSaturdayOff' },
+      select: { companyId: true, value: true },
+    });
+    const previewSatGlobal = await this.prisma.attendancePolicy.findFirst({
+      where: { key: 'custom.secondSaturdayOff' },
+      select: { value: true },
+    });
+    const previewSatByCompany = new Map(previewSatPolicies.map((p) => [p.companyId, p.value === 'true']));
+
+    const countWorkingDays = (from: Date, to: Date, emp: (typeof employees)[number]) => {
+      const wd = emp.workingDaysPerWeek ?? 5;
+      const companySecondSatOff = previewSatByCompany.has(emp.companyId)
+        ? previewSatByCompany.get(emp.companyId)!
+        : previewSatGlobal?.value === 'true';
       let workingDays = 0;
       for (let day = new Date(from); day < to; day.setDate(day.getDate() + 1)) {
         const dayOfWeek = day.getDay();
-        if (workingDaysPerWeek === 5 && dayOfWeek >= 1 && dayOfWeek <= 5) workingDays++;
-        else if (workingDaysPerWeek === 6 && dayOfWeek >= 1 && dayOfWeek <= 6) workingDays++;
-        else if (workingDaysPerWeek === 7) workingDays++;
+        if (wd === 7) {
+          workingDays++;
+        } else if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+          workingDays++;
+        } else if (dayOfWeek === 6 && wd === 6) {
+          const saturdayOff = resolveSaturdayWeeklyOff({
+            date: day,
+            workingDaysPerWeek: wd,
+            employeeRule: emp.saturdayOffRule,
+            effectiveFrom: emp.saturdayOffEffectiveFrom,
+            companySecondSatOff,
+          });
+          if (!saturdayOff.isOff) workingDays++;
+        }
       }
       return workingDays;
     };
@@ -612,10 +657,26 @@ let payslipCount = 0;
 
     return employees.map((emp) => {
       const wd = emp.workingDaysPerWeek ?? 5;
+      const companySecondSatOff = previewSatByCompany.has(emp.companyId)
+        ? previewSatByCompany.get(emp.companyId)!
+        : previewSatGlobal?.value === 'true';
       const isWorkingDay = (d: Date) => {
-        const dow = d.getUTCDay();
-        if (wd === 5) return dow >= 1 && dow <= 5;
-        if (wd === 6) return dow >= 1 && dow <= 6;
+        // Attendance dates are stored as UTC midnight; work with that same calendar day.
+        const cal = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+        const dow = cal.getDay();
+        if (wd === 7) return true;
+        if (dow === 0) return false;
+        if (dow === 6) {
+          if (wd !== 6) return false;
+          const saturdayOff = resolveSaturdayWeeklyOff({
+            date: cal,
+            workingDaysPerWeek: wd,
+            employeeRule: emp.saturdayOffRule,
+            effectiveFrom: emp.saturdayOffEffectiveFrom,
+            companySecondSatOff,
+          });
+          if (saturdayOff.isOff) return false;
+        }
         return true;
       };
       const empLogs = logsByEmployee.get(emp.id) || [];
@@ -632,13 +693,8 @@ let payslipCount = 0;
       const late = uniqueLogs.filter((l) => l.status === 'late').length;
       const halfDay = uniqueLogs.filter((l) => l.status === 'half_day').length;
       const onLeave = uniqueLogs.filter((l) => l.status === 'on_leave').length;
-      const holidaysCount = holidays.filter((h) => {
-        const dow = h.date.getDay();
-        if (wd === 5) return dow >= 1 && dow <= 5;
-        if (wd === 6) return dow >= 1 && dow <= 6;
-        return true;
-      }).length;
-      const grossDays = countWorkingDays(start, end, wd);
+      const holidaysCount = holidays.filter((h) => isWorkingDay(h.date)).length;
+      const grossDays = countWorkingDays(start, end, emp);
       const totalDays = Math.max(0, grossDays - holidaysCount);
       const absent = Math.max(0, totalDays - present - late - halfDay - onLeave);
 

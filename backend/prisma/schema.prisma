@@ -435,6 +435,8 @@ model Employee {
   probation               String?
   notes                   String?
   workingDaysPerWeek      Int                         @default(5)
+  saturdayOffRule         String?
+  saturdayOffEffectiveFrom DateTime?
   createdAt               DateTime                    @default(now())
   updatedAt               DateTime                    @updatedAt
   assignments             AssetAssignment[]

@@ -299,6 +299,8 @@ export interface Employee {
   pan?: string | null;
   aadhaar?: string | null;
   workingDaysPerWeek?: number;
+  saturdayOffRule?: 'SECOND' | 'FOURTH' | 'NONE' | null;
+  saturdayOffEffectiveFrom?: string | null;
   ctc?: number;
   salaryStructures?: { basic: number; hra: number; specialAllowance: number; effectiveFrom: string }[];
   

@@ -1,4 +1,4 @@
-import { IsArray, IsEmail, IsISO8601, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsArray, IsEmail, IsISO8601, IsIn, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PaymentInfoDto {
@@ -188,6 +188,10 @@ export class CreateEmployeeDto {
 
   @IsOptional() @IsString() password?: string;
   @IsOptional() workingDaysPerWeek?: number;
+  /** Saturday weekly-off override: SECOND | FOURTH | NONE. Omit/null = inherit company policy. */
+  @IsOptional() @IsIn(['SECOND', 'FOURTH', 'NONE']) saturdayOffRule?: string;
+  /** Date the override starts (ISO). Omit/null = applies to all dates. */
+  @IsOptional() @IsISO8601() saturdayOffEffectiveFrom?: string;
   @IsOptional() ctc?: number;
   @IsOptional() roleName?: string;
   @IsOptional() experience?: any;

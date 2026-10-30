@@ -121,6 +121,46 @@ describe('PermissionRequestService', () => {
       await expect(service.create({ ...baseInput(), fromTime: '17:30', toTime: '18:30' })).rejects.toThrow(BadRequestException);
     });
 
+    it('accepts a window that runs past shift end within the shift-type grace (09:30–18:30 + 60 min → 18:30–19:30)', async () => {
+      (prisma.shiftAssignment.findFirst as jest.Mock).mockResolvedValue({
+        shift: { startTime: '09:30', endTime: '18:30', shiftType: { graceMinutes: 60 } },
+      });
+      await service.create({ ...baseInput(), fromTime: '18:30', toTime: '19:30' });
+      expect(prisma.permissionRequest.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ fromTime: '18:30', toTime: '19:30', minutes: 60 }),
+      });
+    });
+
+    it('rejects a window that exceeds the shift-type grace (09:30–18:30 + 60 min → 18:30–19:45)', async () => {
+      (prisma.shiftAssignment.findFirst as jest.Mock).mockResolvedValue({
+        shift: { startTime: '09:30', endTime: '18:30', shiftType: { graceMinutes: 60 } },
+      });
+      await expect(service.create({ ...baseInput(), fromTime: '18:30', toTime: '19:45' })).rejects.toThrow(BadRequestException);
+    });
+
+    it('falls back to the company grace policy when the shift has no shift type', async () => {
+      (prisma.shiftAssignment.findFirst as jest.Mock).mockResolvedValue({
+        shift: { startTime: '09:30', endTime: '18:30', shiftType: null },
+      });
+      (prisma.attendancePolicy.findMany as jest.Mock).mockImplementation(async (args: any) =>
+        args?.where?.key === 'custom.gracePeriodMins'
+          ? [{ companyId: 'company-1', key: 'custom.gracePeriodMins', value: '60' }]
+          : [],
+      );
+      const req = await service.create({ ...baseInput(), fromTime: '18:30', toTime: '19:30' });
+      expect(prisma.permissionRequest.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ fromTime: '18:30', toTime: '19:30', minutes: 60 }),
+      });
+      expect(req).toBeTruthy();
+    });
+
+    it('does not extend the shift when grace is zero', async () => {
+      (prisma.shiftAssignment.findFirst as jest.Mock).mockResolvedValue({
+        shift: { startTime: '09:30', endTime: '18:30', shiftType: { graceMinutes: 0 } },
+      });
+      await expect(service.create({ ...baseInput(), fromTime: '18:30', toTime: '19:00' })).rejects.toThrow(BadRequestException);
+    });
+
     it('accepts the exact minimum window (30 min)', async () => {
       const req = await service.create({ ...baseInput(), fromTime: '10:30', toTime: '11:00' });
       expect(req.minutes).toBe(30);

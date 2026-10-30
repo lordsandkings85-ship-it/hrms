@@ -126,7 +126,7 @@ export default function PermissionRequestPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Permission Request</h1>
-            <p className="text-sm text-[var(--text-muted)] mt-1 font-medium">Request 30 minutes to 3 hours of time away within your shift.</p>
+            <p className="text-sm text-[var(--text-muted)] mt-1 font-medium">Request 30 minutes to 3 hours of time away within your shift, or up to your shift's grace period after it ends.</p>
           </div>
         </div>
         <div className="relative z-10 flex items-center gap-3">
@@ -210,7 +210,7 @@ export default function PermissionRequestPage() {
               <p className="text-xs text-red-500">You can submit at most {MONTHLY_MAX_REQUESTS} permission requests per month — you have used all {monthCount}.</p>
             )}
             <p className="text-xs text-[var(--text-muted)] flex items-center gap-1.5">
-              <Info size={13} /> Approved requests mark the whole day as Present (never Late/LOP).
+              <Info size={13} /> Approved requests mark the whole day as Present (never Late/LOP). Windows may extend past your shift end by its grace period.
             </p>
           </div>
         </div>

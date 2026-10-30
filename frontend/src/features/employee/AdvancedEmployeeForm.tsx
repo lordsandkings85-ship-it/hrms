@@ -249,6 +249,8 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
       experience: `${calculateExperience(formData.joiningDate).years} year ${calculateExperience(formData.joiningDate).months} Month`,
       status: formData.isExEmployee ? 'ex-employee' : (formData.status || 'active'),
       workingDaysPerWeek: formData.workingDaysPerWeek,
+      saturdayOffRule: formData.saturdayOffRule || null,
+      saturdayOffEffectiveFrom: formData.saturdayOffRule ? (formData.saturdayOffEffectiveFrom || null) : null,
 
       contactInfo: formData.contactInfo,
       paymentInfo: formData.paymentInfo,
@@ -1108,6 +1110,30 @@ export default function AdvancedEmployeeForm({ onClose, initialData }: AdvancedE
               <option value="Saturday">Saturday</option>
             </select>
           </div>
+          <div className="grid grid-cols-3 items-center gap-2">
+            <label className="text-xs text-gray-600 col-span-1">Saturday Off</label>
+            <select className="col-span-2 border rounded px-2 py-1 text-sm" value={formData.saturdayOffRule || ''} onChange={e => {
+              const rule = e.target.value;
+              updateRoot('saturdayOffRule', rule || null);
+              if (!rule) updateRoot('saturdayOffEffectiveFrom', '');
+            }}>
+              <option value="">Inherit company policy</option>
+              <option value="NONE">None</option>
+              <option value="SECOND">2nd Saturday</option>
+              <option value="FOURTH">4th Saturday</option>
+            </select>
+          </div>
+          {formData.saturdayOffRule && (
+            <div className="grid grid-cols-3 items-center gap-2">
+              <label className="text-xs text-gray-600 col-span-1">Effective From</label>
+              <input type="date" className="col-span-2 border rounded px-2 py-1 text-sm" value={(formData.saturdayOffEffectiveFrom || '').slice(0, 10)} onChange={e => {
+                updateRoot('saturdayOffEffectiveFrom', e.target.value);
+              }} />
+              <p className="col-span-3 text-[11px] text-gray-500">
+                Leave blank to apply from the beginning. Before this date the employee keeps the company policy.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

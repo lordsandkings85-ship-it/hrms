@@ -3,6 +3,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { isGroupWideUser } from '../../../utils/group-access.util';
 import { computeLatePenalty, MAX_LATES_FALLBACK } from './late-allowance.util';
+import { parseSaturdayOffRule, resolveSaturdayWeeklyOff, saturdayOffLabel } from './weekly-off.util';
 
 /** Haversine formula — returns distance in metres between two GPS points */
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -175,11 +176,6 @@ export class AttendanceService {
     };
   }
 
-  /** Second Saturday of the month = a Saturday falling between day-of-month 8 and 14 */
-  private isSecondSaturday(date: Date): boolean {
-    return date.getDay() === 6 && date.getDate() >= 8 && date.getDate() <= 14;
-  }
-
   async checkIn(companyId: string, employeeId: string, method: string, lat?: number, lng?: number, userId?: string) {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const employee = await this.prisma.employee.findUnique({
@@ -222,15 +218,19 @@ export class AttendanceService {
       }
     }
 
-    // Rule 3 — Second Saturday weekly off marking for 6-day workweek employees
+    // Rule 3 — Saturday weekly off marking for 6-day workweek employees. The employee's
+    // own rule (2nd / 4th / none) wins over the company `custom.secondSaturdayOff`
+    // policy once its effective date is reached.
     let weeklyOff = false;
     if (ctx) {
-      const policies = ctx.policyMap;
-      const secondSatEnabled = policies.get('custom.secondSaturdayOff') === 'true';
-      const workDays = employee.workingDaysPerWeek ?? 5;
-      if (secondSatEnabled && workDays === 6 && this.isSecondSaturday(today)) {
-        weeklyOff = true;
-      }
+      const weeklyOffInfo = resolveSaturdayWeeklyOff({
+        date: today,
+        workingDaysPerWeek: employee.workingDaysPerWeek,
+        employeeRule: (employee as any).saturdayOffRule,
+        effectiveFrom: (employee as any).saturdayOffEffectiveFrom,
+        companySecondSatOff: ctx.policyMap.get('custom.secondSaturdayOff') === 'true',
+      });
+      weeklyOff = weeklyOffInfo.isOff;
     }
 
     // Prevent duplicate check-in: if a check-in already exists for today, return it.
@@ -328,7 +328,8 @@ export class AttendanceService {
       }),
     ];
 
-    // Rule 3 — valid (completed) second-Saturday work earns a Comp Off credit
+    // Rule 3 — valid (completed) weekly-off Saturday work earns a Comp Off credit
+    // (`log.isWeeklyOff` is set for whichever Saturday the employee's rule marks off)
     const creditAmount = Number(policyMap.get('custom.secondSaturdayCompOffCredit') ?? 1);
     if (log.isWeeklyOff && attendanceStatus === 'FULL_DAY_PRESENT' && !log.compOffCredited && creditAmount > 0) {
       tx.push(
@@ -350,7 +351,7 @@ export class AttendanceService {
             attendanceLogId: logId,
             action: 'COMP_OFF_CREDIT',
             toValue: `${creditAmount}`,
-            notes: `Second Saturday work — ${creditAmount} Comp Off day(s) credited`,
+            notes: `Weekly-off Saturday work — ${creditAmount} Comp Off day(s) credited`,
           },
         }),
       );
@@ -370,7 +371,7 @@ export class AttendanceService {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const employee = await this.prisma.employee.findFirst({
       where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
-      select: { id: true, workingDaysPerWeek: true, companyId: true },
+      select: { id: true, workingDaysPerWeek: true, companyId: true, saturdayOffRule: true, saturdayOffEffectiveFrom: true },
     });
     if (!employee) throw new NotFoundException('Employee not found');
 
@@ -407,6 +408,19 @@ export class AttendanceService {
 
     const checkOutMissing = Boolean(log?.checkIn && !log?.checkOut);
 
+    // The employee's own Saturday rule (2nd / 4th / none) drives the "Weekly Off" badge;
+    // it falls back to the company policy when no override is set.
+    const todaySaturdayOff = ctx
+      ? resolveSaturdayWeeklyOff({
+          date: now,
+          workingDaysPerWeek: employee.workingDaysPerWeek,
+          employeeRule: employee.saturdayOffRule,
+          effectiveFrom: employee.saturdayOffEffectiveFrom,
+          companySecondSatOff: ctx.policyMap.get('custom.secondSaturdayOff') === 'true',
+        })
+      : { isOff: false, rule: null };
+    const todayWeeklyOffLabel = todaySaturdayOff.isOff ? saturdayOffLabel(todaySaturdayOff.rule) : null;
+
     return {
       date: startOfDay,
       serverNow: now,
@@ -421,7 +435,16 @@ export class AttendanceService {
       graceMinutes: ctx?.graceMins ?? null,
       isFlexible: ctx ? (ctx.shiftType?.isFlexible ?? ctx.policyMap.get('custom.flexiTime') === 'true') : false,
       isWeeklyOff: Boolean(log?.isWeeklyOff),
-      todayIsSecondSaturday: ctx ? this.isSecondSaturday(now) : false,
+      todayIsSecondSaturday: todayWeeklyOffLabel === '2nd Saturday',
+      todayWeeklyOffLabel,
+      // The employee's Saturday-off setup, for the dashboard's "Week Off" line. `effectiveToday`
+      // is the rule actually in force (it still follows the company policy before a future
+      // `effectiveFrom`), while `configuredRule` / `effectiveFrom` describe the pending switch.
+      saturdayOff: {
+        configuredRule: parseSaturdayOffRule(employee.saturdayOffRule),
+        effectiveToday: todaySaturdayOff.rule,
+        effectiveFrom: employee.saturdayOffEffectiveFrom ?? null,
+      },
       workedMinutes,
       remainingMinutes,
       lateStatus: log?.lateStatus ?? null,
@@ -628,6 +651,7 @@ export class AttendanceService {
         },
         select: {
           id: true, firstName: true, lastName: true, employeeCode: true, workingDaysPerWeek: true,
+          saturdayOffRule: true, saturdayOffEffectiveFrom: true,
           company: { select: { name: true, displayName: true } },
           department: { select: { name: true } },
         },
@@ -682,8 +706,7 @@ export class AttendanceService {
           hd.getDate() === day.getDate())
       );
     });
-    const secondSatEnabled = new Map(policies.map((p) => [p.key, p.value])).get('custom.secondSaturdayOff') === 'true';
-    const isSecondSat = this.isSecondSaturday(day);
+    const companySecondSatOff = new Map(policies.map((p) => [p.key, p.value])).get('custom.secondSaturdayOff') === 'true';
 
     const shiftByEmployee = new Map<string, { id: string; startTime: string; endTime: string }>();
     for (const a of assignments) {
@@ -702,7 +725,14 @@ export class AttendanceService {
           workDays === 7 ? true : workDays === 6 ? dow >= 1 && dow <= 6 : dow >= 1 && dow <= 5;
         if (!isWorkingDay) return false;
         if (isHoliday) return false;
-        if (secondSatEnabled && workDays === 6 && isSecondSat) return false;
+        const saturdayOff = resolveSaturdayWeeklyOff({
+          date: startOfDay,
+          workingDaysPerWeek: workDays,
+          employeeRule: e.saturdayOffRule,
+          effectiveFrom: e.saturdayOffEffectiveFrom,
+          companySecondSatOff,
+        });
+        if (saturdayOff.isOff) return false;
         return true;
       })
       .map((e) => ({
@@ -985,6 +1015,8 @@ export class AttendanceService {
         lastName: true,
         employeeCode: true,
         workingDaysPerWeek: true,
+        saturdayOffRule: true,
+        saturdayOffEffectiveFrom: true,
         companyId: true,
         department: { select: { name: true } },
       },
@@ -1084,8 +1116,18 @@ export class AttendanceService {
         const d = new Date(y, m - 1, i);
         const dow = d.getDay();
         if (weeklyOff.has(dow)) continue;
-        // Second Saturday is a weekly off for 6-day companies with the policy enabled
-        if (dow === 6 && this.isSecondSaturday(d) && secondSatOff.has(emp.companyId)) continue;
+        // Saturday off for 6-day employees: the employee's own rule (2nd / 4th / none)
+        // wins over the company 2nd-Saturday policy once its effective date is reached.
+        if (dow === 6) {
+          const saturdayOff = resolveSaturdayWeeklyOff({
+            date: d,
+            workingDaysPerWeek,
+            employeeRule: emp.saturdayOffRule,
+            effectiveFrom: emp.saturdayOffEffectiveFrom,
+            companySecondSatOff: secondSatOff.has(emp.companyId),
+          });
+          if (saturdayOff.isOff) continue;
+        }
         const k = dateKey(d);
         workingDaySet.add(k);
       }
@@ -1208,7 +1250,7 @@ export class AttendanceService {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const employee = await this.prisma.employee.findFirst({
       where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
-      select: { workingDaysPerWeek: true, companyId: true },
+      select: { workingDaysPerWeek: true, companyId: true, saturdayOffRule: true, saturdayOffEffectiveFrom: true },
     });
     if (!employee) throw new NotFoundException('Employee not found');
     const start = new Date(year, month - 1, 1);
@@ -1315,7 +1357,15 @@ export class AttendanceService {
       if (dow === 0) continue;
       if (dow === 6) {
         if (workingDaysPerWeek !== 6) continue;
-        if (this.isSecondSaturday(d) && secondSatOff) continue;
+        // Employee override (2nd / 4th / none) first, company 2nd-Saturday policy otherwise.
+        const saturdayOff = resolveSaturdayWeeklyOff({
+          date: d,
+          workingDaysPerWeek,
+          employeeRule: employee.saturdayOffRule,
+          effectiveFrom: employee.saturdayOffEffectiveFrom,
+          companySecondSatOff: secondSatOff,
+        });
+        if (saturdayOff.isOff) continue;
       }
       const k = dk(d);
       workingDayKeys.push(k);
@@ -1871,7 +1921,7 @@ export class AttendanceService {
         }),
       ];
 
-      // Rule 3 — a corrected second-Saturday log (worked, punches incomplete) also earns the Comp Off credit
+      // Rule 3 — a corrected weekly-off Saturday log (worked, punches incomplete) also earns the Comp Off credit
       const creditAmount = Number((await this.getPolicyMap(targetCompanyId)).get('custom.secondSaturdayCompOffCredit') ?? 1);
       if (log?.isWeeklyOff && !log.compOffCredited && creditAmount > 0) {
         logUpdateData.compOffCredited = true;
@@ -1896,7 +1946,7 @@ export class AttendanceService {
               toValue: `${creditAmount}`,
               actorId: approverId,
               actorRole: 'hr',
-              notes: `Second Saturday full-day correction approved — ${creditAmount} Comp Off day(s) credited`,
+              notes: `Weekly-off Saturday full-day correction approved — ${creditAmount} Comp Off day(s) credited`,
             },
           }),
         );

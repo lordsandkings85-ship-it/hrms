@@ -174,6 +174,30 @@ describe('PayrollService', () => {
       expect(breakdown.lopDays).toBe(21);
     });
 
+    it('applies a 4th-Saturday employee override to the payroll working-day calendar', async () => {
+      // Aug 2026: Saturdays 1/8/15/22/29. 2nd = 8, 4th = 22. The employee works the
+      // 2nd Saturday and is off the 4th; the company policy still says 2nd Saturday.
+      const emp = baseEmployee({
+        workingDaysPerWeek: 6,
+        saturdayOffRule: 'FOURTH',
+        salaryStructures: [baseStructure()],
+        attendanceLog: [{ date: new Date('2026-08-08T00:00:00.000Z'), status: 'present' }],
+      });
+      prisma.employee.findMany.mockResolvedValueOnce([emp]);
+      // First attendancePolicy.findMany = Saturday policies; next = maxLatesPerMonth.
+      prisma.attendancePolicy.findMany.mockResolvedValueOnce([
+        { companyId: 'company-1', key: 'custom.secondSaturdayOff', value: 'true' },
+      ]);
+
+      await service.runPayroll('company-1', 8, 2026, 'new');
+
+      const breakdown = prisma.payslip.create.mock.calls[0][0].data.breakdown;
+      // 31 days - 5 Sundays - 1 Saturday off = 25 working days under either rule.
+      expect(breakdown.totalWorkingDays).toBe(25);
+      // The 2nd Saturday (8 Aug) is now a normal working day, so its punch is paid.
+      expect(breakdown.paidDays).toBe(1);
+    });
+
     it('pays full shift allowance for assignments active the whole month and prorates mid-month starts', async () => {
       const emp = baseEmployee({
         salaryStructures: [baseStructure()],

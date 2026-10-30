@@ -290,8 +290,8 @@ export default function MyAttendancePage() {
                         : '—'}
                     </span>
                   </div>
-                  {todayStatus.todayIsSecondSaturday && (
-                    <p className="text-[11px] font-semibold text-emerald-500">Weekly Off · 2nd Saturday — working optional (earns Comp Off)</p>
+                  {todayStatus.todayWeeklyOffLabel && (
+                    <p className="text-[11px] font-semibold text-emerald-500">Weekly Off · {todayStatus.todayWeeklyOffLabel} — working optional (earns Comp Off)</p>
                   )}
                   {isCheckedIn && liveRemaining != null && (
                     <p className="text-[11px] font-semibold text-[var(--text-secondary)]">

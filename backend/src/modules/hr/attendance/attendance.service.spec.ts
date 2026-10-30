@@ -305,6 +305,68 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
     expect(summary.absent).toBe(24);
   });
 
+  it('getMonthlySummary honours an employee 4th-Saturday override when counting paid holidays', async () => {
+    const notifications = { notifyApprover: jest.fn(async () => {}), notifyEmployee: jest.fn(async () => {}) };
+    const prisma: any = {
+      employee: {
+        findFirst: jest.fn(async () => ({
+          workingDaysPerWeek: 6,
+          companyId: 'c-1',
+          saturdayOffRule: 'FOURTH',
+          saturdayOffEffectiveFrom: null,
+        })),
+      },
+      attendanceLog: { findMany: jest.fn(async () => []) },
+      permissionRequest: { findMany: jest.fn(async () => []) },
+      holiday: {
+        // A holiday on 12 Sep — the 2nd Saturday, which is a working day under the override.
+        findMany: jest.fn(async () => [{ id: 'h-1', date: new Date(2026, 8, 12), name: '2nd Sat Holiday' }]),
+      },
+      attendancePolicy: {
+        findFirst: jest.fn(async () => ({ value: 'true' })),
+        findMany: jest.fn(async () => [{ companyId: 'c-1', value: 'true' }]),
+      },
+    };
+    const service = new AttendanceService(prisma as any, notifications as any);
+    const summary = await service.getMonthlySummary('c-1', 'e-1', 2026, 9);
+    // Still 25 working days (the off Saturday moved from 12 to 26), but the holiday on
+    // the 2nd Saturday is now a paid working day.
+    expect(summary.totalDays).toBe(25);
+    expect(summary.paidHolidays).toBe(1);
+  });
+
+  it('listAbsent skips only the employee whose 4th-Saturday rule makes the date a weekly off', async () => {
+    const notifications = { notifyApprover: jest.fn(async () => {}), notifyEmployee: jest.fn(async () => {}) };
+    const prisma: any = {
+      employee: {
+        findMany: jest.fn(async () => [
+          {
+            id: 'e-inherit', firstName: 'Inherit', lastName: 'Second', employeeCode: 'E1',
+            workingDaysPerWeek: 6, saturdayOffRule: null, saturdayOffEffectiveFrom: null,
+            company: null, department: null,
+          },
+          {
+            id: 'e-fourth', firstName: 'Fourth', lastName: 'Off', employeeCode: 'E2',
+            workingDaysPerWeek: 6, saturdayOffRule: 'FOURTH', saturdayOffEffectiveFrom: null,
+            company: null, department: null,
+          },
+        ]),
+      },
+      attendanceLog: { findMany: jest.fn(async () => []) },
+      leaveRequest: { findMany: jest.fn(async () => []) },
+      holiday: { findMany: jest.fn(async () => []) },
+      attendancePolicy: {
+        findMany: jest.fn(async () => [{ key: 'custom.secondSaturdayOff', value: 'true' }]),
+      },
+      shiftAssignment: { findMany: jest.fn(async () => []) },
+    };
+    const service = new AttendanceService(prisma as any, notifications as any);
+    // 26 Sep 2026 is the 4th Saturday: a working day for the inheriting employee,
+    // but the weekly off for the one on the FOURTH override.
+    const result = await service.listAbsent('c-1', '2026-09-26');
+    expect(result.employees.map((e) => e.id)).toEqual(['e-inherit']);
+  });
+
   it('getMonthlySummary counts 5-day working days correctly (Mon-Fri, holidays included)', async () => {
     const notifications = { notifyApprover: jest.fn(async () => {}), notifyEmployee: jest.fn(async () => {}) };
     const prisma: any = {
@@ -458,6 +520,8 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
   describe('day classification', () => {
     const buildSummaries = async (opts: {
       workingDaysPerWeek?: number;
+      saturdayOffRule?: string | null;
+      saturdayOffEffectiveFrom?: Date | null;
       policies?: any[];
       holidays?: Date[];
       logs?: any[];
@@ -468,6 +532,8 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
           findMany: jest.fn(async () => [{
             id: 'e-1', firstName: 'Alice', lastName: 'Smith', employeeCode: 'E1',
             workingDaysPerWeek: opts.workingDaysPerWeek ?? 5,
+            saturdayOffRule: opts.saturdayOffRule ?? null,
+            saturdayOffEffectiveFrom: opts.saturdayOffEffectiveFrom ?? null,
             companyId: 'c-1', department: { name: 'Eng' },
           }]),
         },
@@ -556,6 +622,36 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
       });
       expect(row.present).toBe(1);
       expect(row.halfDay).toBe(0);
+    });
+
+    it('uses an employee 4th-Saturday rule instead of the company 2nd Saturday', async () => {
+      const row = await buildSummaries({
+        workingDaysPerWeek: 6,
+        saturdayOffRule: 'FOURTH',
+        policies: [{ companyId: 'c-1', key: 'custom.secondSaturdayOff', value: 'true' }],
+        // 12 Sep = 2nd Saturday, 26 Sep = 4th Saturday.
+        logs: [punch(12, 'present'), punch(26, 'on_leave')],
+      });
+      // Under the override the 2nd Saturday is a working day (present) and the
+      // 4th-Saturday on_leave row is ignored. A 6-day week still has 25 working days.
+      expect(row.present).toBe(1);
+      expect(row.onLeave).toBe(0);
+      expect(row.totalWorkingDays).toBe(25);
+    });
+
+    it('keeps the company 2nd Saturday before the employee override is effective', async () => {
+      const row = await buildSummaries({
+        workingDaysPerWeek: 6,
+        saturdayOffRule: 'FOURTH',
+        saturdayOffEffectiveFrom: new Date('2026-10-01T00:00:00.000Z'),
+        policies: [{ companyId: 'c-1', key: 'custom.secondSaturdayOff', value: 'true' }],
+        logs: [punch(12, 'present'), punch(26, 'on_leave')],
+      });
+      // September is before the 1 Oct effective date, so the 2nd Saturday stays off
+      // and the 4th-Saturday leave counts as a working day.
+      expect(row.present).toBe(0);
+      expect(row.onLeave).toBe(1);
+      expect(row.totalWorkingDays).toBe(25);
     });
 
     it('counts Sundays as working days for a 7-day week', async () => {
