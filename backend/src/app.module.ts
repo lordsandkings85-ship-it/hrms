@@ -37,6 +37,7 @@ import { HelpdeskModule } from './modules/employee/helpdesk/helpdesk.module';
 import { EmployeeServicesModule } from './modules/employee/employee-services/employee-services.module';
 import { TimeModule } from './modules/time/time.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { SecurityModule } from './modules/security/security.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     EmployeeServicesModule,
     TimeModule,
     NotificationsModule,
+    SecurityModule,
   ],
   providers: [
     {

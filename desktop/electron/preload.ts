@@ -10,6 +10,25 @@ export interface ElectronAPI {
   getVersion: () => Promise<string>;
   getPlatform: () => Promise<string>;
 
+  /** Authoritative, main-process-collected environment snapshot. */
+  deviceContext?: {
+    platform?: string;
+    osName?: string;
+    osVersion?: string;
+    arch?: string;
+    signals: string[];
+    isVirtualMachine?: boolean;
+    vmHost?: string;
+    webgl?: string;
+    deviceLabel?: string;
+    touchPoints?: number;
+    hardwareConcurrency?: number;
+  };
+
+  /** Remembers the signed-in email for pre-login security reporting. */
+  setIdentity: (email: string) => Promise<boolean>;
+  quit: () => void;
+
   showSaveDialog: (options: Record<string, unknown>) => Promise<{ canceled: boolean; filePath?: string }>;
   showOpenDialog: (options: Record<string, unknown>) => Promise<{ canceled: boolean; filePaths: string[] }>;
   showMessageBox: (options: Record<string, unknown>) => Promise<{ response: number; checkboxChecked: boolean }>;
@@ -54,6 +73,14 @@ function exposeAPI(): void {
 
     getVersion: () => ipcRenderer.invoke('app:version'),
     getPlatform: () => ipcRenderer.invoke('app:platform'),
+
+    // Synchronous so the very first HTTP request already carries the
+    // Windows/VM context. The main process validates the IPC sender.
+    deviceContext:
+      ipcRenderer.sendSync('app:device-context') ?? undefined,
+
+    setIdentity: (email) => ipcRenderer.invoke('app:set-identity', email),
+    quit: () => ipcRenderer.send('app:quit'),
 
     showSaveDialog: (options) => ipcRenderer.invoke('dialog:save', options),
     showOpenDialog: (options) => ipcRenderer.invoke('dialog:open', options),

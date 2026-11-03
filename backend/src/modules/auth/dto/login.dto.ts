@@ -1,4 +1,6 @@
-import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEmail, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { DeviceContextDto } from '../../security/dto/device-context.dto';
 
 export class LoginDto {
   @IsEmail()
@@ -13,4 +15,10 @@ export class LoginDto {
   @IsString()
   @MaxLength(128)
   mfaToken?: string;
+
+  /** Device/platform context used for emulator + unsupported-environment checks. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DeviceContextDto)
+  device?: DeviceContextDto;
 }

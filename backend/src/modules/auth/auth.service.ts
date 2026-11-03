@@ -1,5 +1,6 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { authenticator } from 'otplib';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -8,14 +9,26 @@ import { decrypt, decryptEmployeeNested, decryptPiiFields, encrypt } from '../..
 import { isApprover } from '../../common/approver';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { RefreshDto } from './dto/refresh.dto';
+import { SecurityService } from '../security/security.service';
+import { DeviceContextDto } from '../security/dto/device-context.dto';
+import type { Request } from 'express';
 
 const ALL_MODULES = [
   'dashboard', 'employees', 'attendance', 'leave', 'payroll', 'recruitment',
   'performance', 'projects', 'timesheets', 'expenses', 'travel', 'assets',
   'documents', 'organization', 'shifts', 'announcements', 'training',
-  'reports', 'settings', 'billing', 'integrations', 'super_admin',
+  'reports', 'settings', 'billing', 'integrations', 'super_admin', 'security',
 ];
 const ALL_ACTIONS = ['view', 'create', 'edit', 'delete', 'approve', 'export'] as const;
+
+/** Message shown when the app is used on a prohibited environment. */
+const UNSUPPORTED_DEVICE_MESSAGE =
+  'Workora HRMS Desktop is available only for supported Windows 10 and Windows 11 computers. Please install and run the Windows EXE on a compatible Windows computer.';
+const EMULATOR_MESSAGE =
+  'Workora HRMS Desktop does not run on Android emulators or virtual mobile devices. Please use a supported Windows 10 or Windows 11 computer.';
+const VIRTUAL_MACHINE_MESSAGE =
+  'Workora HRMS Desktop cannot run in this virtualized environment. Contact your administrator to approve this enterprise virtual desktop.';
 
 @Injectable()
 export class AuthService {
@@ -23,6 +36,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwt: JwtService,
     private seeder: SeederService,
+    private security: SecurityService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -80,7 +94,7 @@ export class AuthService {
     return this.issueTokens(user.id, company.id, user.email, adminRoleId);
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, req?: Request) {
     const email = dto.email.trim();
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) {
@@ -127,23 +141,84 @@ export class AuthService {
       });
     }
 
-    return this.issueTokens(user.id, effectiveCompanyId, user.email, user.roleId || undefined);
+    // ── Server-side security gate ─────────────────────────────────────────
+    // Runs after credentials/MFA are proven so the event can be attributed to
+    // this account, and before any token is issued so a prohibited environment
+    // never obtains a session.
+    await this.security.assertAccountActive(user.id);
+    const assessment = await this.security.enforceDevice({
+      userId: user.id,
+      companyId: effectiveCompanyId,
+      employeeId: user.employeeId ?? null,
+      req,
+      device: dto.device,
+      stage: 'LOGIN',
+    });
+    if (assessment.level === 'block') {
+      throw new ForbiddenException({
+        code: 'UNSUPPORTED_DEVICE',
+        type: assessment.eventType,
+        message: this.deviceBlockMessage(assessment.eventType),
+        eventId: assessment.eventId,
+        reasons: assessment.reasons,
+      });
+    }
+
+    return this.issueTokens(user.id, effectiveCompanyId, user.email, user.roleId || undefined, {
+      req,
+      device: dto.device,
+    });
   }
 
-  async refresh(userId: string, providedToken: string) {
+  private deviceBlockMessage(type?: string): string {
+    if (type === 'EMULATOR_DETECTED') return EMULATOR_MESSAGE;
+    if (type === 'VIRTUAL_MACHINE') return VIRTUAL_MACHINE_MESSAGE;
+    return UNSUPPORTED_DEVICE_MESSAGE;
+  }
+
+  async refresh(
+    userId: string,
+    providedToken: string,
+    req?: Request,
+    device?: DeviceContextDto,
+  ) {
     const tokens = await this.prisma.refreshToken.findMany({
       where: { userId, revoked: false, expiresAt: { gt: new Date() } },
     });
 
-    let matched = false;
+    let matched: (typeof tokens)[number] | null = null;
     for (const t of tokens) {
       if (await bcrypt.compare(providedToken, t.tokenHash)) {
-        matched = true;
-        await this.prisma.refreshToken.update({ where: { id: t.id }, data: { revoked: true } });
+        matched = t;
         break;
       }
     }
     if (!matched) throw new UnauthorizedException('Invalid refresh token');
+
+    // Rotate immediately: a refresh token can only ever be used once. The
+    // conditional update also closes the race where two requests replay the
+    // same token concurrently.
+    const rotated = await this.prisma.refreshToken.updateMany({
+      where: { id: matched.id, revoked: false },
+      data: { revoked: true },
+    });
+    if (rotated.count === 0) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    // A blocked account / revoked session must not be able to extend its life.
+    if (matched.sessionId) {
+      const session = await this.prisma.userSession.findUnique({
+        where: { id: matched.sessionId },
+        select: { status: true },
+      });
+      if (!session || session.status !== 'ACTIVE') {
+        throw new UnauthorizedException({
+          code: 'SESSION_REVOKED',
+          message: 'This session has been signed out. Please login again.',
+        });
+      }
+    }
 
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
@@ -162,7 +237,31 @@ export class AuthService {
       }
     }
 
-    return this.issueTokens(user.id, user.companyId, user.email, user.roleId || undefined);
+    // ── Server-side security gate (same rules as login) ──────────────────
+    await this.security.assertAccountActive(user.id);
+    const assessment = await this.security.enforceDevice({
+      userId: user.id,
+      companyId: user.companyId,
+      employeeId: user.employeeId ?? null,
+      req,
+      device,
+      stage: 'REFRESH',
+    });
+    if (assessment.level === 'block') {
+      throw new ForbiddenException({
+        code: 'UNSUPPORTED_DEVICE',
+        type: assessment.eventType,
+        message: this.deviceBlockMessage(assessment.eventType),
+        eventId: assessment.eventId,
+        reasons: assessment.reasons,
+      });
+    }
+
+    return this.issueTokens(user.id, user.companyId, user.email, user.roleId || undefined, {
+      req,
+      device,
+      sessionId: matched.sessionId ?? undefined,
+    });
   }
 
   /** Generates an MFA secret + otpauth URL for the user to scan into an authenticator app. */
@@ -271,7 +370,13 @@ export class AuthService {
       });
   }
 
-  private async issueTokens(userId: string, companyId: string, email: string, roleId?: string) {
+  private async issueTokens(
+    userId: string,
+    companyId: string,
+    email: string,
+    roleId?: string,
+    opts: { req?: Request; device?: DeviceContextDto; sessionId?: string } = {},
+  ) {
     // Resolve the user's accessible companies: group admins/HR get every
     // company under Lords And Kings Group; everyone else gets primary +
     // memberships (multi-company HR/admin).
@@ -289,12 +394,45 @@ export class AuthService {
       );
     }
 
+    const context = opts.device ?? {};
+    const userAgent = opts.req?.headers?.['user-agent'];
+    let sessionId = opts.sessionId;
+    if (sessionId) {
+      // Refresh rotation re-uses the existing server-side session so a single
+      // login cannot accumulate unbounded session rows.
+      await this.prisma.userSession.updateMany({
+        where: { id: sessionId, status: 'ACTIVE' },
+        data: { lastSeenAt: new Date() },
+      });
+    } else {
+      const session = await this.prisma.userSession.create({
+        data: {
+          userId,
+          companyId,
+          deviceId: context.deviceId?.slice(0, 128) ?? null,
+          clientType: context.clientType?.slice(0, 32) ?? null,
+          platform: context.platform?.slice(0, 32) ?? null,
+          osName: context.osName?.slice(0, 96) ?? null,
+          osVersion: context.osVersion?.slice(0, 96) ?? null,
+          arch: context.arch?.slice(0, 16) ?? null,
+          ipAddress: typeof opts.req?.ip === 'string' ? opts.req.ip.slice(0, 64) : null,
+          userAgent: typeof userAgent === 'string' ? userAgent.slice(0, 1000) : null,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+      sessionId = session.id;
+    }
+
     const payload = { sub: userId, companyId, activeCompanyId: companyId, companyIds, email, roleId };
 
-    const accessToken = this.jwt.sign(payload, {
-      secret: process.env.JWT_ACCESS_SECRET,
-      expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
-    });
+    const accessToken = this.jwt.sign(
+      { ...payload, jti: sessionId },
+      {
+        secret: process.env.JWT_ACCESS_SECRET,
+        expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
+      },
+    );
     const refreshToken = this.jwt.sign(payload, {
       secret: process.env.JWT_REFRESH_SECRET,
       expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
@@ -305,10 +443,11 @@ export class AuthService {
       data: {
         userId,
         tokenHash,
+        sessionId,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
     });
 
-    return { accessToken, refreshToken };
+    return { accessToken, refreshToken, sessionId };
   }
 }

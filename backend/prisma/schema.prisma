@@ -813,9 +813,86 @@ model RefreshToken {
   tokenHash String
   expiresAt DateTime
   revoked   Boolean  @default(false)
+  sessionId String?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+/// Audit trail for platform/device security attempts (unsupported OS, emulator,
+/// virtual machine, manual block/unblock). companyId is nullable so platform
+/// events reported before a user is identified can still be stored.
+model SecurityEvent {
+  id              String   @id @default(uuid())
+  companyId       String?
+  userId          String?
+  employeeId      String?
+  eventType       String
+  severity        String   @default("high")
+  stage           String?
+  platform        String?
+  osName          String?
+  osVersion       String?
+  arch            String?
+  deviceId        String?
+  deviceInfo      Json?
+  detectionReason String?  @db.Text
+  ipAddress       String?
+  userAgent       String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("SecurityEvent")
+}
+
+/// Server-side session registry. Access tokens carry the row id as `jti`, so a
+/// blocked account / revoked session is rejected on the very next API call.
+model UserSession {
+  id            String    @id @default(uuid())
+  userId        String
+  companyId     String?
+  deviceId      String?
+  clientType    String?
+  platform      String?
+  osName        String?
+  osVersion     String?
+  arch          String?
+  ipAddress     String?
+  userAgent     String?   @db.Text
+  status        String    @default("ACTIVE")
+  createdAt     DateTime  @default(now())
+  lastSeenAt    DateTime  @default(now())
+  revokedAt     DateTime?
+  revokedReason String?
+
+  @@index([userId, status])
+  @@map("UserSession")
+}
+
+/// Explicitly approved enterprise virtual desktops / devices. An approved
+/// device bypasses the "virtual machine" risk rule for its company.
+model TrustedDevice {
+  id         String   @id @default(uuid())
+  companyId  String
+  userId     String?
+  deviceId   String
+  clientType String?
+  platform   String?
+  osName     String?
+  osVersion  String?
+  label      String?
+  status     String   @default("APPROVED")
+  approvedBy String?
+  approvedAt DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@unique([companyId, deviceId])
+  @@index([userId])
+  @@map("TrustedDevice")
+}
+
 
 model Role {
   id          String        @id @default(uuid())
@@ -965,6 +1042,16 @@ model User {
   isSuperAdmin  Boolean        @default(false)
   createdAt     DateTime       @default(now())
   lastLoginAt   DateTime?
+  // Security hardening: server-side account block applied when a prohibited
+  // device/platform is detected. Cleared by an Admin/Super Admin via the
+  // Security Management screen, which also forces a fresh login.
+  securityBlocked      Boolean   @default(false)
+  securityBlockedAt    DateTime?
+  securityBlockReason  String?   @db.Text
+  securityBlockedBy    String?
+  securityUnblockedAt  DateTime?
+  securityUnblockedBy  String?
+  securityUnblockReason String?  @db.Text
   refreshToken  RefreshToken[]
   company       Company        @relation(fields: [companyId], references: [id])
   employee      Employee?      @relation(fields: [employeeId], references: [id], onDelete: Cascade)

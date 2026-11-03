@@ -7,6 +7,10 @@ export interface AuthUser {
   companyIds?: string[];
   email: string;
   roleId?: string;
+  /** Populated by JwtStrategy from the database (never trusted from the token). */
+  isSuperAdmin?: boolean;
+  /** Id of the server-side session row (JWT `jti`). */
+  sessionId?: string;
 }
 
 export const CurrentUser = createParamDecorator(

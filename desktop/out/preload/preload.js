@@ -13,6 +13,11 @@ function exposeAPI() {
     },
     getVersion: () => electron.ipcRenderer.invoke("app:version"),
     getPlatform: () => electron.ipcRenderer.invoke("app:platform"),
+    // Synchronous so the very first HTTP request already carries the
+    // Windows/VM context. The main process validates the IPC sender.
+    deviceContext: electron.ipcRenderer.sendSync("app:device-context") ?? void 0,
+    setIdentity: (email) => electron.ipcRenderer.invoke("app:set-identity", email),
+    quit: () => electron.ipcRenderer.send("app:quit"),
     showSaveDialog: (options) => electron.ipcRenderer.invoke("dialog:save", options),
     showOpenDialog: (options) => electron.ipcRenderer.invoke("dialog:open", options),
     showMessageBox: (options) => electron.ipcRenderer.invoke("dialog:message", options),

@@ -22,6 +22,16 @@ export function initAutoUpdater(win: BrowserWindow): void {
   autoUpdater.logger = log;
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
+  // Hardening: never accept a downgrade or a pre-release channel, and never
+  // fall back to the legacy web installer. electron-updater verifies the
+  // SHA-512 checksum from latest.yml before installing; once a code-signing
+  // certificate is configured (win.publisherName), the Authenticode publisher
+  // is verified by the updater as well.
+  autoUpdater.allowDowngrade = false;
+  autoUpdater.allowPrerelease = false;
+  autoUpdater.disableWebInstaller = true;
+  autoUpdater.autoRunAppAfterInstall = true;
+  autoUpdater.forceDevUpdateConfig = false;
 
   autoUpdater.on('checking-for-update', () => {
     log.info('Checking for updates...');

@@ -221,6 +221,7 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
           { to: '/projects', label: 'Task Management' },
           { to: '/settings/roles', label: 'Role Permissions' },
           { to: '/settings/role-assign', label: 'User Assignment' },
+          { to: '/security', label: 'Security Management' },
         ],
       },
       {
@@ -524,7 +525,8 @@ const ROUTE_LABELS: Record<string, string> = {
   timesheets: 'Timesheets', projects: 'Projects', announcements: 'Announcements',
   training: 'Training', organization: 'Organization', reports: 'Reports',
   settings: 'Settings', billing: 'Billing', integrations: 'Integrations',
-  'super-admin': 'Super Admin', fnf: 'FnF Settlement', exit: 'Exit Management',
+  'super-admin': 'Super Admin', security: 'Security Management',
+  fnf: 'FnF Settlement', exit: 'Exit Management',
   'tax-calculator': 'Tax Calculator', helpdesk: 'Helpdesk', more: 'More',
 };
 

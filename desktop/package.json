@@ -1,6 +1,6 @@
 {
   "name": "workora-hrms-desktop",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "Workora HRMS — Enterprise Human Resource Management System",
   "author": "Lords & Kings Enterprise",
   "license": "MIT",
@@ -11,8 +11,7 @@
     "build:frontend": "cd ../frontend && npm run build",
     "build:desktop": "electron-vite build",
     "build:all": "npm run build:frontend && npm run build:desktop && xcopy /E /I /Y ..\\frontend\\dist dist\\renderer",
-    "electron:build:win": "npm run build:all && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win",
-    "electron:build:linux": "npm run build:all && electron-builder --linux",
+    "electron:build:win": "npm run build:all && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --x64",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {

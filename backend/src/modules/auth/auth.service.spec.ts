@@ -47,6 +47,10 @@ function mockPrisma(opts: {
     company: {
       findMany: jest.fn(async () => []),
     },
+    userSession: {
+      create: jest.fn(async () => ({ id: 's-1' })),
+      updateMany: jest.fn(async () => ({ count: 0 })),
+    },
   };
 }
 
@@ -54,8 +58,23 @@ const jwt = {
   sign: jest.fn(() => 'signed-token'),
 };
 
-function service(prisma: any) {
-  return new AuthService(prisma as any, { sign: jwt.sign } as any, {} as any);
+function securityMock() {
+  return {
+    assertAccountActive: jest.fn(async () => undefined),
+    enforceDevice: jest.fn(async () => ({
+      level: 'allow',
+      severity: 'low',
+      reasons: [],
+      policy: {},
+      context: {},
+      checks: {},
+      eventId: null,
+    })),
+  };
+}
+
+function service(prisma: any, security = securityMock()) {
+  return new AuthService(prisma as any, { sign: jwt.sign } as any, {} as any, security as any);
 }
 
 function dto(overrides: Partial<LoginDto> = {}): LoginDto {
@@ -109,7 +128,12 @@ describe('AuthService.refresh employee-status gate', () => {
   function refreshPrisma(opts: { status?: string; isSystem?: boolean; found?: boolean } = {}) {
     const { status = 'active', isSystem = false, found = true } = opts;
     return {
-      refreshToken: { findMany: jest.fn(async () => [{ id: 't-1', tokenHash: 'x' }]), update: jest.fn(async () => ({})), create: jest.fn(async () => ({})) },
+      refreshToken: {
+        findMany: jest.fn(async () => [{ id: 't-1', tokenHash: 'x' }]),
+        update: jest.fn(async () => ({})),
+        updateMany: jest.fn(async () => ({ count: 1 })),
+        create: jest.fn(async () => ({})),
+      },
       user: {
         findUniqueOrThrow: jest.fn(async () => ({ id: 'u-1', companyId: 'c-1', email: 'a@b.c', roleId: 'r-1', employeeId: 'emp-1', isSuperAdmin: false })),
         findUnique: jest.fn(async () => ({ isSuperAdmin: false, role: { isSystem: false, permissions: [] } })),
@@ -122,6 +146,11 @@ describe('AuthService.refresh employee-status gate', () => {
       },
       company: {
         findMany: jest.fn(async () => []),
+      },
+      userSession: {
+        create: jest.fn(async () => ({ id: 's-1' })),
+        updateMany: jest.fn(async () => ({ count: 0 })),
+        findUnique: jest.fn(async () => ({ status: 'ACTIVE' })),
       },
     };
   }
@@ -139,5 +168,11 @@ describe('AuthService.refresh employee-status gate', () => {
   it('still allows system employees on refresh', async () => {
     const prisma = refreshPrisma({ status: 'archived', isSystem: true });
     await expect(service(prisma).refresh('u-1', 'tok')).resolves.toMatchObject({ accessToken: 'signed-token' });
+  });
+
+  it('rejects a refresh token that was already consumed concurrently', async () => {
+    const prisma = refreshPrisma();
+    (prisma.refreshToken.updateMany as jest.Mock).mockResolvedValueOnce({ count: 0 });
+    await expect(service(prisma).refresh('u-1', 'tok')).rejects.toThrow(UnauthorizedException);
   });
 });

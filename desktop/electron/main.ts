@@ -4,6 +4,9 @@ import { registerSecurity } from './security';
 import { registerIPC, getWindowBounds, saveWindowBounds } from './ipc';
 import { createAppMenu } from './menu';
 import { initAutoUpdater } from './updater';
+import { collectDeviceContext, setActiveDeviceContext } from './environment-risk';
+import { runStartupGate, showUnsupportedDialog } from './platform-guard';
+import log from 'electron-log';
 
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
@@ -145,7 +148,7 @@ function createMainWindow(): BrowserWindow {
 registerSecurity(app);
 registerIPC();
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   const gotLock = app.requestSingleInstanceLock();
 
   if (!gotLock) {
@@ -159,6 +162,29 @@ app.whenReady().then(() => {
       mainWindow.focus();
     }
   });
+
+  // ── Platform gate ──────────────────────────────────────────────────────
+  // Runs before the splash or main window is ever created. Unsupported
+  // Windows versions, non-Windows platforms and non-x64 architectures must
+  // never reach the HRMS UI, even if the backend is unreachable.
+  try {
+    const context = await collectDeviceContext();
+    setActiveDeviceContext(context);
+
+    const gate = await runStartupGate(context);
+    if (gate.blocked) {
+      showUnsupportedDialog();
+      app.quit();
+      return;
+    }
+  } catch (error: any) {
+    // A broken detection must fail closed: no UI without a valid Windows
+    // identity. The failure is logged for support diagnostics.
+    log.error('Platform validation failed:', error?.message ?? error);
+    showUnsupportedDialog();
+    app.quit();
+    return;
+  }
 
   splashWindow = createSplashWindow();
   mainWindow = createMainWindow();

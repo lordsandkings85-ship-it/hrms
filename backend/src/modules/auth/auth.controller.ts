@@ -1,8 +1,10 @@
-import { Body, Controller, Post, Get, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, Get, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { RefreshDto } from './dto/refresh.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
 
@@ -20,14 +22,14 @@ export class AuthController {
   // Brute-force protection: tight limit per IP on credential endpoints.
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  login(@Body() dto: LoginDto, @Req() req: Request) {
+    return this.authService.login(dto, req);
   }
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('refresh')
-  refresh(@Body() body: { userId: string; refreshToken: string }) {
-    return this.authService.refresh(body.userId, body.refreshToken);
+  refresh(@Body() body: RefreshDto, @Req() req: Request) {
+    return this.authService.refresh(body.userId, body.refreshToken, req, body.device);
   }
 
   @UseGuards(JwtAuthGuard)

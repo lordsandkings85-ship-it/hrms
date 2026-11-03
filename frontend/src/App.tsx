@@ -9,6 +9,7 @@ import { isAdminRole, isSuperAdminRole } from './navigation/permissions';
 
 // ── Lazy route imports (code splitting per page) ─────────────────
 const LoginPage           = lazy(() => import('./pages/auth/LoginPage'));
+const UnsupportedDevicePage = lazy(() => import('./pages/security/UnsupportedDevicePage'));
 const DashboardPage       = lazy(() => import('./pages/employee/DashboardPage'));
 const MyProfilePage       = lazy(() => import('./pages/employee/profile/MyProfilePage'));
 
@@ -64,6 +65,7 @@ const SettingsPage        = lazy(() => import('./pages/admin/settings/SettingsPa
 const BillingPage         = lazy(() => import('./pages/admin/billing/BillingPage'));
 const IntegrationsPage    = lazy(() => import('./pages/admin/integrations/IntegrationsPage'));
 const SuperAdminPage      = lazy(() => import('./pages/admin/settings/SuperAdminPage'));
+const SecurityManagementPage = lazy(() => import('./pages/admin/security/SecurityManagementPage'));
 
 // ── Employee Salary / Leave / Claims ─────────────────────────────
 const FnfPage                    = lazy(() => import('./pages/employee/salary/FnfPage'));
@@ -146,7 +148,7 @@ function isAdminOnlyPath(pathname: string): boolean {
   if (p === '/tax-calculator') return true;
 
   return [
-    '/organization', '/settings', '/billing', '/integrations', '/super-admin',
+    '/organization', '/settings', '/billing', '/integrations', '/super-admin', '/security',
     '/compliance', '/reports', '/approvals',
     '/tax-calculator/master', '/tax-calculator/declarations', '/tax-calculator/pending',
     '/tax-calculator/slabs', '/tax-calculator/sec-category', '/tax-calculator/income-slab-cat',
@@ -198,6 +200,13 @@ export default function App() {
       <Route path="/login" element={
         <Suspense fallback={<FullPageSpinner />}>
           <LoginPage />
+        </Suspense>
+      } />
+      {/* Reachable without authentication: the backend may reject the device
+          or account at any point, and the app must still explain why. */}
+      <Route path="/unsupported-device" element={
+        <Suspense fallback={<FullPageSpinner />}>
+          <UnsupportedDevicePage />
         </Suspense>
       } />
       <Route
@@ -330,6 +339,7 @@ export default function App() {
           { path: 'integrations',            El: IntegrationsPage },
           { path: 'super-admin',             El: SuperAdminPage },
           { path: 'super-admin/:sub',        El: SuperAdminPage },
+          { path: 'security',                El: SecurityManagementPage },
 
           // ── Compliance ────────────────────────────────────────────────
           { path: 'compliance',              El: CompliancePage },

@@ -32,6 +32,9 @@ export default function LoginPage() {
       const result = await authApi.login({ email: form.email, password: form.password });
       localStorage.setItem('accessToken', result.accessToken);
       localStorage.setItem('refreshToken', result.refreshToken);
+      // Lets the desktop main process attribute a future pre-login startup
+      // block to this employee/company for the security event and alert.
+      void window.electronAPI?.setIdentity?.(form.email);
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Something went wrong. Please try again.');

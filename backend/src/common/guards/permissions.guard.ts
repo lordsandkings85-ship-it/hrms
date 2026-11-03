@@ -24,7 +24,7 @@ const SENSITIVE_MUTATION_PREFIXES = [
   '/payroll', '/salary', '/employees', '/performance', '/recruitment',
   '/reports', '/organization', '/org-masters', '/attendance-policy',
   '/compliance-setup', '/tax-setup', '/integrations', '/billing',
-  '/super-admin', '/settings', '/leave/balances', '/leave/monthly-',
+  '/super-admin', '/settings', '/leave/balances', '/leave/monthly-', '/security',
 ];
 
 @Injectable()

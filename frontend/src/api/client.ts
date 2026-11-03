@@ -1,5 +1,6 @@
 
 import { useAuthStore } from '../store/useAuthStore';
+import { deviceHeaders, getDeviceContext } from '../utils/deviceContext';
 
 const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 const API_BASE = rawApiUrl.endsWith('/api/v1')
@@ -25,6 +26,72 @@ function getUserIdFromToken(token: string): string | null {
 
 let refreshPromise: Promise<{ token: string | null; sessionDead: boolean }> | null = null;
 
+export type SecurityBlockKind = 'unsupported-device' | 'account-blocked';
+
+export interface SecurityBlockInfo {
+  kind: SecurityBlockKind;
+  message?: string;
+  reasons?: string[];
+  eventId?: string;
+  type?: string;
+}
+
+export const SECURITY_BLOCK_KEY = 'hrms.securityBlock';
+
+export function storeSecurityBlock(info: SecurityBlockInfo): void {
+  try {
+    sessionStorage.setItem(SECURITY_BLOCK_KEY, JSON.stringify({ ...info, at: Date.now() }));
+  } catch {
+    // Storage can be unavailable (private mode); the page still shows defaults.
+  }
+}
+
+export function readSecurityBlock(): SecurityBlockInfo | null {
+  try {
+    const raw = sessionStorage.getItem(SECURITY_BLOCK_KEY);
+    return raw ? (JSON.parse(raw) as SecurityBlockInfo) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearSecurityBlock(): void {
+  try {
+    sessionStorage.removeItem(SECURITY_BLOCK_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Maps a security rejection to the blocked page and clears local credentials. */
+export function handleSecurityRejection(body: any): boolean {
+  const code = body?.code;
+  if (code !== 'UNSUPPORTED_DEVICE' && code !== 'ACCOUNT_BLOCKED') return false;
+
+  storeSecurityBlock({
+    kind: code === 'ACCOUNT_BLOCKED' ? 'account-blocked' : 'unsupported-device',
+    message: typeof body?.message === 'string' ? body.message : undefined,
+    reasons: Array.isArray(body?.reasons) ? body.reasons : undefined,
+    eventId: typeof body?.eventId === 'string' ? body.eventId : undefined,
+    type: typeof body?.type === 'string' ? body.type : undefined,
+  });
+
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  try {
+    useAuthStore.getState().logout();
+  } catch {
+    /* ignore */
+  }
+  if (
+    typeof window !== 'undefined' &&
+    !window.location.hash.startsWith('#/unsupported-device')
+  ) {
+    window.location.hash = '#/unsupported-device';
+  }
+  return true;
+}
+
 async function refreshAccessToken(): Promise<{ token: string | null; sessionDead: boolean }> {
   const refreshToken = localStorage.getItem('refreshToken');
   const accessToken = getToken();
@@ -36,11 +103,14 @@ async function refreshAccessToken(): Promise<{ token: string | null; sessionDead
       try {
         const res = await fetch(`${API_BASE}/auth/refresh`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, refreshToken }),
+          headers: { 'Content-Type': 'application/json', ...deviceHeaders() },
+          body: JSON.stringify({ userId, refreshToken, device: getDeviceContext() }),
         });
-        if (!res.ok) return { token: null, sessionDead: true };
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          handleSecurityRejection(data);
+          return { token: null, sessionDead: true };
+        }
         if (data.accessToken) {
           localStorage.setItem('accessToken', data.accessToken);
           if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
@@ -65,6 +135,7 @@ export async function api<T>(path: string, options: RequestInit = {}, _retried =
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...deviceHeaders(),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(getActiveCompanyId() ? { 'X-Company-Id': getActiveCompanyId()! } : {}),
         ...options.headers,
@@ -86,8 +157,15 @@ export async function api<T>(path: string, options: RequestInit = {}, _retried =
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    if (handleSecurityRejection(body)) {
+      const msg = Array.isArray(body.message) ? body.message.join(', ') : body.message;
+      throw new Error(msg || 'This device or account is not permitted to access Workora HRMS.');
+    }
     const msg = Array.isArray(body.message) ? body.message.join(', ') : (body.message || `Request failed: ${res.status}`);
-    throw new Error(msg);
+    const error = new Error(msg) as Error & { code?: string; details?: any };
+    if (typeof body.code === 'string') error.code = body.code;
+    if (body.details !== undefined) error.details = body.details;
+    throw error;
   }
   if (res.status === 204) return undefined as T;
   const text = await res.text();
@@ -163,10 +241,10 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  login: (data: { email: string; password: string }) =>
+  login: (data: { email: string; password: string; mfaToken?: string }) =>
     api<{ accessToken: string; refreshToken: string }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, device: getDeviceContext() }),
     }),
 };
 
@@ -1141,5 +1219,106 @@ export const orgMastersApi = {
   remove: (kind: 'masters' | 'import' | 'forms', id: string) =>
     api<any>(`/org-masters/${kind}/${id}`, { method: 'DELETE' }),
 };
+
+// ── Security Management (Admin / Super Admin only) ───────────────────────
+
+export interface SecurityPolicy {
+  blockEmulators: boolean;
+  blockVirtualMachines: boolean;
+  blockMobileClients: boolean;
+  autoBlockAccounts: boolean;
+  notifyAdmins: boolean;
+  allowedVmHosts: string[];
+}
+
+export interface SecurityEventRecord {
+  id: string;
+  companyId?: string | null;
+  companyName?: string | null;
+  userId?: string | null;
+  employeeId?: string | null;
+  employeeCode?: string | null;
+  employeeName?: string | null;
+  eventType: string;
+  severity: string;
+  stage?: string | null;
+  platform?: string | null;
+  osName?: string | null;
+  osVersion?: string | null;
+  arch?: string | null;
+  deviceId?: string | null;
+  deviceInfo?: any;
+  detectionReason?: string | null;
+  ipAddress?: string | null;
+  createdAt: string;
+}
+
+export interface BlockedUserRecord {
+  id: string;
+  email: string;
+  companyId: string;
+  securityBlockedAt?: string | null;
+  securityBlockReason?: string | null;
+  securityBlockedBy?: string | null;
+  lastLoginAt?: string | null;
+  employee?: {
+    id: string;
+    employeeCode: string;
+    firstName: string;
+    lastName: string;
+    department?: { name: string } | null;
+    designation?: { title: string } | null;
+  } | null;
+  company?: { id: string; name: string; displayName?: string | null } | null;
+}
+
+export const securityApi = {
+  summary: () =>
+    api<{ policy: SecurityPolicy; blockedUsers: BlockedUserRecord[]; recentEvents: SecurityEventRecord[] }>(
+      '/security/summary',
+    ),
+  policy: () => api<SecurityPolicy>('/security/policy'),
+  updatePolicy: (data: Partial<SecurityPolicy>) =>
+    api<SecurityPolicy>('/security/policy', { method: 'PATCH', body: JSON.stringify(data) }),
+  blockedUsers: () => api<BlockedUserRecord[]>('/security/blocked-users'),
+  events: (params: {
+    type?: string;
+    userId?: string;
+    companyId?: string;
+    limit?: number;
+    offset?: number;
+  } = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.set(k, String(v));
+    });
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return api<SecurityEventRecord[]>(`/security/events${suffix}`);
+  },
+  block: (userId: string, reason: string) =>
+    api<{ success: boolean; userId: string; securityEventId: string }>(
+      `/security/users/${userId}/block`,
+      { method: 'POST', body: JSON.stringify({ reason }) },
+    ),
+  unblock: (userId: string, reason: string) =>
+    api<{ success: boolean; userId: string; securityEventId: string; requiresFreshLogin: boolean }>(
+      `/security/users/${userId}/unblock`,
+      { method: 'POST', body: JSON.stringify({ reason }) },
+    ),
+  devices: () => api<any[]>('/security/devices'),
+  trustDevice: (data: { deviceId: string; label?: string; userId?: string }) =>
+    api<any>('/security/devices', { method: 'POST', body: JSON.stringify(data) }),
+  revokeDevice: (id: string) => api<any>(`/security/devices/${id}`, { method: 'DELETE' }),
+};
+
+/** Public: used by the desktop startup gate before any login exists. */
+export const securityReportApi = {
+  reportDevice: (data: Record<string, unknown>) =>
+    api<{ recorded: boolean; eventId: string }>('/security/device-report', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
 
 

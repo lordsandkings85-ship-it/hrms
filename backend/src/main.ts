@@ -67,7 +67,13 @@ async function bootstrap() {
       'Accept',
       'Origin',
       'X-Requested-With',
-      'X-Company-Id'
+      'X-Company-Id',
+      'X-Device-Id',
+      'X-Device-Context',
+      'X-Client-Type',
+      'X-Client-Platform',
+      'X-Client-Arch',
+      'X-OS-Version',
     ]
   });
 

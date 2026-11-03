@@ -10,6 +10,23 @@ declare global {
       onMaximizeChange: (callback: (maximized: boolean) => void) => () => void;
       getVersion: () => Promise<string>;
       getPlatform: () => Promise<string>;
+      // Synchronous environment snapshot injected by the trusted preload
+      // bridge. Used for server-side platform/VM validation on every request.
+      deviceContext?: {
+        platform?: string;
+        osName?: string;
+        osVersion?: string;
+        arch?: string;
+        signals: string[];
+        isVirtualMachine?: boolean;
+        vmHost?: string;
+        webgl?: string;
+        deviceLabel?: string;
+        touchPoints?: number;
+        hardwareConcurrency?: number;
+      };
+      setIdentity?: (email: string) => Promise<boolean>;
+      quit: () => void;
       showSaveDialog: (options: Record<string, unknown>) => Promise<{ canceled: boolean; filePath?: string }>;
       showOpenDialog: (options: Record<string, unknown>) => Promise<{ canceled: boolean; filePaths: string[] }>;
       showMessageBox: (options: Record<string, unknown>) => Promise<{ response: number; checkboxChecked: boolean }>;

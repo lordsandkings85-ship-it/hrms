@@ -319,4 +319,49 @@ export class NotificationsService {
       recipientEmployeeId: params.employeeId,
     });
   }
+
+  /**
+   * Security alerts are strictly restricted to authorized administrators:
+   * one ADMIN-audience row (visible to system-role admins of the company) plus
+   * a PERSONAL row for every platform super-admin so the alert can never be
+   * missed. Alerts are never written with the COMPANY or HR audience.
+   */
+  async notifySecurityAdmins(params: {
+    companyId: string;
+    title: string;
+    message: string;
+    referenceId?: string;
+  }) {
+    const created = await this.create({
+      companyId: params.companyId,
+      type: 'SECURITY_ALERT',
+      title: params.title,
+      message: params.message,
+      priority: 'urgent',
+      referenceType: 'SECURITY_EVENT',
+      referenceId: params.referenceId,
+      audience: 'ADMIN',
+    });
+
+    const superAdmins = await this.prisma.user.findMany({
+      where: { isSuperAdmin: true },
+      select: { id: true },
+    });
+    if (superAdmins.length > 0) {
+      await this.prisma.notification.createMany({
+        data: superAdmins.map((admin) => ({
+          companyId: params.companyId,
+          type: 'SECURITY_ALERT',
+          title: params.title,
+          message: params.message,
+          priority: 'urgent',
+          referenceType: 'SECURITY_EVENT',
+          referenceId: params.referenceId ?? null,
+          audience: 'PERSONAL',
+          recipientUserId: admin.id,
+        })),
+      });
+    }
+    return created;
+  }
 }
