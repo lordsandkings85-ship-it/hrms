@@ -108,6 +108,7 @@
     "dmg": {
       "title": "Workora HRMS",
       "sign": false,
+      "writeUpdateInfo": false,
       "contents": [
         {
           "x": 130,

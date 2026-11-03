@@ -67,10 +67,16 @@ jobs:
           cd frontend && npm ci
           cd ../desktop && npm ci
 
+      - name: Disable Spotlight Indexing
+        run: |
+          sudo mdutil -a -i off || true
+
       - name: Build macOS DMGs
         run: |
           cd desktop
-          npm run build:mac
+          npm run build:all
+          npx cross-env CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --x64 --publish never
+          npx cross-env CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --arm64 --publish never
         env:
           VITE_API_URL: https://hrms-backend-rl2c.onrender.com/api/v1
           CSC_IDENTITY_AUTO_DISCOVERY: false
