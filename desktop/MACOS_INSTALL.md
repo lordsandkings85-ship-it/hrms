@@ -55,3 +55,4 @@ Because the macOS build is distributed as an unsigned DMG, automatic background 
 1. The in-app update banner will alert you that a new version is available.
 2. Click **Download Update** to open the latest release on GitHub.
 3. Download the new `.dmg` and drag to replace the existing application in `/Applications`.
+
