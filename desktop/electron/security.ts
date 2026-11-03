@@ -31,7 +31,7 @@ export function registerSecurity(app: Electron.App): void {
     const ses = session.defaultSession;
 
     const connectSrc = app.isPackaged
-      ? 'https://hrms-backend-rl2c.onrender.com wss://hrms-backend-rl2c.onrender.com'
+      ? 'https://hrms-backend-rl2c.onrender.com wss://hrms-backend-rl2c.onrender.com https://*.onrender.com'
       : 'http://localhost:5000 http://127.0.0.1:5000 ws://localhost:5000 http://localhost:5173 ws://localhost:5173';
 
     ses.webRequest.onHeadersReceived((details, callback) => {

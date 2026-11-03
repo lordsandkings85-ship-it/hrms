@@ -7,7 +7,10 @@ const BASE_DELAY_MS = 2000;
 const SYNC_TIMEOUT_MS = 5000;
 
 const API_BASE = (() => {
-  const raw = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000/api/v1';
+  const DEFAULT_PROD_API = 'https://hrms-backend-rl2c.onrender.com/api/v1';
+  const raw =
+    (import.meta as any).env?.VITE_API_URL ||
+    (import.meta.env.PROD ? DEFAULT_PROD_API : 'http://localhost:5000/api/v1');
   return raw.endsWith('/api/v1') ? raw : `${raw.replace(/\/+$/, '')}/api/v1`;
 })();
 

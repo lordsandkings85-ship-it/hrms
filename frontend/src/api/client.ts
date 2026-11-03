@@ -2,7 +2,10 @@
 import { useAuthStore } from '../store/useAuthStore';
 import { deviceHeaders, getDeviceContext } from '../utils/deviceContext';
 
-const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const DEFAULT_PROD_API = 'https://hrms-backend-rl2c.onrender.com/api/v1';
+const rawApiUrl =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? DEFAULT_PROD_API : 'http://localhost:5000/api/v1');
 const API_BASE = rawApiUrl.endsWith('/api/v1')
   ? rawApiUrl
   : `${rawApiUrl.replace(/\/+$/, '')}/api/v1`;
