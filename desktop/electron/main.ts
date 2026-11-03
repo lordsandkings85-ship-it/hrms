@@ -63,6 +63,8 @@ function createMainWindow(): BrowserWindow {
     minWidth: 1024,
     minHeight: 680,
     frame: false,
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : undefined,
+    trafficLightPosition: process.platform === 'darwin' ? { x: 12, y: 10 } : undefined,
     show: false,
     title: 'Workora HRMS',
     icon: getResourcePath('icon-256.png'),

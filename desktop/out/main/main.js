@@ -133,8 +133,9 @@ function initAutoUpdater(win) {
     log.error("Auto-updater error:", error);
     const message = typeof error === "string" ? error : error?.message ?? "An unknown update error occurred.";
     const offline = /network|connection|timed ?out|ECONN|offline|failed to fetch/i.test(message);
+    const isMacSigning = process.platform === "darwin" && /code sign|signature|signing|identity|zip/i.test(message);
     sendToRenderer("updater:error", {
-      message: offline ? OFFLINE_MESSAGE : `Update failed: ${message}`,
+      message: isMacSigning ? "A new macOS version is available on GitHub Releases. Please download the latest DMG." : offline ? OFFLINE_MESSAGE : `Update failed: ${message}`,
       offline
     });
   });
@@ -169,6 +170,10 @@ function downloadUpdateNow() {
   });
 }
 function installUpdate() {
+  if (process.platform === "darwin") {
+    electron.shell.openExternal("https://github.com/lordsandkings85-ship-it/hrms/releases/latest");
+    return;
+  }
   setImmediate(() => electronUpdater.autoUpdater.quitAndInstall());
 }
 const store$1 = new ElectronStore({
@@ -315,60 +320,82 @@ async function readGpu() {
 }
 async function collectDeviceContext() {
   const signals = /* @__PURE__ */ new Set();
-  const bios = registryValues("HKLM\\HARDWARE\\DESCRIPTION\\System\\BIOS", [
-    "SystemManufacturer",
-    "SystemProductName",
-    "SystemFamily",
-    "BIOSVendor",
-    "BIOSVersion"
-  ]);
-  for (const [name, value] of Object.entries(bios)) {
-    if (!value) continue;
-    const label = detectVmHost(value);
-    if (label) signals.add(`vm:bios:${name}=${value}`);
-  }
-  const guestParams = registryValues("HKLM\\SOFTWARE\\Microsoft\\Virtual Machine\\Guest\\Parameters", [
-    "PhysicalHostName",
-    "HostName"
-  ]);
-  for (const [name, value] of Object.entries(guestParams)) {
-    if (value) signals.add(`vm:guest:${name}=${value}`);
-  }
-  const diskEnum = registryValues("HKLM\\SYSTEM\\CurrentControlSet\\Services\\disk\\Enum", ["0"]);
-  if (diskEnum["0"]) signals.add(`disk:enum=${diskEnum["0"].slice(0, 160)}`);
-  const processes = listProcesses();
-  for (const [re, label] of VM_PROCESSES) {
-    if (re.test(processes)) signals.add(`vm:process:${label}`);
-  }
-  for (const [re, label] of EMULATOR_PROCESSES) {
-    if (re.test(processes)) signals.add(`emulator:process:${label}`);
-  }
-  for (const driver of VM_DRIVERS) {
-    try {
-      if (fs.existsSync(path.join(process.env["SystemRoot"] || "C:\\Windows", "System32", "drivers", driver))) {
-        signals.add(`vm:driver:${driver}`);
-      }
-    } catch {
+  let deviceLabel = "";
+  let vmHost;
+  if (process.platform === "win32") {
+    const bios = registryValues("HKLM\\HARDWARE\\DESCRIPTION\\System\\BIOS", [
+      "SystemManufacturer",
+      "SystemProductName",
+      "SystemFamily",
+      "BIOSVendor",
+      "BIOSVersion"
+    ]);
+    for (const [name, value] of Object.entries(bios)) {
+      if (!value) continue;
+      const label = detectVmHost(value);
+      if (label) signals.add(`vm:bios:${name}=${value}`);
     }
-  }
-  for (const label of knownFolders()) {
-    signals.add(`install:${label}`);
+    const guestParams = registryValues("HKLM\\SOFTWARE\\Microsoft\\Virtual Machine\\Guest\\Parameters", [
+      "PhysicalHostName",
+      "HostName"
+    ]);
+    for (const [name, value] of Object.entries(guestParams)) {
+      if (value) signals.add(`vm:guest:${name}=${value}`);
+    }
+    const diskEnum = registryValues("HKLM\\SYSTEM\\CurrentControlSet\\Services\\disk\\Enum", ["0"]);
+    if (diskEnum["0"]) signals.add(`disk:enum=${diskEnum["0"].slice(0, 160)}`);
+    const processes = listProcesses();
+    for (const [re, label] of VM_PROCESSES) {
+      if (re.test(processes)) signals.add(`vm:process:${label}`);
+    }
+    for (const [re, label] of EMULATOR_PROCESSES) {
+      if (re.test(processes)) signals.add(`emulator:process:${label}`);
+    }
+    for (const driver of VM_DRIVERS) {
+      try {
+        if (fs.existsSync(path.join(process.env["SystemRoot"] || "C:\\Windows", "System32", "drivers", driver))) {
+          signals.add(`vm:driver:${driver}`);
+        }
+      } catch {
+      }
+    }
+    for (const label of knownFolders()) {
+      signals.add(`install:${label}`);
+    }
+    const manufacturer = bios["SystemManufacturer"] || "";
+    const product = bios["SystemProductName"] || "";
+    deviceLabel = [manufacturer, product].filter(Boolean).join(" ").trim().slice(0, 200);
+    const haystack = [
+      deviceLabel,
+      ...Object.values(bios),
+      ...Object.values(guestParams),
+      diskEnum["0"] || ""
+    ].join(" ");
+    vmHost = detectVmHost(haystack);
+  } else if (process.platform === "darwin") {
+    const hwModel = run("sysctl", ["-n", "hw.model"]).trim();
+    const cpuBrand = run("sysctl", ["-n", "machdep.cpu.brand_string"]).trim();
+    deviceLabel = hwModel || cpuBrand || "Apple Mac";
+    const macVm = detectVmHost(hwModel);
+    if (macVm) {
+      vmHost = macVm;
+      signals.add(`vm:model=${hwModel}`);
+    }
   }
   const gpu = await readGpu();
   if (gpu.signal) signals.add(gpu.signal);
-  const manufacturer = bios["SystemManufacturer"] || "";
-  const product = bios["SystemProductName"] || "";
-  const deviceLabel = [manufacturer, product].filter(Boolean).join(" ").trim().slice(0, 200);
-  const haystack = [
-    deviceLabel,
-    ...Object.values(bios),
-    ...Object.values(guestParams),
-    diskEnum["0"] || "",
-    gpu.vmHost || ""
-  ].join(" ");
-  const vmHost = detectVmHost(haystack) || gpu.vmHost;
+  if (!vmHost && gpu.vmHost) vmHost = gpu.vmHost;
   const release = os.release();
   const osName = (() => {
+    if (process.platform === "darwin") {
+      const darwinMajor = Number((release.match(/^(\d+)/) || [])[1] || 0);
+      if (darwinMajor >= 24) return "macOS 15 Sequoia";
+      if (darwinMajor === 23) return "macOS 14 Sonoma";
+      if (darwinMajor === 22) return "macOS 13 Ventura";
+      if (darwinMajor === 21) return "macOS 12 Monterey";
+      if (darwinMajor === 20) return "macOS 11 Big Sur";
+      return "macOS";
+    }
     const build = Number((release.match(/^10\.0\.(\d+)/) || [])[1] || 0);
     const version = typeof os.version === "function" ? os.version() : "";
     if (/windows 11/i.test(version) || build >= 22e3) return "Windows 11";
@@ -643,7 +670,7 @@ Enterprise Human Resource Management System
   electron.Menu.setApplicationMenu(menu);
 }
 const UNSUPPORTED_TITLE = "Unsupported Operating System";
-const UNSUPPORTED_MESSAGE = "Workora HRMS Desktop is available only for supported Windows 10 and Windows 11 computers. Please install and run the Windows EXE on a compatible Windows computer.";
+const UNSUPPORTED_MESSAGE = "Workora HRMS Desktop is available only for supported Windows 10/11 (x64) and macOS computers. Please run the desktop application on a compatible computer.";
 const MIN_WINDOWS_BUILD = 10240;
 function windowsBuild(osVersion) {
   if (!osVersion) return null;
@@ -655,29 +682,39 @@ function windowsBuild(osVersion) {
   return major < 10 ? 0 : build;
 }
 function evaluatePlatform(context) {
-  if (context.platform !== "win32") {
-    return {
-      supported: false,
-      eventType: "UNSUPPORTED_PLATFORM",
-      reason: `Desktop client reported operating system "${context.platform}"`
-    };
+  if (context.platform === "win32") {
+    if (context.arch !== "x64") {
+      return {
+        supported: false,
+        eventType: "UNSUPPORTED_ARCH",
+        reason: `Windows desktop client reported architecture "${context.arch}" (x64 required)`
+      };
+    }
+    const build = windowsBuild(context.osVersion);
+    if (build !== null && build < MIN_WINDOWS_BUILD) {
+      return {
+        supported: false,
+        eventType: "UNSUPPORTED_OS_VERSION",
+        reason: `${context.osName || "Windows"} build ${build} is older than the supported Windows 10/11 releases`
+      };
+    }
+    return { supported: true };
   }
-  if (context.arch !== "x64") {
-    return {
-      supported: false,
-      eventType: "UNSUPPORTED_ARCH",
-      reason: `Desktop client reported architecture "${context.arch}"`
-    };
+  if (context.platform === "darwin") {
+    if (context.arch !== "arm64" && context.arch !== "x64") {
+      return {
+        supported: false,
+        eventType: "UNSUPPORTED_ARCH",
+        reason: `macOS desktop client reported unsupported architecture "${context.arch}"`
+      };
+    }
+    return { supported: true };
   }
-  const build = windowsBuild(context.osVersion);
-  if (build !== null && build < MIN_WINDOWS_BUILD) {
-    return {
-      supported: false,
-      eventType: "UNSUPPORTED_OS_VERSION",
-      reason: `${context.osName || "Windows"} build ${build} is older than the supported Windows 10/11 releases`
-    };
-  }
-  return { supported: true };
+  return {
+    supported: false,
+    eventType: "UNSUPPORTED_PLATFORM",
+    reason: `Desktop client reported unsupported operating system "${context.platform}"`
+  };
 }
 function apiBaseUrl() {
   const override = process.env["WORKORA_API_URL"];
@@ -783,6 +820,8 @@ function createMainWindow() {
     minWidth: 1024,
     minHeight: 680,
     frame: false,
+    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : void 0,
+    trafficLightPosition: process.platform === "darwin" ? { x: 12, y: 10 } : void 0,
     show: false,
     title: "Workora HRMS",
     icon: getResourcePath("icon-256.png"),

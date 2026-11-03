@@ -5,7 +5,7 @@ import { DesktopDeviceContext, getLastKnownEmail } from './environment-risk';
 /** Exact copy required by the product/security specification. */
 export const UNSUPPORTED_TITLE = 'Unsupported Operating System';
 export const UNSUPPORTED_MESSAGE =
-  'Workora HRMS Desktop is available only for supported Windows 10 and Windows 11 computers. Please install and run the Windows EXE on a compatible Windows computer.';
+  'Workora HRMS Desktop is available only for supported Windows 10/11 (x64) and macOS computers. Please run the desktop application on a compatible computer.';
 
 const MIN_WINDOWS_BUILD = 10240;
 
@@ -37,29 +37,41 @@ function windowsBuild(osVersion?: string): number | null {
  * machine that can never be supported.
  */
 export function evaluatePlatform(context: DesktopDeviceContext): PlatformCheck {
-  if (context.platform !== 'win32') {
-    return {
-      supported: false,
-      eventType: 'UNSUPPORTED_PLATFORM',
-      reason: `Desktop client reported operating system "${context.platform}"`,
-    };
+  if (context.platform === 'win32') {
+    if (context.arch !== 'x64') {
+      return {
+        supported: false,
+        eventType: 'UNSUPPORTED_ARCH',
+        reason: `Windows desktop client reported architecture "${context.arch}" (x64 required)`,
+      };
+    }
+    const build = windowsBuild(context.osVersion);
+    if (build !== null && build < MIN_WINDOWS_BUILD) {
+      return {
+        supported: false,
+        eventType: 'UNSUPPORTED_OS_VERSION',
+        reason: `${context.osName || 'Windows'} build ${build} is older than the supported Windows 10/11 releases`,
+      };
+    }
+    return { supported: true };
   }
-  if (context.arch !== 'x64') {
-    return {
-      supported: false,
-      eventType: 'UNSUPPORTED_ARCH',
-      reason: `Desktop client reported architecture "${context.arch}"`,
-    };
+
+  if (context.platform === 'darwin') {
+    if (context.arch !== 'arm64' && context.arch !== 'x64') {
+      return {
+        supported: false,
+        eventType: 'UNSUPPORTED_ARCH',
+        reason: `macOS desktop client reported unsupported architecture "${context.arch}"`,
+      };
+    }
+    return { supported: true };
   }
-  const build = windowsBuild(context.osVersion);
-  if (build !== null && build < MIN_WINDOWS_BUILD) {
-    return {
-      supported: false,
-      eventType: 'UNSUPPORTED_OS_VERSION',
-      reason: `${context.osName || 'Windows'} build ${build} is older than the supported Windows 10/11 releases`,
-    };
-  }
-  return { supported: true };
+
+  return {
+    supported: false,
+    eventType: 'UNSUPPORTED_PLATFORM',
+    reason: `Desktop client reported unsupported operating system "${context.platform}"`,
+  };
 }
 
 function apiBaseUrl(): string {

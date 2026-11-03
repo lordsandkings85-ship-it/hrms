@@ -223,33 +223,46 @@ export class DeviceRiskService {
       approvedVirtualDesktop: allowedVm,
     };
 
-    // 1) Explicit Windows-only client identity from the Electron bridge.
+    // 1) Explicit desktop client identity from the Electron bridge (Windows + macOS).
     if (isDesktopClient) {
-      if (platform && platform !== 'win32' && platform !== 'windows') {
-        return this.block('UNSUPPORTED_PLATFORM', 'high', [`Desktop client reported platform "${platform}"`], policy, context, checks);
+      const isWindows = platform === 'win32' || platform === 'windows';
+      const isMac = platform === 'darwin' || platform === 'mac' || platform === 'macos';
+
+      if (!isWindows && !isMac) {
+        return this.block('UNSUPPORTED_PLATFORM', 'high', [`Desktop client reported unsupported platform "${platform}"`], policy, context, checks);
       }
-      if (context.arch && context.arch !== 'x64' && context.arch !== 'amd64') {
-        return this.block('UNSUPPORTED_ARCH', 'high', [`Desktop client reported architecture "${context.arch}"`], policy, context, checks);
+
+      if (isWindows) {
+        if (context.arch && context.arch !== 'x64' && context.arch !== 'amd64') {
+          return this.block('UNSUPPORTED_ARCH', 'high', [`Windows desktop client reported architecture "${context.arch}" (x64 required)`], policy, context, checks);
+        }
+        const build = windowsBuild(context.osVersion);
+        if (build !== null && build < MIN_WINDOWS_BUILD) {
+          return this.block(
+            'UNSUPPORTED_OS_VERSION',
+            'high',
+            [`Windows build ${build} is older than the supported Windows 10/11 releases`],
+            policy,
+            context,
+            checks,
+          );
+        }
       }
-      const build = windowsBuild(context.osVersion);
-      if (build !== null && build < MIN_WINDOWS_BUILD) {
-        return this.block(
-          'UNSUPPORTED_OS_VERSION',
-          'high',
-          [`Windows build ${build} is older than the supported Windows 10/11 releases`],
-          policy,
-          context,
-          checks,
-        );
+
+      if (isMac) {
+        if (context.arch && context.arch !== 'arm64' && context.arch !== 'x64' && context.arch !== 'amd64') {
+          return this.block('UNSUPPORTED_ARCH', 'high', [`macOS desktop client reported architecture "${context.arch}" (arm64 or x64 required)`], policy, context, checks);
+        }
       }
+
       if (vmReasons.size > 0 && policy.blockVirtualMachines && !allowedVm) {
         return this.block('VIRTUAL_MACHINE', 'high', [...vmReasons], policy, context, checks);
       }
       if (vmReasons.size > 0 && !allowedVm) {
         return this.monitor('VIRTUAL_MACHINE', [...vmReasons], policy, context, checks);
       }
-      // Emulator artefacts on a Windows machine do not mean the EXE is running
-      // inside Android; keep them as informational evidence only.
+      // Emulator artefacts on a desktop machine do not mean the desktop app is
+      // running inside Android; keep them as informational evidence only.
       return { level: 'allow', severity: 'low', reasons: [...emulatorReasons, ...vmReasons], policy, context, checks };
     }
 

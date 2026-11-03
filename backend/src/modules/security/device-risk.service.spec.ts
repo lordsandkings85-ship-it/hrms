@@ -140,6 +140,43 @@ describe('DeviceRiskService', () => {
     });
   });
 
+  describe('macOS desktop client', () => {
+    it('allows a normal macOS Apple Silicon (arm64) desktop', () => {
+      const result = risk.assess({
+        clientType: 'desktop',
+        platform: 'darwin',
+        arch: 'arm64',
+        osName: 'macOS 14 Sonoma',
+        osVersion: '23.4.0',
+        deviceId: 'mac-1',
+      });
+      expect(result.level).toBe('allow');
+      expect(result.reasons).toEqual([]);
+    });
+
+    it('allows a normal macOS Intel (x64) desktop', () => {
+      const result = risk.assess({
+        clientType: 'desktop',
+        platform: 'darwin',
+        arch: 'x64',
+        osName: 'macOS 13 Ventura',
+        osVersion: '22.6.0',
+        deviceId: 'mac-2',
+      });
+      expect(result.level).toBe('allow');
+    });
+
+    it('blocks an unsupported macOS architecture', () => {
+      const result = risk.assess({
+        clientType: 'desktop',
+        platform: 'darwin',
+        arch: 'ia32',
+      });
+      expect(result.level).toBe('block');
+      expect(result.eventType).toBe('UNSUPPORTED_ARCH');
+    });
+  });
+
   describe('browser clients', () => {
     it('allows a normal desktop browser', () => {
       const result = risk.assess({

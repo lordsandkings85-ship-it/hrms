@@ -10,8 +10,13 @@
     "build": "electron-vite build",
     "build:frontend": "cd ../frontend && npm run build",
     "build:desktop": "electron-vite build",
-    "build:all": "npm run build:frontend && npm run build:desktop && xcopy /E /I /Y ..\\frontend\\dist dist\\renderer",
-    "electron:build:win": "npm run build:all && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --x64",
+    "copy:renderer": "node -e \"const fs = require('fs'); fs.cpSync('../frontend/dist', 'dist/renderer', { recursive: true });\"",
+    "build:all": "npm run build:frontend && npm run build:desktop && npm run copy:renderer",
+    "build:win": "npm run build:all && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --x64",
+    "build:mac:arm64": "npm run build:all && electron-builder --mac --arm64",
+    "build:mac:x64": "npm run build:all && electron-builder --mac --x64",
+    "build:mac": "npm run build:all && electron-builder --mac --arm64 --x64",
+    "electron:build:win": "npm run build:win",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
@@ -70,11 +75,51 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Workora HRMS",
-      "artifactName": "Workora-HRMS-${version}-Setup.${ext}",
+      "artifactName": "Workora-HRMS-Setup-${version}.${ext}",
       "uninstallDisplayName": "Workora HRMS",
       "installerIcon": "resources/icon.ico",
       "uninstallerIcon": "resources/icon.ico",
       "installerHeaderIcon": "resources/icon.ico"
+    },
+    "mac": {
+      "category": "public.app-category.business",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "resources/icon.png",
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "artifactName": "Workora-HRMS-${arch}-${version}.${ext}"
+    },
+    "dmg": {
+      "title": "Workora HRMS",
+      "sign": false,
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
     },
     "publish": {
       "provider": "github",

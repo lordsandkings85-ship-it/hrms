@@ -10,10 +10,12 @@ export function isElectron(): boolean {
 
 export default function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
+  const [platform, setPlatform] = useState<string>('win32');
 
   useEffect(() => {
     if (!window.electronAPI) return;
 
+    window.electronAPI.getPlatform().then((p) => setPlatform(p || 'win32')).catch(() => {});
     window.electronAPI.isMaximized().then(setIsMaximized);
 
     const cleanup = window.electronAPI.onMaximizeChange(setIsMaximized);
@@ -21,6 +23,8 @@ export default function TitleBar() {
   }, []);
 
   if (!isElectron()) return null;
+
+  const isMac = platform === 'darwin';
 
   return (
     <div
@@ -43,7 +47,7 @@ export default function TitleBar() {
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          paddingLeft: 12,
+          paddingLeft: isMac ? 78 : 12,
           ...dragStyle,
         }}
       >
@@ -65,98 +69,100 @@ export default function TitleBar() {
 
       <div style={{ flex: 1, ...dragStyle }} />
 
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          height: '100%',
-          ...noDragStyle,
-        }}
-      >
-        <button
-          onClick={() => window.electronAPI?.minimize()}
-          className="electron-titlebar-btn"
-          title="Minimize"
+      {!isMac && (
+        <div
           style={{
-            width: 46,
-            height: 32,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            border: 'none',
-            background: 'transparent',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            transition: 'background 0.1s, color 0.1s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'var(--surface-hover)';
-            e.currentTarget.style.color = 'var(--text-primary)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = 'var(--text-muted)';
+            height: '100%',
+            ...noDragStyle,
           }}
         >
-          <Minus size={14} />
-        </button>
+          <button
+            onClick={() => window.electronAPI?.minimize()}
+            className="electron-titlebar-btn"
+            title="Minimize"
+            style={{
+              width: 46,
+              height: 32,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              transition: 'background 0.1s, color 0.1s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--surface-hover)';
+              e.currentTarget.style.color = 'var(--text-primary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--text-muted)';
+            }}
+          >
+            <Minus size={14} />
+          </button>
 
-        <button
-          onClick={() => window.electronAPI?.maximize()}
-          className="electron-titlebar-btn"
-          title={isMaximized ? 'Restore' : 'Maximize'}
-          style={{
-            width: 46,
-            height: 32,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: 'none',
-            background: 'transparent',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            transition: 'background 0.1s, color 0.1s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'var(--surface-hover)';
-            e.currentTarget.style.color = 'var(--text-primary)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = 'var(--text-muted)';
-          }}
-        >
-          {isMaximized ? <Square size={12} /> : <Maximize2 size={12} />}
-        </button>
+          <button
+            onClick={() => window.electronAPI?.maximize()}
+            className="electron-titlebar-btn"
+            title={isMaximized ? 'Restore' : 'Maximize'}
+            style={{
+              width: 46,
+              height: 32,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              transition: 'background 0.1s, color 0.1s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--surface-hover)';
+              e.currentTarget.style.color = 'var(--text-primary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--text-muted)';
+            }}
+          >
+            {isMaximized ? <Square size={12} /> : <Maximize2 size={12} />}
+          </button>
 
-        <button
-          onClick={() => window.electronAPI?.close()}
-          className="electron-titlebar-btn electron-titlebar-close"
-          title="Close"
-          style={{
-            width: 46,
-            height: 32,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: 'none',
-            background: 'transparent',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            transition: 'background 0.1s, color 0.1s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#e81123';
-            e.currentTarget.style.color = '#ffffff';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = 'var(--text-muted)';
-          }}
-        >
-          <X size={14} />
-        </button>
-      </div>
+          <button
+            onClick={() => window.electronAPI?.close()}
+            className="electron-titlebar-btn electron-titlebar-close"
+            title="Close"
+            style={{
+              width: 46,
+              height: 32,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              transition: 'background 0.1s, color 0.1s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#e81123';
+              e.currentTarget.style.color = '#ffffff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--text-muted)';
+            }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

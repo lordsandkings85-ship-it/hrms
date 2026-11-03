@@ -218,76 +218,97 @@ async function readGpu(): Promise<{ label?: string; vmHost?: string; signal?: st
  */
 export async function collectDeviceContext(): Promise<DesktopDeviceContext> {
   const signals = new Set<string>();
+  let deviceLabel = '';
+  let vmHost: string | undefined;
 
-  const bios = registryValues('HKLM\\HARDWARE\\DESCRIPTION\\System\\BIOS', [
-    'SystemManufacturer',
-    'SystemProductName',
-    'SystemFamily',
-    'BIOSVendor',
-    'BIOSVersion',
-  ]);
-  for (const [name, value] of Object.entries(bios)) {
-    if (!value) continue;
-    const label = detectVmHost(value);
-    if (label) signals.add(`vm:bios:${name}=${value}`);
-  }
-
-  // Hyper-V/KVM integration services expose guest parameters here.
-  const guestParams = registryValues('HKLM\\SOFTWARE\\Microsoft\\Virtual Machine\\Guest\\Parameters', [
-    'PhysicalHostName',
-    'HostName',
-  ]);
-  for (const [name, value] of Object.entries(guestParams)) {
-    if (value) signals.add(`vm:guest:${name}=${value}`);
-  }
-
-  // Disk/SCSI enumeration often exposes the hypervisor vendor string.
-  const diskEnum = registryValues('HKLM\\SYSTEM\\CurrentControlSet\\Services\\disk\\Enum', ['0']);
-  if (diskEnum['0']) signals.add(`disk:enum=${diskEnum['0'].slice(0, 160)}`);
-
-  const processes = listProcesses();
-  for (const [re, label] of VM_PROCESSES) {
-    if (re.test(processes)) signals.add(`vm:process:${label}`);
-  }
-  for (const [re, label] of EMULATOR_PROCESSES) {
-    if (re.test(processes)) signals.add(`emulator:process:${label}`);
-  }
-
-  for (const driver of VM_DRIVERS) {
-    try {
-      if (existsSync(join(process.env['SystemRoot'] || 'C:\\Windows', 'System32', 'drivers', driver))) {
-        signals.add(`vm:driver:${driver}`);
-      }
-    } catch {
-      /* ignore */
+  if (process.platform === 'win32') {
+    const bios = registryValues('HKLM\\HARDWARE\\DESCRIPTION\\System\\BIOS', [
+      'SystemManufacturer',
+      'SystemProductName',
+      'SystemFamily',
+      'BIOSVendor',
+      'BIOSVersion',
+    ]);
+    for (const [name, value] of Object.entries(bios)) {
+      if (!value) continue;
+      const label = detectVmHost(value);
+      if (label) signals.add(`vm:bios:${name}=${value}`);
     }
-  }
 
-  for (const label of knownFolders()) {
-    // Emulator installers on a Windows PC are informational only: the EXE
-    // cannot be running inside an Android guest.
-    signals.add(`install:${label}`);
+    // Hyper-V/KVM integration services expose guest parameters here.
+    const guestParams = registryValues('HKLM\\SOFTWARE\\Microsoft\\Virtual Machine\\Guest\\Parameters', [
+      'PhysicalHostName',
+      'HostName',
+    ]);
+    for (const [name, value] of Object.entries(guestParams)) {
+      if (value) signals.add(`vm:guest:${name}=${value}`);
+    }
+
+    // Disk/SCSI enumeration often exposes the hypervisor vendor string.
+    const diskEnum = registryValues('HKLM\\SYSTEM\\CurrentControlSet\\Services\\disk\\Enum', ['0']);
+    if (diskEnum['0']) signals.add(`disk:enum=${diskEnum['0'].slice(0, 160)}`);
+
+    const processes = listProcesses();
+    for (const [re, label] of VM_PROCESSES) {
+      if (re.test(processes)) signals.add(`vm:process:${label}`);
+    }
+    for (const [re, label] of EMULATOR_PROCESSES) {
+      if (re.test(processes)) signals.add(`emulator:process:${label}`);
+    }
+
+    for (const driver of VM_DRIVERS) {
+      try {
+        if (existsSync(join(process.env['SystemRoot'] || 'C:\\Windows', 'System32', 'drivers', driver))) {
+          signals.add(`vm:driver:${driver}`);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    for (const label of knownFolders()) {
+      signals.add(`install:${label}`);
+    }
+
+    const manufacturer = bios['SystemManufacturer'] || '';
+    const product = bios['SystemProductName'] || '';
+    deviceLabel = [manufacturer, product].filter(Boolean).join(' ').trim().slice(0, 200);
+
+    const haystack = [
+      deviceLabel,
+      ...Object.values(bios),
+      ...Object.values(guestParams),
+      diskEnum['0'] || '',
+    ].join(' ');
+
+    vmHost = detectVmHost(haystack);
+  } else if (process.platform === 'darwin') {
+    const hwModel = run('sysctl', ['-n', 'hw.model']).trim();
+    const cpuBrand = run('sysctl', ['-n', 'machdep.cpu.brand_string']).trim();
+    deviceLabel = hwModel || cpuBrand || 'Apple Mac';
+
+    const macVm = detectVmHost(hwModel);
+    if (macVm) {
+      vmHost = macVm;
+      signals.add(`vm:model=${hwModel}`);
+    }
   }
 
   const gpu = await readGpu();
   if (gpu.signal) signals.add(gpu.signal);
-
-  const manufacturer = bios['SystemManufacturer'] || '';
-  const product = bios['SystemProductName'] || '';
-  const deviceLabel = [manufacturer, product].filter(Boolean).join(' ').trim().slice(0, 200);
-
-  const haystack = [
-    deviceLabel,
-    ...Object.values(bios),
-    ...Object.values(guestParams),
-    diskEnum['0'] || '',
-    gpu.vmHost || '',
-  ].join(' ');
-
-  const vmHost = detectVmHost(haystack) || gpu.vmHost;
+  if (!vmHost && gpu.vmHost) vmHost = gpu.vmHost;
 
   const release = os.release();
   const osName = (() => {
+    if (process.platform === 'darwin') {
+      const darwinMajor = Number((release.match(/^(\d+)/) || [])[1] || 0);
+      if (darwinMajor >= 24) return 'macOS 15 Sequoia';
+      if (darwinMajor === 23) return 'macOS 14 Sonoma';
+      if (darwinMajor === 22) return 'macOS 13 Ventura';
+      if (darwinMajor === 21) return 'macOS 12 Monterey';
+      if (darwinMajor === 20) return 'macOS 11 Big Sur';
+      return 'macOS';
+    }
     const build = Number((release.match(/^10\.0\.(\d+)/) || [])[1] || 0);
     const version = typeof os.version === 'function' ? os.version() : '';
     if (/windows 11/i.test(version) || build >= 22000) return 'Windows 11';

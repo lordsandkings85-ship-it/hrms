@@ -1,6 +1,6 @@
 import { autoUpdater, UpdateInfo } from 'electron-updater';
 import type { ProgressInfo } from 'electron-updater';
-import { BrowserWindow, app } from 'electron';
+import { BrowserWindow, app, shell } from 'electron';
 import log from 'electron-log';
 
 let mainWindow: BrowserWindow | null = null;
@@ -74,8 +74,13 @@ export function initAutoUpdater(win: BrowserWindow): void {
         ? error
         : error?.message ?? 'An unknown update error occurred.';
     const offline = /network|connection|timed ?out|ECONN|offline|failed to fetch/i.test(message);
+    const isMacSigning = process.platform === 'darwin' && /code sign|signature|signing|identity|zip/i.test(message);
     sendToRenderer('updater:error', {
-      message: offline ? OFFLINE_MESSAGE : `Update failed: ${message}`,
+      message: isMacSigning
+        ? 'A new macOS version is available on GitHub Releases. Please download the latest DMG.'
+        : offline
+          ? OFFLINE_MESSAGE
+          : `Update failed: ${message}`,
       offline,
     });
   });
@@ -117,5 +122,11 @@ export function downloadUpdateNow(): void {
 }
 
 export function installUpdate(): void {
+  if (process.platform === 'darwin') {
+    // Unsigned macOS builds cannot use Squirrel.Mac to self-replace in place.
+    // Open the latest release download page so the user can download the DMG.
+    shell.openExternal('https://github.com/lordsandkings85-ship-it/hrms/releases/latest');
+    return;
+  }
   setImmediate(() => autoUpdater.quitAndInstall());
 }
