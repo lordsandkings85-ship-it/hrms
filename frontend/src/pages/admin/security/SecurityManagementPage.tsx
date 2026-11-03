@@ -11,6 +11,7 @@ import {
   Laptop,
   Trash2,
   History,
+  Radio,
 } from 'lucide-react';
 import { AdminSection, StatusBadge } from '../../../components/ui/AdminSection';
 import { useToast } from '../../../components/ui/ToastProvider';
@@ -101,6 +102,20 @@ export default function SecurityManagementPage() {
   const devicesQuery = useQuery({
     queryKey: ['security-devices'],
     queryFn: () => securityApi.devices(),
+  });
+
+  const sessionsQuery = useQuery({
+    queryKey: ['security-sessions'],
+    queryFn: () => securityApi.sessions({ limit: 50 }),
+  });
+
+  const revokeSessionMutation = useMutation({
+    mutationFn: (id: string) => securityApi.revokeSession(id),
+    onSuccess: () => {
+      toast.success('Session revoked', 'User will be prompted to login again.');
+      queryClient.invalidateQueries({ queryKey: ['security-sessions'] });
+    },
+    onError: (err: any) => toast.error('Could not revoke session', err?.message),
   });
 
   const policy = summaryQuery.data?.policy;
@@ -195,6 +210,7 @@ export default function SecurityManagementPage() {
             summaryQuery.refetch();
             eventsQuery.refetch();
             devicesQuery.refetch();
+            sessionsQuery.refetch();
           }}
           className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:bg-[var(--surface-alt)]"
         >
@@ -335,6 +351,80 @@ export default function SecurityManagementPage() {
                       >
                         <Unlock size={13} /> Unblock
                       </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </AdminSection>
+
+      <AdminSection
+        title="Active User Sessions & Detected IPs"
+        icon={Radio}
+        subtitle="Live and recent user logins with detected client IP addresses, OS, and platform details."
+      >
+        {sessionsQuery.isLoading ? (
+          <p className="text-sm text-[var(--text-muted)]">Loading active sessions…</p>
+        ) : (sessionsQuery.data ?? []).length === 0 ? (
+          <p className="text-sm text-[var(--text-muted)]">No active sessions recorded.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
+            <table className="w-full text-sm min-w-[860px]">
+              <thead className="bg-[var(--surface-alt)]">
+                <tr className="text-left text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                  <th className="px-4 py-3 font-bold">User / Employee</th>
+                  <th className="px-4 py-3 font-bold">Detected IP Address</th>
+                  <th className="px-4 py-3 font-bold">Platform / OS</th>
+                  <th className="px-4 py-3 font-bold">Client</th>
+                  <th className="px-4 py-3 font-bold">Login Time</th>
+                  <th className="px-4 py-3 font-bold">Status</th>
+                  <th className="px-4 py-3 font-bold text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(sessionsQuery.data ?? []).map((session) => (
+                  <tr key={session.id} className="border-t border-[var(--border)] align-middle">
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-[var(--text-primary)]">
+                        {session.employeeName || session.email || '—'}
+                      </div>
+                      <div className="text-[11px] text-[var(--text-muted)]">
+                        {session.employeeCode ? `${session.employeeCode} · ` : ''}{session.email}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
+                        {session.ipAddress || 'Not recorded'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-[var(--text-secondary)]">
+                      <div>{[session.osName, session.osVersion].filter(Boolean).join(' ') || session.platform || '—'}</div>
+                      <div className="text-[11px] text-[var(--text-muted)]">
+                        {[session.platform, session.arch].filter(Boolean).join(' / ') || '—'}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-[var(--text-secondary)]">
+                      <span className="capitalize text-xs font-medium">{session.clientType || 'web'}</span>
+                    </td>
+                    <td className="px-4 py-3 text-[var(--text-secondary)] whitespace-nowrap text-xs">
+                      {formatDate(session.createdAt)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={session.status} />
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {session.status === 'ACTIVE' && (
+                        <button
+                          type="button"
+                          onClick={() => revokeSessionMutation.mutate(session.id)}
+                          disabled={revokeSessionMutation.isPending}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 text-[11px] font-bold uppercase tracking-wider"
+                        >
+                          Revoke
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

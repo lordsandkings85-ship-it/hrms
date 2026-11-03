@@ -1234,6 +1234,24 @@ export interface SecurityPolicy {
   allowedVmHosts: string[];
 }
 
+export interface UserSessionRecord {
+  id: string;
+  userId: string;
+  email?: string | null;
+  employeeCode?: string | null;
+  employeeName?: string | null;
+  ipAddress?: string | null;
+  platform?: string | null;
+  osName?: string | null;
+  osVersion?: string | null;
+  arch?: string | null;
+  clientType?: string | null;
+  deviceId?: string | null;
+  status: string;
+  createdAt: string;
+  lastSeenAt: string;
+}
+
 export interface SecurityEventRecord {
   id: string;
   companyId?: string | null;
@@ -1308,6 +1326,15 @@ export const securityApi = {
       `/security/users/${userId}/unblock`,
       { method: 'POST', body: JSON.stringify({ reason }) },
     ),
+  sessions: (params: { limit?: number; offset?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.limit) qs.set('limit', String(params.limit));
+    if (params.offset) qs.set('offset', String(params.offset));
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return api<UserSessionRecord[]>(`/security/sessions${suffix}`);
+  },
+  revokeSession: (id: string) =>
+    api<{ success: boolean; sessionId: string }>(`/security/sessions/${id}/revoke`, { method: 'POST' }),
   devices: () => api<any[]>('/security/devices'),
   trustDevice: (data: { deviceId: string; label?: string; userId?: string }) =>
     api<any>('/security/devices', { method: 'POST', body: JSON.stringify(data) }),

@@ -77,6 +77,28 @@ export class SecurityController {
   }
 
   @UseGuards(JwtAuthGuard, CompanyScopeGuard, PermissionsGuard)
+  @Get('sessions')
+  @Permissions({ module: 'security', action: 'view' })
+  sessions(
+    @CurrentUser() user: AuthUser,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.security.listSessions(user, {
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, CompanyScopeGuard, PermissionsGuard)
+  @Post('sessions/:id/revoke')
+  @HttpCode(200)
+  @Permissions({ module: 'security', action: 'edit' })
+  revokeSession(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.security.revokeSession(user, id);
+  }
+
+  @UseGuards(JwtAuthGuard, CompanyScopeGuard, PermissionsGuard)
   @Get('summary')
   @Permissions({ module: 'security', action: 'view' })
   async summary(@CurrentUser() user: AuthUser) {

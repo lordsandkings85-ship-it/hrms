@@ -341,6 +341,79 @@ export class SecurityService {
     });
   }
 
+  async listSessions(user: AuthUser, query: { limit?: number; offset?: number }) {
+    const where: any = {};
+    if (!user.isSuperAdmin && user.companyId) {
+      where.companyId = user.companyId;
+    }
+    const take = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
+    const skip = Math.min(Math.max(Number(query.offset) || 0, 0), 5000);
+
+    const sessions = await this.prisma.userSession.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take,
+      skip,
+    });
+
+    const userIds = [...new Set(sessions.map((s) => s.userId))];
+    const users = userIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: {
+            id: true,
+            email: true,
+            employee: {
+              select: {
+                id: true,
+                employeeCode: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        })
+      : [];
+    const userMap = new Map(users.map((u) => [u.id, u] as const));
+
+    return sessions.map((s) => {
+      const u = userMap.get(s.userId);
+      const emp = u?.employee ? decryptPiiFields(u.employee) : undefined;
+      return {
+        id: s.id,
+        userId: s.userId,
+        email: u?.email || null,
+        employeeCode: emp?.employeeCode || null,
+        employeeName: emp ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() : null,
+        ipAddress: s.ipAddress,
+        platform: s.platform,
+        osName: s.osName,
+        osVersion: s.osVersion,
+        arch: s.arch,
+        clientType: s.clientType,
+        deviceId: s.deviceId,
+        status: s.status,
+        createdAt: s.createdAt,
+        lastSeenAt: s.lastSeenAt,
+      };
+    });
+  }
+
+  async revokeSession(user: AuthUser, sessionId: string) {
+    const session = await this.prisma.userSession.findUnique({
+      where: { id: sessionId },
+    });
+    if (!session) throw new NotFoundException('Session not found');
+    if (!user.isSuperAdmin && user.companyId && session.companyId !== user.companyId) {
+      throw new ForbiddenException('Cannot revoke session for another company');
+    }
+    await this.prisma.userSession.update({
+      where: { id: sessionId },
+      data: { status: 'REVOKED', revokedAt: new Date() },
+    });
+    return { success: true, sessionId };
+  }
+
   async blockUser(user: AuthUser, targetUserId: string, reason: string) {
     const target = await this.assertUserInScope(user, targetUserId);
     if (target.securityBlocked) {
