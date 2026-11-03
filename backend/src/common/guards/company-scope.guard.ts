@@ -1,5 +1,6 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { isGroupWideUser } from '../../utils/group-access.util';
 
 /**
  * Verifies that any `employeeId` supplied via path params, query string, or
@@ -19,12 +20,17 @@ export class CompanyScopeGuard implements CanActivate {
     const user = request.user;
     if (!user?.companyId) throw new ForbiddenException('Missing company context');
 
+    // Super admins and group-wide administrators have full cross-company authority
+    if (user.isSuperAdmin || (user.userId && (await isGroupWideUser(this.prisma, user.userId)))) {
+      return true;
+    }
+
     // In multi-company mode the client can switch its viewing context by
     // sending X-Company-Id. It is only a viewing scope switch — it must be
     // within the set of companies the user is a member of. Never changes real
     // assignment. Defaults to the token's companyId.
     const requested = request.headers?.['x-company-id'];
-    const companyIds: string[] = user.companyIds ?? [user.companyId];
+    const companyIds: string[] = user.companyIds && user.companyIds.length > 0 ? user.companyIds : [user.companyId];
     if (requested) {
       if (!companyIds.includes(requested)) {
         throw new ForbiddenException('Company not in your access scope');
@@ -38,12 +44,12 @@ export class CompanyScopeGuard implements CanActivate {
 
     const employeeIds = this.collectEmployeeIds(request);
     if (employeeIds.length > 0) {
-      await this.assertEmployeesInCompany(employeeIds, user.companyId);
+      await this.assertEmployeesInCompany(employeeIds, companyIds);
     }
 
     const recordIds = this.collectRecordIds(request);
     for (const id of recordIds) {
-      await this.assertRecordInCompany(id, user.companyId);
+      await this.assertRecordInCompany(id, companyIds);
     }
 
     return true;
@@ -74,21 +80,22 @@ export class CompanyScopeGuard implements CanActivate {
     return [...new Set(ids)];
   }
 
-  private async assertEmployeesInCompany(employeeIds: string[], companyId: string) {
+  private async assertEmployeesInCompany(employeeIds: string[], allowedCompanyIds: string[]) {
     const employees = await this.prisma.employee.findMany({
       where: { id: { in: employeeIds } },
       select: { id: true, companyId: true },
     });
-    const owned = new Set(employees.filter((e) => e.companyId === companyId).map((e) => e.id));
+    const allowed = new Set(allowedCompanyIds);
+    const owned = new Set(employees.filter((e) => allowed.has(e.companyId)).map((e) => e.id));
     for (const id of employeeIds) {
       if (!owned.has(id)) throw new ForbiddenException('Employee not found in your company');
     }
   }
 
-  private async assertRecordInCompany(id: string, companyId: string) {
+  private async assertRecordInCompany(id: string, allowedCompanyIds: string[]) {
     // Fast-path: asset table has direct companyId
     const directCompany = await this.prisma.asset.findFirst({
-      where: { id, companyId },
+      where: { id, companyId: { in: allowedCompanyIds } },
       select: { id: true },
     });
     if (directCompany) return;
@@ -103,28 +110,30 @@ export class CompanyScopeGuard implements CanActivate {
       'OptionalHolidayRequest', 'LoanRequest', 'TaxDeclaration', 'LeaveCancellationRequest',
     ];
 
-    const values: any[] = [];
-    for (const table of companyScopedTables) {
-      values.push(id, companyId);
+    for (const companyId of allowedCompanyIds) {
+      const values: any[] = [];
+      for (const table of companyScopedTables) {
+        values.push(id, companyId);
+      }
+
+      const result: any[] = await this.prisma.$queryRawUnsafe(
+        `SELECT 1 AS found FROM (
+          ${companyScopedTables.map((t) => `SELECT id, companyId FROM \`${t}\` WHERE id = ? AND companyId = ?`).join('\n        UNION ALL\n        ')}
+        ) AS combined LIMIT 1`,
+        ...values,
+      );
+
+      if (result.length > 0) return;
     }
 
-    const result: any[] = await this.prisma.$queryRawUnsafe(
-      `SELECT 1 AS found FROM (
-        ${companyScopedTables.map((t) => `SELECT id, companyId FROM \`${t}\` WHERE id = ? AND companyId = ?`).join('\n        UNION ALL\n        ')}
-      ) AS combined LIMIT 1`,
-      ...values,
-    );
-
-    if (result.length > 0) return;
-
     // Check employee-owned records
-    const ownedByEmployee = await this.findEmployeeRecordOwner(id, companyId);
+    const ownedByEmployee = await this.findEmployeeRecordOwner(id, allowedCompanyIds);
     if (ownedByEmployee) return;
 
     throw new ForbiddenException('Resource not found in your company');
   }
 
-  private async findEmployeeRecordOwner(id: string, companyId: string): Promise<boolean> {
+  private async findEmployeeRecordOwner(id: string, allowedCompanyIds: string[]): Promise<boolean> {
     const employeeOwnedTables = [
       { table: 'Expense', col: 'employeeId' },
       { table: 'TravelRequest', col: 'employeeId' },
@@ -156,11 +165,12 @@ export class CompanyScopeGuard implements CanActivate {
 
     if (result.length === 0) return false;
 
-    const employeeId = result[0].employeeId;
+    const employeeId = result[0].employeeId || result[0].employeeid;
+    if (!employeeId) return false;
     const employee = await this.prisma.employee.findUnique({
       where: { id: employeeId },
       select: { companyId: true },
     });
-    return employee?.companyId === companyId;
+    return !!employee && allowedCompanyIds.includes(employee.companyId);
   }
 }
