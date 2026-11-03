@@ -6,6 +6,7 @@ import { authenticator } from 'otplib';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SeederService } from '../../prisma/seeder.service';
 import { decrypt, decryptEmployeeNested, decryptPiiFields, encrypt } from '../../utils/crypto.util';
+import { getClientIp } from '../../utils/ip.util';
 import { isApprover } from '../../common/approver';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -402,7 +403,10 @@ export class AuthService {
       // login cannot accumulate unbounded session rows.
       await this.prisma.userSession.updateMany({
         where: { id: sessionId, status: 'ACTIVE' },
-        data: { lastSeenAt: new Date() },
+        data: {
+          lastSeenAt: new Date(),
+          ...(getClientIp(opts.req) ? { ipAddress: getClientIp(opts.req) } : {}),
+        },
       });
     } else {
       const session = await this.prisma.userSession.create({
@@ -415,7 +419,7 @@ export class AuthService {
           osName: context.osName?.slice(0, 96) ?? null,
           osVersion: context.osVersion?.slice(0, 96) ?? null,
           arch: context.arch?.slice(0, 16) ?? null,
-          ipAddress: typeof opts.req?.ip === 'string' ? opts.req.ip.slice(0, 64) : null,
+          ipAddress: getClientIp(opts.req),
           userAgent: typeof userAgent === 'string' ? userAgent.slice(0, 1000) : null,
           status: 'ACTIVE',
         },

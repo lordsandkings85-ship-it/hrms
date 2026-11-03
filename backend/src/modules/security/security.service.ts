@@ -8,6 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { decryptPiiFields } from '../../utils/crypto.util';
+import { getClientIp } from '../../utils/ip.util';
 import {
   DeviceAssessment,
   DeviceRiskService,
@@ -576,7 +577,7 @@ export class SecurityService {
           checks: assessment.checks ?? {},
         } as any,
         detectionReason: (assessment.reasons ?? []).join('; ').slice(0, 4000) || null,
-        ipAddress: limit(params.req?.ip, 64),
+        ipAddress: getClientIp(params.req),
         userAgent: limit(params.req?.headers?.['user-agent'], 1000),
       },
     });
