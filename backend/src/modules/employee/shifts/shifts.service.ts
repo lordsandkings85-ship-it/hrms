@@ -2,6 +2,28 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../../prisma/prisma.service';
 import { isGroupWideUser } from '../../../utils/group-access.util';
 
+function tzOffsetMs(timeZone: string, date: Date): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = dtf.formatToParts(date);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
+  const asUTC = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+  return asUTC - date.getTime();
+}
+
+function zonedDateTime(timeZone: string, y: number, m: number, d: number, h: number, min: number, s = 0): Date {
+  const guess = new Date(Date.UTC(y, m, d, h, min, s));
+  return new Date(guess.getTime() - tzOffsetMs(timeZone, guess));
+}
+
 @Injectable()
 export class ShiftsService {
   constructor(private prisma: PrismaService) {}
@@ -76,10 +98,17 @@ export class ShiftsService {
     const existing = await this.prisma.shiftAssignment.findFirst({
       where: { shiftId, employeeId, effectiveFrom: effectiveDate },
     });
-    if (existing) return existing;
-    return this.prisma.shiftAssignment.create({
-      data: { shiftId, employeeId, effectiveFrom: effectiveDate },
-    });
+    let result = existing;
+    if (!existing) {
+      result = await this.prisma.shiftAssignment.create({
+        data: { shiftId, employeeId, effectiveFrom: effectiveDate },
+      });
+    }
+
+    // Automatically sync and recalculate attendance for this date if checkIn already exists
+    await this.syncAttendanceForDate(employee.id, employee.companyId, effectiveDate);
+
+    return result;
   }
 
   async listAssignments(companyId: string, userId?: string) {
@@ -142,9 +171,109 @@ export class ShiftsService {
         id,
         employee: groupWide ? { isSystem: false } : { companyId },
       },
+      include: { employee: true },
     });
     if (!assignment) throw new NotFoundException('Shift assignment not found');
-    return this.prisma.shiftAssignment.delete({ where: { id } });
+    const employeeId = assignment.employeeId;
+    const empCompanyId = assignment.employee?.companyId || companyId;
+    const effectiveDate = assignment.effectiveFrom;
+
+    const res = await this.prisma.shiftAssignment.delete({ where: { id } });
+    await this.syncAttendanceForDate(employeeId, empCompanyId, effectiveDate);
+    return res;
+  }
+
+  /**
+   * Recalculates and updates attendance log for an employee on a target date
+   * when shift assignment changes.
+   */
+  async syncAttendanceForDate(employeeId: string, companyId: string, targetDate: Date) {
+    try {
+      const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+      const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+      const log = await this.prisma.attendanceLog.findFirst({
+        where: { employeeId, date: { gte: startOfDay, lt: endOfDay } },
+      });
+      if (!log || !log.checkIn) return;
+
+      const assignment = await this.prisma.shiftAssignment.findFirst({
+        where: {
+          employeeId,
+          effectiveFrom: { lte: startOfDay },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gte: startOfDay } }],
+        },
+        include: { shift: { include: { shiftType: true } } },
+        orderBy: { effectiveFrom: 'desc' },
+      });
+
+      const shift = assignment?.shift;
+      if (!shift) return;
+
+      const [company, policies] = await Promise.all([
+        this.prisma.company.findUnique({ where: { id: companyId }, select: { timezone: true } }),
+        this.prisma.attendancePolicy.findMany({ where: { companyId } }),
+      ]);
+      const tz = company?.timezone || 'UTC';
+      const policyMap = new Map(policies.map((p) => [p.key, p.value]));
+
+      const dtf = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hourCycle: 'h23',
+      });
+      const parts = dtf.formatToParts(log.checkIn);
+      const getVal = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
+      const wall = { y: getVal('year'), m: getVal('month') - 1, d: getVal('day') };
+
+      const [sh, sm] = (shift.startTime || '09:00').split(':').map(Number);
+      const [eh, em] = (shift.endTime || '18:00').split(':').map(Number);
+
+      const shiftStart = zonedDateTime(tz, wall.y, wall.m, wall.d, sh || 9, sm || 0);
+      const shiftEnd = zonedDateTime(tz, wall.y, wall.m, wall.d, eh || 18, em || 0);
+
+      const graceMins = shift.shiftType?.graceMinutes ?? Number(policyMap.get('custom.gracePeriodMins') ?? 10);
+      const requiredMinutes = Math.round((shiftEnd.getTime() - shiftStart.getTime()) / 60000);
+
+      const punchTime = log.checkIn.getTime();
+      const lateAfter = shiftStart.getTime() + graceMins * 60000;
+
+      let status = log.status;
+      let lateMinutes = 0;
+      let lateStatus = 'on_time';
+
+      if (punchTime > lateAfter) {
+        status = 'late';
+        lateStatus = 'late';
+        lateMinutes = Math.max(0, Math.round((punchTime - lateAfter) / 60000));
+      } else {
+        lateStatus = 'on_time';
+        lateMinutes = 0;
+        if (status === 'late') {
+          status = 'present';
+        }
+      }
+
+      await this.prisma.attendanceLog.update({
+        where: { id: log.id },
+        data: {
+          shiftId: shift.id,
+          shiftStart: shift.startTime,
+          shiftEnd: shift.endTime,
+          requiredMinutes,
+          lateMinutes,
+          lateStatus,
+          status,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to sync attendance for shift update:', err);
+    }
   }
 
   async requestChange(
