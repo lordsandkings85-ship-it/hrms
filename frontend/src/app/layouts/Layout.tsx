@@ -41,6 +41,7 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
     group: 'Navigation',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/notifications', label: 'Notifications', icon: Bell },
       {
         to: '/employees',
         label: 'Employees',
@@ -338,6 +339,7 @@ const EMPLOYEE_NAV_GROUPS: { group: string; items: NavItem[] }[] = [
     group: 'Employee Portal',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/notifications', label: 'Notifications', icon: Bell },
       {
         to: '/employees/me',
         label: 'Personal Detail',
@@ -448,6 +450,7 @@ const HR_NAV_GROUPS: { group: string; items: NavItem[] }[] = [
     group: 'HR Management',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/notifications', label: 'Notifications', icon: Bell },
       {
         to: '/approvals',
         label: 'Approvals',
@@ -659,12 +662,14 @@ function NavItemRow({
   location,
   isOpen,
   onToggle,
+  badge,
 }: {
   item: NavItem;
   collapsed: boolean;
   location: any;
   isOpen: boolean;
   onToggle: () => void;
+  badge?: number;
 }) {
   const [openSubItem, setOpenSubItem] = useState<string | null>(() => {
     if (!item.children) return null;
@@ -763,13 +768,27 @@ function NavItemRow({
             )}
             
             <Icon size={17} strokeWidth={active ? 2.3 : 1.8} className={`flex-shrink-0 ${active ? 'text-indigo-400' : 'text-slate-400 group-hover:text-slate-200'}`} />
-            {!collapsed && <span className="tracking-tight font-medium">{item.label}</span>}
-            {collapsed && (
-              <span
-                className="sidebar-tooltip absolute left-full ml-2 px-2.5 py-1.5 text-xs font-medium rounded-md pointer-events-none whitespace-nowrap z-50 shadow-lg opacity-0 group-hover:opacity-100 bg-slate-900 text-white border border-slate-700"
-              >
-                {item.label}
+            {!collapsed && (
+              <span className="flex-1 flex items-center justify-between min-w-0">
+                <span className="tracking-tight font-medium truncate">{item.label}</span>
+                {badge != null && badge > 0 && (
+                  <span className="ml-auto min-w-4 h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center shrink-0 bg-red-500 text-white shadow-xs">
+                    {badge > 99 ? '99+' : badge}
+                  </span>
+                )}
               </span>
+            )}
+            {collapsed && (
+              <>
+                {badge != null && badge > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-slate-900" />
+                )}
+                <span
+                  className="sidebar-tooltip absolute left-full ml-2 px-2.5 py-1.5 text-xs font-medium rounded-md pointer-events-none whitespace-nowrap z-50 shadow-lg opacity-0 group-hover:opacity-100 bg-slate-900 text-white border border-slate-700"
+                >
+                  {item.label}{badge != null && badge > 0 ? ` (${badge})` : ''}
+                </span>
+              </>
             )}
           </>
         );
@@ -804,13 +823,13 @@ export default function Layout() {
     staleTime: 30_000,
   });
 
-  const { data: unreadData } = useQuery<{ count: number }>({
+  const { data: unreadData } = useQuery<{ count: number } | number>({
     queryKey: unreadCountKey,
     queryFn: () => notificationApi.getUnreadCount(),
     enabled: !!userId,
     refetchInterval: 30_000,
   });
-  const unreadCount = unreadData?.count ?? 0;
+  const unreadCount = typeof unreadData === 'number' ? unreadData : (unreadData?.count ?? 0);
 
   const invalidateNotificationQueries = () => {
     queryClient.invalidateQueries({ queryKey: ['notifications', 'mine', userId] });
@@ -837,6 +856,7 @@ export default function Layout() {
     if (notif.referenceType === 'LEAVE_REQUEST') navigate('/leave');
     else if (notif.referenceType === 'REGULARIZATION_REQUEST' || notif.type === 'REGULARIZATION') navigate('/attendance/regularization');
     else if (notif.referenceType === 'PERMISSION_REQUEST' || notif.type === 'PERMISSION') navigate('/attendance/permission-approval');
+    else if (notif.referenceType === 'ANNOUNCEMENT' || notif.type === 'ANNOUNCEMENT') navigate('/announcements');
     else if (notif.id.startsWith('jobs-info')) navigate('/recruitment');
     else if (notif.type === 'LEAVE') navigate('/leave');
     else navigate('/dashboard');
@@ -1051,6 +1071,7 @@ export default function Layout() {
                       location={location}
                       isOpen={openTopItem === item.label}
                       onToggle={() => setOpenTopItem(prev => prev === item.label ? null : item.label)}
+                      badge={item.to === '/notifications' ? unreadCount : undefined}
                     />
                   ))}
                 </div>

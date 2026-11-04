@@ -1,7 +1,7 @@
 import { useAuthStore } from '../../../store/useAuthStore';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { payrollApi, payrollApiExt, attendanceApiExt, leaveApi, dashboardApi, dashboardSummaryKey, attendanceApi, announcementsApi } from '../../../api/client';
+import { payrollApi, payrollApiExt, attendanceApiExt, leaveApi, dashboardApi, dashboardSummaryKey, attendanceApi, announcementsApi, notificationApi } from '../../../api/client';
 import { Fingerprint, Calendar, Download, Eye, Shield, ArrowRight, TrendingUp, Megaphone, Bell, Clock, User, Banknote, CalendarDays, Receipt, Headphones, Target, ChevronRight, UserMinus, AlertTriangle, CalendarOff } from 'lucide-react';
 import { Spinner } from '../../../components/ui/Spinner';
 import { RingChart } from '../../../components/ui/RingChart';
@@ -99,6 +99,14 @@ export default function EmployeeDashboard() {
       queryKey: ['announcements'],
       queryFn: () => announcementsApi.list(),
    });
+
+   const { data: unreadData } = useQuery<{ count: number } | number>({
+      queryKey: ['notifications', 'unread-count', user?.id],
+      queryFn: () => notificationApi.getUnreadCount(),
+      enabled: !!user?.id,
+      refetchInterval: 30_000,
+   });
+   const unreadCount = typeof unreadData === 'number' ? unreadData : (unreadData?.count ?? 0);
 
    const checkInMutation = useMutation({
       mutationFn: () => attendanceApi.checkIn({ employeeId: emp!.id, method: 'WEB' }),
@@ -224,11 +232,22 @@ export default function EmployeeDashboard() {
                   </div>
                )}
                <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                      <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink drop-shadow-sm">
                         Welcome, {emp.firstName}!
                      </h1>
                      <StatusBadge status={emp.status} />
+                     {unreadCount > 0 && (
+                        <Link
+                           to="/notifications"
+                           className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold hover:scale-105 transition-all shadow-xs"
+                           style={{ background: 'var(--danger-bg, #fef2f2)', color: 'var(--danger, #ef4444)', border: '1px solid var(--danger-border, #fecaca)' }}
+                        >
+                           <Bell size={13} className="animate-bounce" />
+                           <span>{unreadCount} unopened notification{unreadCount > 1 ? 's' : ''}</span>
+                           <ChevronRight size={13} />
+                        </Link>
+                     )}
                   </div>
                   <p className="text-sm mt-1 font-medium text-muted">
                      {emp.employeeCode} · {emp.workingDaysPerWeek ?? 5} days/week · <LiveClock />

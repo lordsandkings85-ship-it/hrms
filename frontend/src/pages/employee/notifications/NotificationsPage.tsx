@@ -45,7 +45,14 @@ export default function NotificationsPage() {
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Notifications</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Notifications</h1>
+            {notifications.filter((n) => !n.isRead).length > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: 'var(--danger-bg, #fef2f2)', color: 'var(--danger, #ef4444)', border: '1px solid var(--danger-border, #fecaca)' }}>
+                {notifications.filter((n) => !n.isRead).length} unopened
+              </span>
+            )}
+          </div>
           <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
             Your personalized notifications — scoped to your role and audience.
           </p>

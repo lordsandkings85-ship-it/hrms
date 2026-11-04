@@ -21,8 +21,9 @@ export class NotificationsController {
   }
 
   @Get('unread-count')
-  getUnreadCount(@CurrentUser() user: AuthUser) {
-    return this.notifications.getUnreadCount({ ...user, isSuperAdmin: (user as any).isSuperAdmin });
+  async getUnreadCount(@CurrentUser() user: AuthUser) {
+    const count = await this.notifications.getUnreadCount({ ...user, isSuperAdmin: (user as any).isSuperAdmin });
+    return { count };
   }
 
   @Post(':id/read')
