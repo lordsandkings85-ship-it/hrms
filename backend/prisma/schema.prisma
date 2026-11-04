@@ -11,7 +11,7 @@ model Announcement {
   id        String   @id @default(uuid())
   companyId String
   title     String
-  body      String
+  body      String   @db.Text
   category  String   @default("Company")
   author    String   @default("HR Team")
   isPinned  Boolean  @default(false)

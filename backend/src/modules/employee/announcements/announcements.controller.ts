@@ -12,7 +12,7 @@ export class AnnouncementsController {
 
   @Get()
   list(@CurrentUser() user: AuthUser) {
-    return this.service.list(user.companyId);
+    return this.service.list(user.companyId, user.userId);
   }
 
   @UseGuards(PermissionsGuard)
@@ -22,7 +22,7 @@ export class AnnouncementsController {
     @CurrentUser() user: AuthUser,
     @Body() body: { title: string; body: string; category?: string; author?: string; isPinned?: boolean },
   ) {
-    return this.service.create(user.companyId, { ...body, author: body.author || user.email || 'HR Team' });
+    return this.service.create(user.companyId, { ...body, author: body.author || user.email || 'HR Team' }, user.userId);
   }
 
   @UseGuards(PermissionsGuard)
@@ -33,13 +33,13 @@ export class AnnouncementsController {
     @Param('id') id: string,
     @Body() body: { title?: string; body?: string; category?: string; isPinned?: boolean; isActive?: boolean },
   ) {
-    return this.service.update(id, user.companyId, body);
+    return this.service.update(id, user.companyId, body, user.userId);
   }
 
   @UseGuards(PermissionsGuard)
   @Permissions({ module: 'announcements', action: 'delete' })
   @Delete(':id')
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.service.remove(id, user.companyId);
+    return this.service.remove(id, user.companyId, user.userId);
   }
 }
