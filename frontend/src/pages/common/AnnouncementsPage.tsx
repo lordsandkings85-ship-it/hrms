@@ -9,7 +9,8 @@ export default function AnnouncementsWrapper() {
     !!user?.isSuperAdmin ||
     !!user?.role?.isSystem ||
     roleName.includes('hr') ||
-    roleName.includes('admin');
+    roleName.includes('admin') ||
+    roleName.includes('human resource');
 
   return isAdmin ? <AnnouncementsPage /> : <MyAnnouncementsPage />;
 }

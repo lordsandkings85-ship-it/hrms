@@ -6,6 +6,7 @@ import { PageHeader } from '../../../components/ui/PageHeader';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { fmtDate } from '../../../utils/formatDate';
+import MyAnnouncementsPage from './MyAnnouncementsPage';
 
 const CATEGORIES = ['Company', 'Events', 'Policy', 'Performance', 'IT', 'Recognition'];
 
@@ -13,6 +14,19 @@ export default function AnnouncementsPage() {
   const { success: toastSuccess, error: toastError } = useToast();
   const user = useAuthStore((s: any) => s.user);
   const queryClient = useQueryClient();
+
+  const roleName = user?.role?.name?.toLowerCase() || '';
+  const isAdmin =
+    !!user?.isSuperAdmin ||
+    !!user?.role?.isSystem ||
+    roleName.includes('hr') ||
+    roleName.includes('admin') ||
+    roleName.includes('human resource');
+
+  // Defense-in-depth: If a non-admin/non-HR user lands here directly, render the employee reader view
+  if (!isAdmin) {
+    return <MyAnnouncementsPage />;
+  }
 
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');

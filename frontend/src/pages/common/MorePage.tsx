@@ -3,10 +3,11 @@ import {
   Laptop, FolderKanban, Plane, GraduationCap, Megaphone, UserMinus, CreditCard, Plug,
   Users, Headphones, FileText, Briefcase, TrendingUp, LayoutGrid, ArrowUpRight,
 } from 'lucide-react';
+import { useAuthStore } from '../../store/useAuthStore';
 
-type MoreLink = { to: string; label: string; icon: React.ElementType; desc: string };
+type MoreLink = { to: string; label: string; icon: React.ElementType; desc: string; adminOnly?: boolean };
 
-const LINKS: { group: string; items: MoreLink[] }[] = [
+const LINKS: { group: string; adminOnly?: boolean; items: MoreLink[] }[] = [
   {
     group: 'Admin & Setup',
     items: [
@@ -16,8 +17,8 @@ const LINKS: { group: string; items: MoreLink[] }[] = [
       { to: '/training', label: 'Training & Courses', icon: GraduationCap, desc: 'Browse learning and development programs' },
       { to: '/announcements', label: 'Announcements', icon: Megaphone, desc: 'Company-wide news and updates' },
       { to: '/exit', label: 'Exit Management', icon: UserMinus, desc: 'Resignation, clearance and exit interviews' },
-      { to: '/billing', label: 'Billing & Plan', icon: CreditCard, desc: 'Manage subscription and plan usage' },
-      { to: '/integrations', label: 'Integrations', icon: Plug, desc: 'Connect external services' },
+      { to: '/billing', label: 'Billing & Plan', icon: CreditCard, desc: 'Manage subscription and plan usage', adminOnly: true },
+      { to: '/integrations', label: 'Integrations', icon: Plug, desc: 'Connect external services', adminOnly: true },
     ],
   },
   {
@@ -35,6 +36,20 @@ const LINKS: { group: string; items: MoreLink[] }[] = [
 ];
 
 export default function MorePage() {
+  const user = useAuthStore((s: any) => s.user);
+  const roleName = user?.role?.name?.toLowerCase() || '';
+  const isAdmin =
+    !!user?.isSuperAdmin ||
+    !!user?.role?.isSystem ||
+    roleName.includes('hr') ||
+    roleName.includes('admin') ||
+    roleName.includes('human resource');
+
+  const visibleGroups = LINKS.map(g => ({
+    ...g,
+    group: !isAdmin && g.group === 'Admin & Setup' ? 'Company & Workspace' : g.group,
+    items: g.items.filter(item => !item.adminOnly || isAdmin),
+  })).filter(g => g.items.length > 0);
   return (
     <div className="p-6 space-y-8 max-w-[1400px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
@@ -50,7 +65,7 @@ export default function MorePage() {
         </div>
       </div>
 
-      {LINKS.map(group => (
+      {visibleGroups.map(group => (
         <div key={group.group} className="space-y-4">
           <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">{group.group}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
