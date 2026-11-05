@@ -39,7 +39,14 @@ export default function MyAnnouncementsPage() {
     queryKey: ['announcements'],
     queryFn: () => announcementsApi.list(),
   });
-  const announcements: Announcement[] = raw.map((a: any) => ({
+  const uniqueRaw = (raw || []).filter((ann: any, index: number, self: any[]) =>
+    index === self.findIndex((a: any) =>
+      a.id === ann.id ||
+      (a.title?.trim().toLowerCase() === ann.title?.trim().toLowerCase() &&
+       a.body?.trim() === ann.body?.trim())
+    )
+  );
+  const announcements: Announcement[] = uniqueRaw.map((a: any) => ({
     id: a.id,
     title: a.title,
     content: a.body,

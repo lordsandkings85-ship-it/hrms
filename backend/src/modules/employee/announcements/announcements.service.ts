@@ -7,26 +7,32 @@ export class AnnouncementsService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Tenant boundary for reads: normal users only see their own company's
-   * announcements. Group-wide administrators still see the whole group.
+   * Deduplicates a list of announcements by title and trimmed body
+   * to guarantee that duplicate copies never reach the client.
    */
-  private async companyFilter(companyId: string, userId?: string): Promise<{ companyId?: string }> {
-    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
-    return groupWide ? {} : { companyId };
+  private deduplicate(list: any[]): any[] {
+    const seen = new Set<string>();
+    return list.filter((item) => {
+      const key = `${item.title?.trim().toLowerCase()}:::${item.body?.trim().slice(0, 100).toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   async list(companyId: string, userId?: string) {
-    return this.prisma.announcement.findMany({
-      where: { ...(await this.companyFilter(companyId, userId)), isActive: true },
+    const raw = await this.prisma.announcement.findMany({
+      where: { isActive: true },
       orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
     });
+    return this.deduplicate(raw);
   }
 
   async listAll(companyId: string, userId?: string) {
-    return this.prisma.announcement.findMany({
-      where: await this.companyFilter(companyId, userId),
+    const raw = await this.prisma.announcement.findMany({
       orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
     });
+    return this.deduplicate(raw);
   }
 
   async create(
@@ -34,50 +40,51 @@ export class AnnouncementsService {
     data: { title: string; body: string; category?: string; author?: string; isPinned?: boolean },
     userId?: string,
   ) {
-    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
-    const companies = await this.prisma.company.findMany({ select: { id: true } });
+    const title = data.title?.trim();
+    const body = data.body?.trim();
+    const category = data.category || 'Company';
+    const author = data.author || 'HR Team';
+    const isPinned = data.isPinned || false;
 
-    // Primary announcement for the active company
+    // 1. Idempotency / duplicate suppression:
+    // If an announcement with identical title and body was created in the last 60 seconds, return it
+    const recentDuplicate = await this.prisma.announcement.findFirst({
+      where: {
+        title,
+        body,
+        createdAt: { gte: new Date(Date.now() - 60_000) },
+      },
+    });
+    if (recentDuplicate) {
+      return recentDuplicate;
+    }
+
+    // 2. Create the announcement exactly ONCE (no cloning across companies)
     const primary = await this.prisma.announcement.create({
       data: {
         companyId,
-        title: data.title,
-        body: data.body,
-        category: data.category || 'Company',
-        author: data.author || 'HR Team',
-        isPinned: data.isPinned || false,
+        title,
+        body,
+        category,
+        author,
+        isPinned,
       },
     });
 
-    // If group-wide / multi-company, clone announcement to other entities in the group so all company scopes have it
-    if (groupWide && companies.length > 1) {
-      for (const comp of companies) {
-        if (comp.id === companyId) continue;
-        await this.prisma.announcement.create({
-          data: {
-            companyId: comp.id,
-            title: data.title,
-            body: data.body,
-            category: data.category || 'Company',
-            author: data.author || 'HR Team',
-            isPinned: data.isPinned || false,
-          },
-        }).catch(() => {});
-      }
-    }
-
-    // Broadcast in-app notification to all companies so employees receive a bell alert
+    // 3. Broadcast in-app notification to all companies so employees receive a bell alert
     try {
-      const summaryMsg = data.body?.length > 150 ? data.body.slice(0, 150) + '...' : data.body;
+      const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+      const companies = await this.prisma.company.findMany({ select: { id: true } });
+      const summaryMsg = body.length > 150 ? body.slice(0, 150) + '...' : body;
       const targetCompanies = groupWide ? companies : [{ id: companyId }];
 
       await this.prisma.notification.createMany({
         data: targetCompanies.map((c) => ({
           companyId: c.id,
           type: 'ANNOUNCEMENT',
-          title: data.title,
+          title,
           message: summaryMsg,
-          priority: data.isPinned ? 'high' : 'normal',
+          priority: isPinned ? 'high' : 'normal',
           audience: 'COMPANY',
           referenceType: 'ANNOUNCEMENT',
           referenceId: primary.id,
@@ -101,7 +108,24 @@ export class AnnouncementsService {
       where: groupWide ? { id } : { id, companyId },
     });
     if (!existing) throw new NotFoundException('Announcement not found');
-    return this.prisma.announcement.update({ where: { id }, data });
+
+    // Also update any historical duplicate sibling rows with identical title/body
+    const duplicates = await this.prisma.announcement.findMany({
+      where: {
+        title: existing.title,
+        body: existing.body,
+      },
+      select: { id: true },
+    });
+    const ids = duplicates.map((d) => d.id);
+    if (!ids.includes(id)) ids.push(id);
+
+    await this.prisma.announcement.updateMany({
+      where: { id: { in: ids } },
+      data,
+    });
+
+    return this.prisma.announcement.findUnique({ where: { id } });
   }
 
   async remove(id: string, companyId: string, userId?: string) {
@@ -111,11 +135,23 @@ export class AnnouncementsService {
     });
     if (!existing) throw new NotFoundException('Announcement not found');
 
-    // Also remove matching notifications
+    // Also remove any historical duplicate sibling rows
+    const duplicates = await this.prisma.announcement.findMany({
+      where: {
+        title: existing.title,
+        body: existing.body,
+      },
+      select: { id: true },
+    });
+    const ids = duplicates.map((d) => d.id);
+    if (!ids.includes(id)) ids.push(id);
+
+    // Remove matching notifications
     await this.prisma.notification.deleteMany({
-      where: { referenceType: 'ANNOUNCEMENT', referenceId: id },
+      where: { referenceType: 'ANNOUNCEMENT', referenceId: { in: ids } },
     }).catch(() => {});
 
-    return this.prisma.announcement.delete({ where: { id } });
+    await this.prisma.announcement.deleteMany({ where: { id: { in: ids } } });
+    return existing;
   }
 }

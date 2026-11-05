@@ -523,40 +523,53 @@ export default function EmployeeDashboard() {
 
             {/* Company Announcements Board */}
             <div className="section-card p-5 md:col-span-1 xl:col-span-2 animate-slideUp hover:shadow-xl transition-shadow duration-300" style={{ animationDelay: '0.4s', animationFillMode: 'both' }}>
-               <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xs font-bold uppercase tracking-wider flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
-                     <Megaphone size={16} /> Company Announcements
-                  </h2>
-                  <span className="text-[10px] bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400 px-2 py-0.5 rounded-full font-bold">
-                     {announcements.length} New
-                  </span>
-               </div>
-               <div className="space-y-3">
-                  {announcements.length > 0 ? (
-                     announcements.slice(0, 3).map((ann: any) => (
-                        <div key={ann.id} className="flex gap-3 p-3 rounded-lg border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                           <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-500 shrink-0">
-                              <Megaphone size={14} />
-                           </div>
-                           <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                 <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{ann.title}</p>
-                                 {ann.isPinned && (
-                                    <span className="text-[9px] bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded-full font-bold shrink-0">Pinned</span>
-                                 )}
-                                 {ann.category && (
-                                    <span className="text-[9px] bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400 px-1.5 py-0.5 rounded-full font-bold shrink-0">{ann.category}</span>
-                                 )}
-                              </div>
-                              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{ann.body?.length > 100 ? ann.body.slice(0, 100) + '…' : ann.body}</p>
-                              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">{fmtDate(ann.createdAt)}</p>
-                           </div>
+               {(() => {
+                  const uniqueAnnouncements = (announcements || []).filter((ann: any, index: number, self: any[]) =>
+                     index === self.findIndex((a: any) =>
+                        a.id === ann.id ||
+                        (a.title?.trim().toLowerCase() === ann.title?.trim().toLowerCase() &&
+                         a.body?.trim() === ann.body?.trim())
+                     )
+                  );
+                  return (
+                     <>
+                        <div className="flex items-center justify-between mb-4">
+                           <h2 className="text-xs font-bold uppercase tracking-wider flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
+                              <Megaphone size={16} /> Company Announcements
+                           </h2>
+                           <span className="text-[10px] bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400 px-2 py-0.5 rounded-full font-bold">
+                              {uniqueAnnouncements.length} New
+                           </span>
                         </div>
-                     ))
-                  ) : (
-                     <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>No announcements yet.</p>
-                  )}
-               </div>
+                        <div className="space-y-3">
+                           {uniqueAnnouncements.length > 0 ? (
+                              uniqueAnnouncements.slice(0, 3).map((ann: any) => (
+                                 <div key={ann.id} className="flex gap-3 p-3 rounded-lg border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                    <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-500 shrink-0">
+                                       <Megaphone size={14} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                       <div className="flex items-center gap-2">
+                                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{ann.title}</p>
+                                          {ann.isPinned && (
+                                             <span className="text-[9px] bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded-full font-bold shrink-0">Pinned</span>
+                                          )}
+                                          {ann.category && (
+                                             <span className="text-[9px] bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400 px-1.5 py-0.5 rounded-full font-bold shrink-0">{ann.category}</span>
+                                          )}
+                                       </div>
+                                       <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{ann.body?.length > 100 ? ann.body.slice(0, 100) + '…' : ann.body}</p>
+                                       <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">{fmtDate(ann.createdAt)}</p>
+                                    </div>
+                                 </div>
+                              ))
+                           ) : (
+                              <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>No announcements yet.</p>
+                           )}
+                        </div>
+                     </>
+                  );
+               })()}
             </div>
 
             {/* Compliance Card */}

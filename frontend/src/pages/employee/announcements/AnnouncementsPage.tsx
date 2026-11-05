@@ -61,17 +61,28 @@ export default function AnnouncementsPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (createMutation.isPending) return;
     if (!title.trim() || !body.trim()) return toastError('Please enter required parameters');
     const authorName = user?.employee?.firstName
       ? `${user.employee.firstName} ${user.employee.lastName || ''}`
       : 'HR Team';
-    createMutation.mutate({ title, body, category, author: authorName, isPinned });
+    createMutation.mutate({ title: title.trim(), body: body.trim(), category, author: authorName, isPinned });
   };
 
   const handleDelete = (id: string) => {
     if (!confirm('Are you sure you want to delete this announcement?')) return;
     deleteMutation.mutate(id);
   };
+
+  const uniqueList = list
+    ? list.filter((ann: any, index: number, self: any[]) =>
+        index === self.findIndex((a: any) =>
+          a.id === ann.id ||
+          (a.title?.trim().toLowerCase() === ann.title?.trim().toLowerCase() &&
+           a.body?.trim() === ann.body?.trim())
+        )
+      )
+    : [];
 
   return (
     <div className="page-container max-w-7xl space-y-6">
@@ -140,9 +151,9 @@ export default function AnnouncementsPage() {
             <button
               type="submit"
               disabled={createMutation.isPending}
-              className="w-full flex items-center justify-center gap-2 bg-ledger text-paper rounded-md py-2.5 text-sm font-medium hover:bg-ledgerDark"
+              className="w-full flex items-center justify-center gap-2 bg-ledger text-paper rounded-md py-2.5 text-sm font-medium hover:bg-ledgerDark disabled:opacity-50"
             >
-              <Send size={14} /> Send Announcement
+              <Send size={14} /> {createMutation.isPending ? 'Sending...' : 'Send Announcement'}
             </button>
           </form>
         </div>
@@ -153,11 +164,11 @@ export default function AnnouncementsPage() {
             <Bell size={16} /> Company Bulletin Board
           </div>
           {isLoading && <div className="p-6 text-sm text-muted">Loading bulletin board...</div>}
-          {!isLoading && (!list || list.length === 0) && (
+          {!isLoading && (!uniqueList || uniqueList.length === 0) && (
             <div className="p-6 text-sm text-muted text-center">No announcements published yet.</div>
           )}
           <div className="divide-y divide-line">
-            {list?.map((ann: any) => (
+            {uniqueList.map((ann: any) => (
               <div key={ann.id} className="p-6 hover:bg-paper/40">
                 <div className="flex justify-between items-start gap-4 mb-2">
                   <div className="flex items-center gap-2 flex-wrap">
