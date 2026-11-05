@@ -395,7 +395,15 @@ export class AuthService {
       );
     }
 
-    const context = opts.device ?? {};
+    const rawMac = opts.req?.headers?.['x-device-mac'];
+    const headerMac = typeof rawMac === 'string' && rawMac.trim() ? rawMac.trim() : undefined;
+    const rawClientType = opts.req?.headers?.['x-client-type'];
+    const headerClientType = typeof rawClientType === 'string' && rawClientType.trim() ? rawClientType.trim() : undefined;
+    const context = {
+      ...opts.device,
+      macAddress: opts.device?.macAddress || headerMac,
+      clientType: opts.device?.clientType || headerClientType,
+    };
     const userAgent = opts.req?.headers?.['user-agent'];
     let sessionId = opts.sessionId;
     if (sessionId) {

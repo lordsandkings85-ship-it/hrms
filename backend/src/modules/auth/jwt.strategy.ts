@@ -21,6 +21,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: process.env.JWT_ACCESS_SECRET,
+      passReqToCallback: true,
     });
   }
 
@@ -29,7 +30,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * blocking an account (or revoking a session) takes effect immediately,
    * instead of waiting for the access token to expire.
    */
-  async validate(payload: AccessTokenPayload) {
+  async validate(req: any, payload: AccessTokenPayload) {
+    const rawMac = req?.headers?.['x-device-mac'];
+    if (typeof rawMac === 'string' && rawMac.trim() && payload.jti) {
+      const cleanMac = rawMac.trim().slice(0, 64);
+      this.prisma.userSession.updateMany({
+        where: { id: payload.jti, macAddress: null },
+        data: { macAddress: cleanMac },
+      }).catch(() => {});
+    }
     // Tokens minted before the session registry existed cannot be revoked;
     // force a fresh login rather than honouring them.
     if (!payload.jti) {

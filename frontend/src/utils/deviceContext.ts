@@ -103,9 +103,14 @@ let cached: DeviceContext | null = null;
  * relies on user-agent + WebGL + touch heuristics.
  */
 export function getDeviceContext(): DeviceContext {
-  if (cached) return cached;
-
   const desktop = typeof window !== 'undefined' ? window.electronAPI?.deviceContext : undefined;
+
+  if (cached) {
+    if (!cached.macAddress && desktop?.macAddress) {
+      cached.macAddress = desktop.macAddress;
+    }
+    return cached;
+  }
 
   if (desktop) {
     cached = {

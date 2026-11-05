@@ -33,6 +33,7 @@ export interface DesktopDeviceContext {
 interface DeviceStore {
   deviceId: string;
   lastEmail?: string;
+  lastMac?: string;
 }
 
 const store = new ElectronStore<DeviceStore>({
@@ -40,19 +41,89 @@ const store = new ElectronStore<DeviceStore>({
   defaults: { deviceId: '' },
 });
 
+function normalizeMac(mac: string | undefined | null): string | undefined {
+  if (!mac || typeof mac !== 'string') return undefined;
+  const clean = mac.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
+  if (clean.length !== 12) return undefined;
+  if (/^0+$/.test(clean) || /^F+$/i.test(clean)) return undefined;
+  return clean.match(/.{1,2}/g)?.join(':');
+}
+
 function getPrimaryMacAddress(): string | undefined {
+  // 1. Scan network interfaces (prioritizing active IPv4 non-internal interfaces)
   try {
     const interfaces = os.networkInterfaces();
+    // Pass 1: active non-internal IPv4 (Wi-Fi, Ethernet with real addresses)
     for (const name of Object.keys(interfaces)) {
       for (const net of interfaces[name] || []) {
-        if (!net.internal && net.mac && net.mac !== '00:00:00:00:00:00') {
-          return net.mac.toUpperCase();
+        if (
+          !net.internal &&
+          net.family === 'IPv4' &&
+          !net.address.startsWith('127.') &&
+          !net.address.startsWith('169.254.')
+        ) {
+          const norm = normalizeMac(net.mac);
+          if (norm) {
+            store.set('lastMac', norm);
+            return norm;
+          }
+        }
+      }
+    }
+    // Pass 2: any non-internal adapter with a valid MAC
+    for (const name of Object.keys(interfaces)) {
+      for (const net of interfaces[name] || []) {
+        if (!net.internal) {
+          const norm = normalizeMac(net.mac);
+          if (norm) {
+            store.set('lastMac', norm);
+            return norm;
+          }
         }
       }
     }
   } catch {
     // Ignore errors reading network interfaces
   }
+
+  // 2. Windows fallback: ipconfig /all
+  if (process.platform === 'win32') {
+    try {
+      const out = run('ipconfig', ['/all'], 4000);
+      const matches = out.matchAll(/Physical Address[.\s]+:\s*([0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2})/g);
+      for (const m of matches) {
+        const norm = normalizeMac(m[1]);
+        if (norm) {
+          store.set('lastMac', norm);
+          return norm;
+        }
+      }
+    } catch {
+      // Ignore ipconfig failure
+    }
+  }
+
+  // 3. macOS fallback: networksetup
+  if (process.platform === 'darwin') {
+    try {
+      const out = run('networksetup', ['-listallhardwareports'], 4000);
+      const matches = out.matchAll(/Ethernet Address:\s*([0-9A-Fa-f:]{17})/g);
+      for (const m of matches) {
+        const norm = normalizeMac(m[1]);
+        if (norm) {
+          store.set('lastMac', norm);
+          return norm;
+        }
+      }
+    } catch {
+      // Ignore networksetup failure
+    }
+  }
+
+  // 4. Cached MAC from previous successful run
+  const saved = store.get('lastMac');
+  if (saved) return saved;
+
   return undefined;
 }
 
@@ -73,7 +144,13 @@ export function setActiveDeviceContext(context: DesktopDeviceContext): void {
 }
 
 export function getActiveDeviceContext(): DesktopDeviceContext | null {
-  return activeContext;
+  if (activeContext) {
+    if (!activeContext.macAddress) {
+      activeContext.macAddress = getPrimaryMacAddress();
+    }
+    return activeContext;
+  }
+  return null;
 }
 
 /** Remembered so a startup block can still be tied to the employee/company. */
