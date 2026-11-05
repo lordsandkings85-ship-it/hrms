@@ -17,6 +17,7 @@ declare global {
         osName?: string;
         osVersion?: string;
         arch?: string;
+        macAddress?: string;
         signals: string[];
         isVirtualMachine?: boolean;
         vmHost?: string;

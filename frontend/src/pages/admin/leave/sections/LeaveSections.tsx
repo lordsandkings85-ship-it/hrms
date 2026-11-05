@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CalendarCheck2, Scale, CalendarClock, FileStack, CalendarPlus, CalendarHeart, CalendarOff, Sparkles, Check, X, Plus, Trash2, Loader2, Save, Tag, Pencil, CalendarDays } from 'lucide-react';
-import { leaveApi, employeeServicesApi } from '../../../../api/client';
+import { leaveApi, employeeServicesApi, employeesApi } from '../../../../api/client';
 import { DataTable, Column } from '../../../../components/ui/DataTable';
 import { AdminSection, StatusBadge } from '../../../../components/ui/AdminSection';
 import { useToast } from '../../../../components/ui/ToastProvider';
@@ -113,9 +113,8 @@ export function LeaveBalancesSection() {
   const { data, isLoading } = useData('leave-balances', () => leaveApi.balancesOverview({ year }));
   const { data: types } = useData('leave-types', () => leaveApi.listTypes());
   const { data: employees } = useData('employees-list', async () => {
-    const res = await fetch('/api/v1/employees?page=1&pageSize=200', { headers: { Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` } });
-    const json = await res.json();
-    return json.data || [];
+    const res = await employeesApi.list({ page: 1, pageSize: 200 });
+    return res.items;
   });
   const allocMutation = useMutation({
     mutationFn: (d: typeof allocForm) => leaveApi.adjustBalance({ ...d, year, amount: Number(d.amount) }),
@@ -695,9 +694,8 @@ export function LeaveTransactionsSection() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const { data: employees } = useData('employees-list', async () => {
-    const res = await fetch('/api/v1/employees?page=1&pageSize=200', { headers: { Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` } });
-    const json = await res.json();
-    return json.data || [];
+    const res = await employeesApi.list({ page: 1, pageSize: 200 });
+    return res.items;
   });
   const { data: txns, isLoading } = useQuery(
     { queryKey: ['leave-txn', selectedEmployee, year], queryFn: () => selectedEmployee ? leaveApi.transactions(selectedEmployee, year) : Promise.resolve([]) }

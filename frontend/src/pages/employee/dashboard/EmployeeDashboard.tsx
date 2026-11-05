@@ -108,6 +108,7 @@ export default function EmployeeDashboard() {
    });
    const unreadCount = typeof unreadData === 'number' ? unreadData : (unreadData?.count ?? 0);
 
+   const [isCheckingIn, setIsCheckingIn] = useState(false);
    const checkInMutation = useMutation({
       mutationFn: () => attendanceApi.checkIn({ employeeId: emp!.id, method: 'WEB' }),
       onSuccess: () => {
@@ -116,7 +117,14 @@ export default function EmployeeDashboard() {
          queryClient.invalidateQueries({ queryKey: ['attendance-summary-dash'] });
       },
       onError: (err: any) => toastError(err.response?.data?.message || err.message),
+      onSettled: () => setIsCheckingIn(false),
    });
+
+   const handleCheckIn = () => {
+      if (checkInMutation.isPending || checkedIn || isCheckingIn) return;
+      setIsCheckingIn(true);
+      checkInMutation.mutate();
+   };
 
    const checkOutMutation = useMutation({
       mutationFn: (logId: string) => attendanceApi.checkOut(logId),
@@ -255,8 +263,8 @@ export default function EmployeeDashboard() {
                </div>
             </div>
             <div className="relative z-10 flex gap-2.5 mt-4 md:mt-0">
-               <button onClick={() => checkInMutation.mutate()} disabled={checkInMutation.isPending || checkedIn} className="btn-primary text-sm hover:scale-105 transition-transform duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
-                  <Fingerprint size={15} /> Check In
+               <button onClick={handleCheckIn} disabled={checkInMutation.isPending || checkedIn || isCheckingIn} className="btn-primary text-sm hover:scale-105 transition-transform duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Fingerprint size={15} /> {isCheckingIn || checkInMutation.isPending ? 'Checking in...' : 'Check In'}
                </button>
                <button
                   onClick={() => {

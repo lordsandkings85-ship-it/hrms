@@ -223,4 +223,84 @@ describe('CompaniesService', () => {
       );
     });
   });
+
+  describe('tenant scoping', () => {
+    const employeePrisma = () => {
+      const prisma: any = createPrismaMock({
+        employee: { findMany: jest.fn(async () => [] as any) },
+      });
+      prisma.employee = prisma.__calls.employee;
+      prisma.user.findUnique.mockResolvedValue({
+        isSuperAdmin: false,
+        companyId: 'c-1',
+        userCompanies: [{ companyId: 'c-1' }, { companyId: 'c-2' }],
+        role: { isSystem: false, permissions: [] },
+      });
+      return prisma;
+    };
+
+    it('rejects a company the caller does not belong to', async () => {
+      const prisma = employeePrisma();
+      const svc = service(prisma);
+
+      await expect(svc.listCompanyEmployees('u-1', 'c-foreign')).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.employee.findMany).not.toHaveBeenCalled();
+    });
+
+    it('lists employees of a company the caller is a member of', async () => {
+      const prisma = employeePrisma();
+      const svc = service(prisma);
+
+      await svc.listCompanyEmployees('u-1', 'c-2');
+
+      expect(prisma.employee.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { companyId: 'c-2' } }),
+      );
+    });
+
+    it('scopes group employee listing to accessible companies', async () => {
+      const prisma = employeePrisma();
+      const svc = service(prisma);
+
+      await svc.listAllGroupEmployees('u-1');
+
+      expect(prisma.employee.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { companyId: { in: ['c-1', 'c-2'] } } }),
+      );
+    });
+
+    it('does not scope group employee listing for an explicit group-wide grant', async () => {
+      const prisma = employeePrisma();
+      prisma.user.findUnique.mockResolvedValue({
+        isSuperAdmin: false,
+        companyId: 'c-1',
+        userCompanies: [{ companyId: 'c-1' }],
+        role: { isSystem: false, permissions: [{ module: 'organization', action: 'manage_all' }] },
+      });
+      const svc = service(prisma);
+
+      await svc.listAllGroupEmployees('u-1');
+
+      expect(prisma.employee.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {} }),
+      );
+    });
+
+    it('does not infer group-wide access from a role name', async () => {
+      const prisma = employeePrisma();
+      prisma.user.findUnique.mockResolvedValue({
+        isSuperAdmin: false,
+        companyId: 'c-1',
+        userCompanies: [{ companyId: 'c-1' }],
+        role: { isSystem: false, name: 'Group HR Admin', permissions: [] },
+      });
+      const svc = service(prisma);
+
+      await svc.listAllGroupEmployees('u-1');
+
+      expect(prisma.employee.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { companyId: { in: ['c-1'] } } }),
+      );
+    });
+  });
 });

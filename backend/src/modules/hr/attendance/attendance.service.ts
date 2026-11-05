@@ -142,10 +142,22 @@ export class AttendanceService {
     const tz = company?.timezone || 'UTC';
     const policyMap = new Map(policies.map(p => [p.key, p.value]));
     const wall = zonedWallClock(tz, date);
-    const [sh, sm] = (shift.startTime || '').split(':').map(Number);
-    const [eh, em] = (shift.endTime || '').split(':').map(Number);
-    const shiftStart = zonedDateTime(tz, wall.y, wall.m, wall.d, sh || 9, sm || 0);
-    const shiftEnd = zonedDateTime(tz, wall.y, wall.m, wall.d, eh || 18, em || 0);
+    // Parse "HH:mm" without `||` fallbacks: 00:00 is a valid start/end time and
+    // must not be coerced to the 09:00/18:00 defaults.
+    const parseTime = (value: string | null | undefined, fallback: [number, number]): [number, number] => {
+      const match = /^(\d{1,2}):(\d{2})/.exec(value || '');
+      return match ? [Number(match[1]), Number(match[2])] : fallback;
+    };
+    const [sh, sm] = parseTime(shift.startTime, [9, 0]);
+    const [eh, em] = parseTime(shift.endTime, [18, 0]);
+    const shiftStart = zonedDateTime(tz, wall.y, wall.m, wall.d, sh, sm);
+    let shiftEnd = zonedDateTime(tz, wall.y, wall.m, wall.d, eh, em);
+    // Overnight shift (e.g. 22:00–06:00): the end wall-clock time is on the
+    // following day. Without rollover `requiredMinutes` is negative and every
+    // late/overtime/early-exit calculation is wrong.
+    if (shiftEnd.getTime() <= shiftStart.getTime()) {
+      shiftEnd = zonedDateTime(tz, wall.y, wall.m, wall.d + 1, eh, em);
+    }
     const graceMins = shiftType?.graceMinutes ?? Number(policyMap.get('custom.gracePeriodMins') ?? 10);
     const requiredMinutes = Math.round((shiftEnd.getTime() - shiftStart.getTime()) / 60000);
 
@@ -176,7 +188,15 @@ export class AttendanceService {
     };
   }
 
-  async checkIn(companyId: string, employeeId: string, method: string, lat?: number, lng?: number, userId?: string) {
+  async checkIn(
+    companyId: string,
+    employeeId: string,
+    method: string,
+    lat?: number,
+    lng?: number,
+    userId?: string,
+    macAddress?: string,
+  ) {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const employee = await this.prisma.employee.findUnique({
       where: { id: employeeId },
@@ -249,6 +269,7 @@ export class AttendanceService {
         data: {
           checkIn: new Date(),
           method,
+          ...(macAddress ? { macAddress } : {}),
           latitude: lat,
           longitude: lng,
           isWithinGeofence,
@@ -261,26 +282,37 @@ export class AttendanceService {
       });
     }
 
-    return this.prisma.attendanceLog.create({
-      data: {
-        employeeId,
-        date: startOfDay,
-        checkIn: new Date(),
-        method,
-        latitude: lat,
-        longitude: lng,
-        status,
-        isWithinGeofence,
-        shiftId: ctx?.shift?.id ?? null,
-        shiftStart: ctx?.shift?.startTime ?? null,
-        shiftEnd: ctx?.shift?.endTime ?? null,
-        requiredMinutes: ctx?.requiredMinutes ?? null,
-        lateMinutes,
-        lateStatus,
-        attendanceStatus: weeklyOff ? 'WEEKLY_OFF' : null,
-        isWeeklyOff: weeklyOff,
-      },
-    });
+    try {
+      return await this.prisma.attendanceLog.create({
+        data: {
+          employeeId,
+          date: startOfDay,
+          checkIn: new Date(),
+          method,
+          ...(macAddress ? { macAddress } : {}),
+          latitude: lat,
+          longitude: lng,
+          status,
+          isWithinGeofence,
+          shiftId: ctx?.shift?.id ?? null,
+          shiftStart: ctx?.shift?.startTime ?? null,
+          shiftEnd: ctx?.shift?.endTime ?? null,
+          requiredMinutes: ctx?.requiredMinutes ?? null,
+          lateMinutes,
+          lateStatus,
+          attendanceStatus: weeklyOff ? 'WEEKLY_OFF' : null,
+          isWeeklyOff: weeklyOff,
+        },
+      });
+    } catch (err: any) {
+      if (err.code === 'P2002' || err.message?.includes('Unique') || err.message?.includes('Duplicate')) {
+        const raceLog = await this.prisma.attendanceLog.findFirst({
+          where: { employeeId, date: { gte: startOfDay, lt: endOfDay } },
+        });
+        if (raceLog) return raceLog;
+      }
+      throw err;
+    }
   }
 
   async checkOut(companyId: string, logId: string, userId: string) {
@@ -506,17 +538,27 @@ export class AttendanceService {
           data: { checkIn: ts, method: 'manual', regularizationNote: reason || null, regularizationStatus: 'pending' },
         });
       }
-      return this.prisma.attendanceLog.create({
-        data: {
-          employeeId,
-          date: dayStart,
-          checkIn: ts,
-          method: 'manual',
-          status: 'present',
-          regularizationNote: reason || null,
-          regularizationStatus: 'pending',
-        },
-      });
+      try {
+        return await this.prisma.attendanceLog.create({
+          data: {
+            employeeId,
+            date: dayStart,
+            checkIn: ts,
+            method: 'manual',
+            status: 'present',
+            regularizationNote: reason || null,
+            regularizationStatus: 'pending',
+          },
+        });
+      } catch (err: any) {
+        if (err.code === 'P2002' || err.message?.includes('Unique') || err.message?.includes('Duplicate')) {
+          const raceLog = await this.prisma.attendanceLog.findFirst({
+            where: { employeeId, date: { gte: dayStart, lt: dayEnd } },
+          });
+          if (raceLog) return raceLog;
+        }
+        throw err;
+      }
     }
 
     if (!existing?.checkIn) throw new BadRequestException('No check-in exists for this date');
@@ -1044,13 +1086,7 @@ export class AttendanceService {
     const holidayCache = new Map<string, Set<string>>();
     const holidaySetFor = async (empCompanyId: string) => {
       if (holidayCache.has(empCompanyId)) return holidayCache.get(empCompanyId)!;
-      let holidays = await this.prisma.holiday.findMany({ where: { companyId: empCompanyId }, select: { date: true } });
-      // Companies without their own holiday list share the global one (holidays are
-      // registered under the parent company). Apply regardless of group-wide scope so
-      // HR and employee views agree on working-day totals.
-      if (holidays.length === 0) {
-        holidays = await this.prisma.holiday.findMany({ select: { date: true } });
-      }
+      const holidays = await this.prisma.holiday.findMany({ where: { companyId: empCompanyId }, select: { date: true } });
       const set = new Set(holidays.map((h) => dateKey(h.date)));
       holidayCache.set(empCompanyId, set);
       return set;
@@ -1281,18 +1317,13 @@ export class AttendanceService {
     const onLeave = uniqueLogs.filter(l => l.status === 'on_leave').length;
     const totalOvertimeMins = logs.reduce((s, l) => s + l.overtimeMinutes, 0);
 
-    // Fetch company holidays for the month and exclude those on working days.
-    // Companies without their own list share the global one so working-day totals
-    // agree for group-wide (HR) and employee viewers alike.
-    let holidays = await this.prisma.holiday.findMany({
+    // Fetch the company's own holidays for the month and exclude those on
+    // working days. No cross-tenant fallback: another company's calendar must
+    // never change this company's working-day totals.
+    const holidays = await this.prisma.holiday.findMany({
       where: groupWide ? {} : { companyId: targetCompanyId },
       select: { id: true, date: true, name: true },
     });
-    if (holidays.length === 0) {
-      holidays = await this.prisma.holiday.findMany({
-        select: { id: true, date: true, name: true },
-      });
-    }
 
     const monthHolidays = holidays.filter((h) => {
       const hd = new Date(h.date);

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { Permissions } from '../../../common/decorators/permissions.decorator';
@@ -14,9 +14,11 @@ export class AttendanceController {
   @Permissions({ module: 'attendance', action: 'create' })
   checkIn(
     @CurrentUser() user: AuthUser,
-    @Body() body: { employeeId: string; method: string; lat?: number; lng?: number },
+    @Body() body: { employeeId: string; method: string; lat?: number; lng?: number; macAddress?: string },
+    @Req() req: any,
   ) {
-    return this.attendanceService.checkIn(user.companyId, body.employeeId, body.method, body.lat, body.lng, user.userId);
+    const mac = body.macAddress || (req?.headers?.['x-device-mac'] as string) || undefined;
+    return this.attendanceService.checkIn(user.companyId, body.employeeId, body.method, body.lat, body.lng, user.userId, mac);
   }
 
   @Post('check-out/:logId')

@@ -16,6 +16,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { notificationApi, type Notification } from '../../api/client';
 import { useTheme, type ThemeMode } from '../../components/ui/ThemeProvider';
 import CommandPalette from '../../components/ui/CommandPalette';
+import CompanySelector from '../../components/ui/CompanySelector';
 import TitleBar, { isElectron } from '../../components/ui/TitleBar';
 import UpdateBanner from '../../components/ui/UpdateBanner';
 import workoraIcon from '../../assets/brand/workora-icon.png';
@@ -798,7 +799,7 @@ function NavItemRow({
 }
 
 export default function Layout() {
-  const { user, logout } = useAuthStore();
+  const { user, logout, activeCompanyId, switchCompany } = useAuthStore();
   const isAdmin = user?.role?.isSystem;
   const navigate = useNavigate();
   const location = useLocation();
@@ -1171,6 +1172,13 @@ export default function Layout() {
             </button>
           )}
 
+          {user?.companies && user.companies.length > 1 && (
+            <CompanySelector
+              companies={user.companies}
+              activeId={activeCompanyId ?? user.companyId}
+              onSwitch={switchCompany}
+            />
+          )}
           <LiveClock />
           <ThemeToggle />
 

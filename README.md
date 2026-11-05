@@ -22,8 +22,8 @@ Prerequisites: Node.js 18+, Docker (MySQL container), npm.
 
 ```bash
 docker compose up -d hrms-mysql   # mysql:8.0 on 127.0.0.1:3306
-# restore a dump if needed, e.g.:
-# docker exec -i hrms-mysql mysql -uroot -pLordsRoot2018 u593848004_hrms < backend/db-backups/hrms_prod_dump_2026-08-15.sql
+# To restore a backup, use a dump stored OUTSIDE the repository:
+# docker exec -i hrms-mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$DB_NAME" < /secure/path/to/backup.sql
 ```
 
 ### 2. Backend

@@ -406,6 +406,7 @@ export class AuthService {
         data: {
           lastSeenAt: new Date(),
           ...(getClientIp(opts.req) ? { ipAddress: getClientIp(opts.req) } : {}),
+          ...(context.macAddress ? { macAddress: context.macAddress.slice(0, 64) } : {}),
         },
       });
     } else {
@@ -414,6 +415,7 @@ export class AuthService {
           userId,
           companyId,
           deviceId: context.deviceId?.slice(0, 128) ?? null,
+          macAddress: context.macAddress?.slice(0, 64) ?? null,
           clientType: context.clientType?.slice(0, 32) ?? null,
           platform: context.platform?.slice(0, 32) ?? null,
           osName: context.osName?.slice(0, 96) ?? null,

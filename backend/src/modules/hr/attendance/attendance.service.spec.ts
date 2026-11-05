@@ -197,7 +197,7 @@ describe('AttendanceService.approveRegularization', () => {
 describe('AttendanceService.monthlyWorkdaySummaries', () => {
   const notifications = { notifyApprover: jest.fn(async () => {}), notifyEmployee: jest.fn(async () => {}) };
 
-  it('applies global holidays for group-wide viewers when the company has none', async () => {
+  it('does not borrow another tenant\'s holidays when the company has none', async () => {
     mockGroupWide(true);
     const prisma: any = {
       employee: {
@@ -211,12 +211,7 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
         findFirst: jest.fn(async () => null),
       },
       holiday: {
-        findMany: jest.fn()
-          .mockImplementationOnce(async () => [])
-          .mockImplementation(async () => [
-            { date: new Date(2026, 8, 4) },
-            { date: new Date(2026, 8, 16) },
-          ]),
+        findMany: jest.fn(async () => []),
       },
       attendanceLog: {
         findMany: jest.fn(async () => []),
@@ -226,13 +221,13 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
     const service = new AttendanceService(prisma as any, notifications as any);
     const rows = await service.monthlyWorkdaySummaries('c-1', 2026, 9, 'admin-1');
     expect(rows).toHaveLength(1);
-    // 26 Mon-Sat minus the 2nd Saturday = 25 working days; the 2 holidays stay inside
-    // that count as paid holidays and are not absent.
+    // 26 Mon-Sat minus the 2nd Saturday = 25 working days. With no company
+    // holiday rows, no paid holiday is invented from other tenants' calendars.
     expect(rows[0]).toMatchObject({
       totalWorkingDays: 25,
-      paidHolidays: 2,
+      paidHolidays: 0,
       present: 0,
-      absent: 23,
+      absent: 25,
     });
   });
 
@@ -394,7 +389,7 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
     expect(summary.paidHolidays).toBe(1);
   });
 
-  it('getMonthlySummary applies global holidays for group-wide viewers when the company has none', async () => {
+  it('does not borrow another tenant\'s holidays for group-wide viewers when the company has none', async () => {
     mockGroupWide(true);
     const notifications = { notifyApprover: jest.fn(async () => {}), notifyEmployee: jest.fn(async () => {}) };
     const prisma: any = {
@@ -408,12 +403,7 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
         findMany: jest.fn(async () => []),
       },
       holiday: {
-        findMany: jest.fn()
-          .mockImplementationOnce(async () => [])
-          .mockImplementation(async () => [
-            { id: 'h-1', date: new Date(2026, 8, 4), name: 'Krishna Jayanti' },
-            { id: 'h-2', date: new Date(2026, 8, 16), name: 'Test Holiday' },
-          ]),
+        findMany: jest.fn(async () => []),
       },
       attendancePolicy: {
         findFirst: jest.fn(async () => ({ value: 'true' })),
@@ -422,11 +412,11 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
     };
     const service = new AttendanceService(prisma as any, notifications as any);
     const summary = await service.getMonthlySummary('c-1', 'e-1', 2026, 9, 'admin-1');
-    // 26 Mon-Sat minus the 2nd Saturday = 25 working days; both holidays stay inside
-    // as paid holidays, so no absent accrues on them.
+    // 26 Mon-Sat minus the 2nd Saturday = 25 working days; no holidays from
+    // other companies are imported into this tenant's summary.
     expect(summary.totalDays).toBe(25);
-    expect(summary.holidays).toBe(2);
-    expect(summary.paidHolidays).toBe(2);
+    expect(summary.holidays).toBe(0);
+    expect(summary.paidHolidays).toBe(0);
   });
 
   it('counts 5-day working days for employees of companies without the second-Saturday policy', async () => {
@@ -442,9 +432,7 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
         findFirst: jest.fn(async () => null),
       },
       holiday: {
-        findMany: jest.fn()
-          .mockImplementationOnce(async () => [])
-          .mockImplementation(async () => [{ date: new Date(2026, 8, 16) }]),
+        findMany: jest.fn(async () => [{ date: new Date(2026, 8, 16) }]),
       },
       attendanceLog: {
         findMany: jest.fn(async () => []),
@@ -542,9 +530,7 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
           findFirst: jest.fn(async () => null),
         },
         holiday: {
-          findMany: jest.fn()
-            .mockImplementationOnce(async () => [])
-            .mockImplementation(async () => (opts.holidays ?? []).map((date) => ({ date }))),
+          findMany: jest.fn(async () => (opts.holidays ?? []).map((date) => ({ date }))),
         },
         attendanceLog: { findMany: jest.fn(async () => opts.logs ?? []) },
         leaveRequest: { findMany: jest.fn(async () => opts.halfDayLeaves ?? []) },
@@ -1059,5 +1045,41 @@ describe('AttendanceService.getRegularizationSummary', () => {
     for (const [args] of groupByCalls) {
       expect(args.where).toEqual({ employee: { companyId } });
     }
+  });
+});
+
+describe('AttendanceService.resolveShiftContext — overnight shifts', () => {
+  const notifications = { notifyApprover: jest.fn(async () => {}), notifyEmployee: jest.fn(async () => {}) };
+
+  const buildService = (startTime: string, endTime: string) => {
+    const prisma: any = {
+      shiftAssignment: {
+        findFirst: jest.fn(async () => ({
+          shift: { startTime, endTime, allowance: 0, shiftType: null },
+        })),
+      },
+      company: { findUnique: jest.fn(async () => ({ timezone: 'Asia/Kolkata' })) },
+      attendancePolicy: { findMany: jest.fn(async () => []) },
+    };
+    return new AttendanceService(prisma as any, notifications as any);
+  };
+
+  it('rolls a 22:00-06:00 shift end into the next day', async () => {
+    const service = buildService('22:00', '06:00');
+    // 15:30 IST on 4 Sep 2026.
+    const day = new Date('2026-09-04T10:00:00Z');
+    const ctx = await (service as any).resolveShiftContext('c-1', 'e-1', day);
+    expect(ctx.requiredMinutes).toBe(480);
+    expect(ctx.shiftEnd.getTime()).toBeGreaterThan(ctx.shiftStart.getTime());
+    // 06:00 IST on 5 Sep 2026 == 00:30 UTC.
+    expect(ctx.shiftEnd.toISOString()).toBe('2026-09-05T00:30:00.000Z');
+  });
+
+  it('keeps a 00:00-08:00 shift on the same day', async () => {
+    const service = buildService('00:00', '08:00');
+    const day = new Date('2026-09-04T10:00:00Z');
+    const ctx = await (service as any).resolveShiftContext('c-1', 'e-1', day);
+    expect(ctx.requiredMinutes).toBe(480);
+    expect(ctx.shiftEnd.toISOString()).toBe('2026-09-04T02:30:00.000Z');
   });
 });

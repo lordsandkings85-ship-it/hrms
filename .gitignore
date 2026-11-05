@@ -2,6 +2,8 @@
 dist/
 dist-electron/
 .env
+.env.*
+!.env.example
 .DS_Store
 coverage/
 build/
@@ -10,9 +12,16 @@ build/
 *.zip
 *.tsbuildinfo
 
+# Database dumps and backups — never commit (contain PII and credentials)
+*.dump
+*.sql.gz
+backend/db-backups/
+mariadb/
+
 # Desktop
 desktop/node_modules/
 desktop/dist-electron/
+desktop/out/
 desktop/release/
 desktop/.vite/
 desktop/.env.local

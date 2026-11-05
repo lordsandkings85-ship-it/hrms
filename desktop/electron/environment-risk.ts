@@ -16,6 +16,7 @@ export interface DesktopDeviceContext {
   deviceId: string;
   clientType: 'desktop';
   platform: string;
+  macAddress?: string;
   osName?: string;
   osVersion?: string;
   arch: string;
@@ -38,6 +39,22 @@ const store = new ElectronStore<DeviceStore>({
   name: 'workora-device',
   defaults: { deviceId: '' },
 });
+
+function getPrimaryMacAddress(): string | undefined {
+  try {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      for (const net of interfaces[name] || []) {
+        if (!net.internal && net.mac && net.mac !== '00:00:00:00:00:00') {
+          return net.mac.toUpperCase();
+        }
+      }
+    }
+  } catch {
+    // Ignore errors reading network interfaces
+  }
+  return undefined;
+}
 
 function getDeviceId(): string {
   let id = store.get('deviceId');
@@ -318,6 +335,7 @@ export async function collectDeviceContext(): Promise<DesktopDeviceContext> {
 
   return {
     deviceId: getDeviceId(),
+    macAddress: getPrimaryMacAddress(),
     clientType: 'desktop',
     platform: process.platform,
     osName,

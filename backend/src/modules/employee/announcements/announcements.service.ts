@@ -6,28 +6,25 @@ import { isGroupWideUser } from '../../../utils/group-access.util';
 export class AnnouncementsService {
   constructor(private prisma: PrismaService) {}
 
-  async list(companyId: string, userId?: string) {
+  /**
+   * Tenant boundary for reads: normal users only see their own company's
+   * announcements. Group-wide administrators still see the whole group.
+   */
+  private async companyFilter(companyId: string, userId?: string): Promise<{ companyId?: string }> {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
-    // In multi-company organization, retrieve announcements for this company and any group entities
-    const companies = await this.prisma.company.findMany({ select: { id: true } });
-    const allCompanyIds = companies.map((c) => c.id);
+    return groupWide ? {} : { companyId };
+  }
 
+  async list(companyId: string, userId?: string) {
     return this.prisma.announcement.findMany({
-      where: {
-        companyId: { in: allCompanyIds },
-        isActive: true,
-      },
+      where: { ...(await this.companyFilter(companyId, userId)), isActive: true },
       orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
     });
   }
 
   async listAll(companyId: string, userId?: string) {
-    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
-    const companies = await this.prisma.company.findMany({ select: { id: true } });
-    const allCompanyIds = companies.map((c) => c.id);
-
     return this.prisma.announcement.findMany({
-      where: { companyId: { in: allCompanyIds } },
+      where: await this.companyFilter(companyId, userId),
       orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
     });
   }

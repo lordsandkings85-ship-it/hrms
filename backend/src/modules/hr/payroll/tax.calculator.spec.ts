@@ -48,7 +48,7 @@ describe('computeIncomeTax — new regime rebate at 12L', () => {
     expect(result.totalAnnualTax).toBe(0);
   });
 
-  it('starts collecting tax above 12L (rebate no longer applies)', () => {
+  it('applies marginal relief just above 12L instead of a cliff', () => {
     const result = computeIncomeTax({
       basic: 110000,
       hra: 0,
@@ -58,9 +58,10 @@ describe('computeIncomeTax — new regime rebate at 12L', () => {
       specialAllowance: 0,
       regime: 'new',
     });
-    // gross = 13.2L, taxable = 12.45L; slabs: 4-8L @5% = 20k, 8-12L @10% = 40k, 12-12.45L @15% = 6.75k
+    // gross = 13.2L, taxable = 12.45L; slab tax would be 66,750, but marginal
+    // relief caps tax at income above 12L (₹45,000).
     expect(result.taxableIncome).toBe(1245000);
-    expect(result.baseTax).toBe(66750);
+    expect(result.baseTax).toBe(45000);
   });
 });
 
@@ -116,6 +117,21 @@ describe('computeIncomeTax — surcharge (Finance Act 2025)', () => {
     expect(result.taxableIncome).toBeLessThan(10000000);
     expect(result.surcharge).toBeCloseTo(result.baseTax * 0.1, 6);
   });
+
+  it('keeps the old-regime 37% surcharge above 5Cr', () => {
+    const result = computeIncomeTax({
+      basic: 4500000,
+      hra: 1000000,
+      da: 0,
+      conveyance: 0,
+      medical: 0,
+      specialAllowance: 1500000,
+      regime: 'old',
+    });
+    // gross = 70L/mo * 12 = 8.4Cr; taxable well above 5Cr.
+    expect(result.taxableIncome).toBeGreaterThan(50000000);
+    expect(result.surcharge).toBeCloseTo(result.baseTax * 0.37, 6);
+  });
 });
 
 describe('computeIncomeTax — old regime', () => {
@@ -153,6 +169,22 @@ describe('computeIncomeTax — old regime', () => {
     // gross = 24850/mo = 298200; taxable = 298200 - 50k = 248200 <= 5L -> rebate
     expect(result.baseTax).toBe(0);
     expect(result.totalAnnualTax).toBe(0);
+  });
+
+  it('applies marginal relief just above the old-regime 5L threshold', () => {
+    const result = computeIncomeTax({
+      basic: 46667,
+      hra: 0,
+      da: 0,
+      conveyance: 0,
+      medical: 0,
+      specialAllowance: 0,
+      regime: 'old',
+    });
+    // gross = 5,60,004; taxable = 5,10,004; slab tax would be ₹14,500 but is
+    // capped at the ₹10,004 earned above the ₹5L rebate threshold.
+    expect(result.taxableIncome).toBe(510004);
+    expect(result.baseTax).toBe(10004);
   });
 });
 

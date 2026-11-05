@@ -38,6 +38,7 @@ import { EmployeeServicesModule } from './modules/employee/employee-services/emp
 import { TimeModule } from './modules/time/time.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { SecurityModule } from './modules/security/security.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -89,5 +90,6 @@ import { SecurityModule } from './modules/security/security.module';
       useClass: ThrottlerGuard,
     },
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

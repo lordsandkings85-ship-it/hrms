@@ -7,6 +7,44 @@ import { isGroupWideUser } from '../../../utils/group-access.util';
 import { computeLatePenalty, MAX_LATES_FALLBACK } from '../attendance/late-allowance.util';
 import { resolveSaturdayWeeklyOff } from '../attendance/weekly-off.util';
 
+/** Indian financial year (Apr–Mar) label, e.g. `FY 2025-26`. */
+function financialYearLabel(month: number, year: number): string {
+  const startYear = month >= 4 ? year : year - 1;
+  const endYear = String((startYear + 1) % 100).padStart(2, '0');
+  return `FY ${startYear}-${endYear}`;
+}
+
+interface TaxDeclarationRow {
+  section: string;
+  description?: string | null;
+  approvedAmount?: unknown;
+  declaredAmount?: unknown;
+}
+
+/**
+ * Maps approved `TaxDeclaration` rows onto the calculator's old-regime inputs.
+ * Amounts are annual; the calculator expects monthly rent.
+ */
+function summarizeTaxDeclarations(rows: TaxDeclarationRow[]) {
+  const totals = { section80C: 0, section80D: 0, homeLoanInterest: 0, rentPaid: 0 };
+  let cityType: 'metro' | 'non-metro' = 'non-metro';
+
+  for (const row of rows) {
+    const section = (row.section || '').trim().toUpperCase();
+    const amount = Number(row.approvedAmount) || Number(row.declaredAmount) || 0;
+    if (section === '80C') totals.section80C += amount;
+    else if (section === '80D') totals.section80D += amount;
+    else if (section === '24(B)' || section === '24B' || section === '24') totals.homeLoanInterest += amount;
+    else if (section === 'HRA') {
+      totals.rentPaid += amount / 12;
+      const description = (row.description || '').toLowerCase();
+      if (description.includes('metro') && !description.includes('non-metro')) cityType = 'metro';
+    }
+  }
+
+  return { ...totals, cityType };
+}
+
 @Injectable()
 export class PayrollService {
   constructor(private prisma: PrismaService, private mail: MailService) {}
@@ -131,6 +169,9 @@ export class PayrollService {
     // the caller's company would silently produce a processed cycle with 0 payslips.
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
 
+    const periodEnd = new Date(year, month, 1);
+    const declarationYear = financialYearLabel(month, year);
+
     const employees = await this.prisma.employee.findMany({
       where: {
         status: 'active',
@@ -140,7 +181,17 @@ export class PayrollService {
       },
       include: { 
         company: true,
-        salaryStructures: { orderBy: { effectiveFrom: 'desc' }, take: 1 },
+        // Only revisions already effective at the end of the pay period may be
+        // used; a future-dated revision must not be applied early.
+        salaryStructures: {
+          where: { effectiveFrom: { lt: periodEnd } },
+          orderBy: { effectiveFrom: 'desc' },
+          take: 1,
+        },
+        taxDeclarations: {
+          where: { financialYear: declarationYear, status: 'approved' },
+          select: { section: true, description: true, approvedAmount: true, declaredAmount: true },
+        },
         adminInfo: true,
         attendanceLog: {
           where: {
@@ -258,7 +309,7 @@ let payslipCount = 0;
         // on working days. Paid days only count real attendance (present/late/half_day/on_leave)
         // — nightly auto-backfilled 'absent' placeholder rows must NOT count as paid days.
         const ownHolidays = holidaysByCompany.get(emp.companyId) || [];
-        const holidaySource = ownHolidays.length > 0 ? ownHolidays : monthHolidays;
+        const holidaySource = ownHolidays;
         const holidayKey = (d: Date) =>
           `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         const holidaySet = new Set(holidaySource.map((h) => holidayKey(h.date)));
@@ -382,7 +433,9 @@ let payslipCount = 0;
           : computeESI(gross));
         const pt = Math.round(Number(structure.ptDeduction));
 
-        // Income tax (TDS)
+        // Income tax (TDS). Old-regime declarations only affect the old regime;
+        // passing them is harmless for the new regime because it ignores them.
+        const declarations = summarizeTaxDeclarations(emp.taxDeclarations ?? []);
         const taxInput: TaxInput = {
           basic: Number(structure.basic),
           hra: Number(structure.hra),
@@ -390,6 +443,11 @@ let payslipCount = 0;
           conveyance: Number(structure.conveyance),
           medical: Number(structure.medical),
           specialAllowance: Number(structure.specialAllowance),
+          rentPaid: declarations.rentPaid,
+          cityType: declarations.cityType,
+          section80C: declarations.section80C,
+          section80D: declarations.section80D,
+          homeLoanInterest: declarations.homeLoanInterest,
           regime,
         };
         const taxResult = computeIncomeTax(taxInput);
@@ -565,12 +623,9 @@ let payslipCount = 0;
     const start = new Date(year, month - 1, 1);
     const end = new Date(year, month, 1);
 
-    let holidays = await this.prisma.holiday.findMany({
+    const holidays = await this.prisma.holiday.findMany({
       where: groupWide ? { date: { gte: start, lt: end } } : { companyId, date: { gte: start, lt: end } }
     });
-    if (holidays.length === 0 && !groupWide) {
-      holidays = await this.prisma.holiday.findMany({ where: { date: { gte: start, lt: end } } });
-    }
     const [employees, logs, cycle] = await Promise.all([
       this.prisma.employee.findMany({
         where: {

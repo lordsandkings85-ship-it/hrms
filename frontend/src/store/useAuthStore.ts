@@ -71,10 +71,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
   setUser: (user) => {
     const active = getActiveCompanyId(user);
+    // Keep storage in sync with the authenticated user: a leftover id from a
+    // previous user on a shared browser must never become the active tenant.
+    if (active) localStorage.setItem(ACTIVE_COMPANY_KEY, active);
+    else localStorage.removeItem(ACTIVE_COMPANY_KEY);
     set({ user, activeCompanyId: active ?? undefined });
   },
   setLoading: (isLoading) => set({ isLoading }),
   switchCompany: (companyId) => {
+    const companies = get().user?.companies ?? [];
+    if (companies.length && !companies.some((c) => c.id === companyId)) return;
     localStorage.setItem(ACTIVE_COMPANY_KEY, companyId);
     set({ activeCompanyId: companyId });
     queryClient.clear();
@@ -82,7 +88,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem(ACTIVE_COMPANY_KEY);
     queryClient.clear();
-    set({ user: null });
+    set({ user: null, activeCompanyId: undefined });
   },
 }));

@@ -375,6 +375,7 @@ export default function SecurityManagementPage() {
               <thead className="bg-[var(--surface-alt)]">
                 <tr className="text-left text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
                   <th className="px-4 py-3 font-bold">User / Employee</th>
+                  <th className="px-4 py-3 font-bold">Hardware MAC Address</th>
                   <th className="px-4 py-3 font-bold">Detected IP Address</th>
                   <th className="px-4 py-3 font-bold">Platform / OS</th>
                   <th className="px-4 py-3 font-bold">Client</th>
@@ -393,6 +394,17 @@ export default function SecurityManagementPage() {
                       <div className="text-[11px] text-[var(--text-muted)]">
                         {session.employeeCode ? `${session.employeeCode} · ` : ''}{session.email}
                       </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {session.macAddress ? (
+                        <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          {session.macAddress}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-[var(--text-muted)] italic">
+                          {session.clientType === 'desktop' ? 'Not detected' : 'Web (N/A)'}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">

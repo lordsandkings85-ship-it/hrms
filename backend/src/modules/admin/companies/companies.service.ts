@@ -296,9 +296,37 @@ export class CompaniesService {
   }
 
   /**
-   * List all employees assigned to a specific company.
+   * Company ids the caller may read. Always includes the primary company and
+   * any active `UserCompany` membership.
    */
-  async listCompanyEmployees(_userId: string, companyId: string) {
+  private async accessibleCompanyIds(userId: string): Promise<Set<string>> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        companyId: true,
+        userCompanies: { where: { isActive: true }, select: { companyId: true } },
+      },
+    });
+    const ids = new Set<string>();
+    if (user?.companyId) ids.add(user.companyId);
+    for (const membership of user?.userCompanies ?? []) ids.add(membership.companyId);
+    return ids;
+  }
+
+  /**
+   * List all employees assigned to a specific company.
+   * Non-group users may only read companies they belong to; a foreign id is
+   * reported as not-found so company ids cannot be enumerated.
+   */
+  async listCompanyEmployees(userId: string, companyId: string) {
+    const groupWide = await isGroupWideUser(this.prisma, userId);
+    if (!groupWide) {
+      const allowed = await this.accessibleCompanyIds(userId);
+      if (!allowed.has(companyId)) {
+        throw new NotFoundException('Company not found');
+      }
+    }
+
     return this.prisma.employee.findMany({
       where: { companyId },
       include: {
@@ -311,10 +339,16 @@ export class CompaniesService {
   }
 
   /**
-   * List all employees across all group companies with their assigned company info.
+   * List employees across every company the caller may access.
+   * Genuine group administrators see the whole group; everyone else sees only
+   * their own company and active memberships.
    */
-  async listAllGroupEmployees(_userId: string) {
+  async listAllGroupEmployees(userId: string) {
+    const groupWide = await isGroupWideUser(this.prisma, userId);
+    const where = groupWide ? {} : { companyId: { in: [...(await this.accessibleCompanyIds(userId))] } };
+
     return this.prisma.employee.findMany({
+      where,
       include: {
         company: { select: { id: true, name: true, displayName: true } },
         department: { select: { id: true, name: true } },
@@ -337,6 +371,26 @@ export class CompaniesService {
     if (!targetCompany) throw new NotFoundException('Target company not found');
     if (!dto.employeeIds || !dto.employeeIds.length) {
       throw new BadRequestException('Please select at least one employee to assign');
+    }
+
+    // Tenant boundary: a non-group caller may only move employees between
+    // companies they already belong to, and may not touch foreign employees.
+    const groupWide = await isGroupWideUser(this.prisma, userId);
+    if (!groupWide) {
+      const allowed = await this.accessibleCompanyIds(userId);
+      if (!allowed.has(companyId)) {
+        throw new ForbiddenException('You do not have access to the target company');
+      }
+      const employees = await this.prisma.employee.findMany({
+        where: { id: { in: dto.employeeIds } },
+        select: { id: true, companyId: true },
+      });
+      if (employees.length !== dto.employeeIds.length) {
+        throw new NotFoundException('One or more employees were not found');
+      }
+      if (employees.some((employee) => !allowed.has(employee.companyId))) {
+        throw new ForbiddenException('One or more employees belong to another company');
+      }
     }
 
     await this.prisma.$transaction(async (tx) => {

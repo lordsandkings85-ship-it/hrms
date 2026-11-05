@@ -136,13 +136,10 @@ export class ShiftsService {
 
   async listHolidays(companyId: string, userId?: string) {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
-    let holidays = await this.prisma.holiday.findMany({
+    const holidays = await this.prisma.holiday.findMany({
       where: groupWide ? {} : { companyId },
       orderBy: { date: 'asc' },
     });
-    if (holidays.length === 0 && !groupWide) {
-      holidays = await this.prisma.holiday.findMany({ orderBy: { date: 'asc' } });
-    }
     return holidays;
   }
 

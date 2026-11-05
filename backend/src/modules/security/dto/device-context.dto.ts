@@ -20,6 +20,12 @@ export class DeviceContextDto {
   @MaxLength(128)
   deviceId?: string;
 
+  /** Physical network card MAC address (when reported by desktop app). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  macAddress?: string;
+
   /** "desktop" for the Electron app, "web" for a browser. */
   @IsOptional()
   @IsString()

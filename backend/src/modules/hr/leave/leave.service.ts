@@ -65,14 +65,23 @@ export class LeaveService {
     userId?: string,
   ) {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
-    let employee = await this.prisma.employee.findFirst({
+    const employee = await this.prisma.employee.findFirst({
       where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
     });
-    if (!employee) {
-      employee = await this.prisma.employee.findUnique({ where: { id: employeeId } });
-    }
-    if (!employee) throw new ForbiddenException('Employee not found');
+    if (!employee) throw new NotFoundException('Employee not found');
     if (!leaveTypeId || !startDate || !endDate) throw new BadRequestException('leaveTypeId, startDate and endDate are required');
+
+    const rangeStart = new Date(startDate);
+    const rangeEnd = new Date(endDate);
+    if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
+      throw new BadRequestException('startDate and endDate must be valid dates');
+    }
+    if (rangeEnd < rangeStart) {
+      throw new BadRequestException('endDate must not be before startDate');
+    }
+    if (isHalfDay && rangeStart.toDateString() !== rangeEnd.toDateString()) {
+      throw new BadRequestException('A half-day leave must start and end on the same date');
+    }
 
     const targetCompanyId = employee.companyId || companyId;
 
@@ -106,13 +115,10 @@ export class LeaveService {
 
     // Rule 4 — monthly Casual Leave accounting: reserve pending days and check balance
     if (await this.hasMonthlyBalance(employeeId, leaveTypeId, year)) {
-      let holidays = await this.prisma.holiday.findMany({
+      const holidays = await this.prisma.holiday.findMany({
         where: groupWide ? {} : { companyId: targetCompanyId },
         select: { date: true },
       });
-      if (holidays.length === 0 && !groupWide) {
-        holidays = await this.prisma.holiday.findMany({ select: { date: true } });
-      }
       const days = isHalfDayCount(start, new Date(endDate), isHalfDay, holidays);
       if (type.negativeBalanceAllowed !== true) {
         const row = await this.prisma.leaveMonthlyBalance.findUnique({
@@ -192,22 +198,16 @@ export class LeaveService {
     if (!groupWide && req.employee.companyId !== companyId) throw new ForbiddenException('Leave request does not belong to this company');
     if (req.status !== 'pending') throw new BadRequestException('Leave request is already processed');
 
-    // Fetch holidays once for reuse in exclusion + attendance log creation
-    let holidays = await this.prisma.holiday.findMany({
+    // Fetch holidays once for reuse in exclusion + attendance log creation.
+    // Never fall back to another tenant's calendar: a company with no holiday
+    // rows simply has weekend-only non-working days.
+    const holidays = await this.prisma.holiday.findMany({
       where: {
         companyId: req.employee.companyId,
         date: { gte: req.startDate, lte: req.endDate },
       },
       select: { date: true },
     });
-    if (holidays.length === 0) {
-      holidays = await this.prisma.holiday.findMany({
-        where: {
-          date: { gte: req.startDate, lte: req.endDate },
-        },
-        select: { date: true },
-      });
-    }
 
     let days = isHalfDayCount(req.startDate, req.endDate, req.isHalfDay, holidays);
 
@@ -636,13 +636,10 @@ export class LeaveService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    let holidays = await this.prisma.holiday.findMany({
+    const holidays = await this.prisma.holiday.findMany({
       where: groupWide ? {} : { companyId },
       select: { date: true },
     });
-    if (holidays.length === 0 && !groupWide) {
-      holidays = await this.prisma.holiday.findMany({ select: { date: true } });
-    }
     // Attach a computed duration (in days) so the UI doesn't have to guess.
     return rows.map((r) => ({
       ...r,
@@ -652,12 +649,9 @@ export class LeaveService {
 
   async balances(employeeId: string, year: number, companyId: string, userId?: string) {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
-    let employee = await this.prisma.employee.findFirst({
+    const employee = await this.prisma.employee.findFirst({
       where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
     });
-    if (!employee) {
-      employee = await this.prisma.employee.findUnique({ where: { id: employeeId } });
-    }
     if (!employee) throw new NotFoundException('Employee not found');
     const rows = await this.prisma.leaveBalance.findMany({
       where: { employeeId, year },
@@ -803,13 +797,10 @@ export class LeaveService {
 
   async listHolidays(companyId: string, userId?: string) {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
-    let holidays = await this.prisma.holiday.findMany({
+    const holidays = await this.prisma.holiday.findMany({
       where: groupWide ? {} : { companyId },
       orderBy: { date: 'asc' },
     });
-    if (holidays.length === 0 && !groupWide) {
-      holidays = await this.prisma.holiday.findMany({ orderBy: { date: 'asc' } });
-    }
     return holidays;
   }
 
@@ -828,17 +819,11 @@ export class LeaveService {
   // --- Leave Balance Allocation ---
 
   async adjustBalance(companyId: string, data: { employeeId: string; leaveTypeId: string; year: number; amount: number; reason?: string }, approvedBy: string) {
-    let employee = await this.prisma.employee.findFirst({ where: { id: data.employeeId, companyId } });
-    if (!employee) {
-      employee = await this.prisma.employee.findUnique({ where: { id: data.employeeId } });
-    }
+    const employee = await this.prisma.employee.findFirst({ where: { id: data.employeeId, companyId } });
     if (!employee) throw new NotFoundException('Employee not found');
     const targetCompanyId = employee.companyId || companyId;
 
-    let type = await this.prisma.leaveType.findFirst({ where: { id: data.leaveTypeId, companyId: targetCompanyId } });
-    if (!type) {
-      type = await this.prisma.leaveType.findUnique({ where: { id: data.leaveTypeId } });
-    }
+    const type = await this.prisma.leaveType.findFirst({ where: { id: data.leaveTypeId, companyId: targetCompanyId } });
     if (!type) throw new NotFoundException('Leave type not found');
     const leaveTypeId = type.id;
 
@@ -1118,12 +1103,9 @@ export class LeaveService {
   /** Rule 4 — monthly balance ledger for an employee (optionally filtered by year) */
   async monthlyBalances(employeeId: string, companyId: string, year?: number, userId?: string) {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
-    let employee = await this.prisma.employee.findFirst({
+    const employee = await this.prisma.employee.findFirst({
       where: groupWide ? { id: employeeId } : { id: employeeId, companyId },
     });
-    if (!employee) {
-      employee = await this.prisma.employee.findUnique({ where: { id: employeeId } });
-    }
     if (!employee) throw new NotFoundException('Employee not found');
     return this.prisma.leaveMonthlyBalance.findMany({
       where: { employeeId, ...(year ? { year } : {}) },
@@ -1397,8 +1379,6 @@ export class LeaveService {
 }
 
 function isHalfDayCount(start: Date, end: Date, isHalfDay: boolean, holidays?: { date: Date }[]): number {
-  if (isHalfDay) return 0.5;
-  
   let count = 0;
   const current = new Date(start);
   const endDate = new Date(end);
@@ -1418,7 +1398,10 @@ function isHalfDayCount(start: Date, end: Date, isHalfDay: boolean, holidays?: {
   while (current <= endDate) {
     // 0 is Sunday
     if (current.getDay() !== 0 && !holidayTimestamps.has(current.getTime())) {
-      count++;
+      // A half-day consumes 0.5 day per working date. Multi-day half-day
+      // requests are rejected at apply time; counting per date here keeps any
+      // legacy record from silently collapsing to a single 0.5.
+      count += isHalfDay ? 0.5 : 1;
     }
     current.setDate(current.getDate() + 1);
   }

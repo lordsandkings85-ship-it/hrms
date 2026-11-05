@@ -20,8 +20,8 @@ GRANT ALL PRIVILEGES ON u593848004_hrms.* TO 'u593848004_hrms'@'localhost';
 FLUSH PRIVILEGES;
 EXIT;
 
-# Import dump
-mysql -u root -p u593848004_hrms < /path/to/mariadb/full_dump.sql
+# Import a backup (never store dumps in the repository)
+mysql -u root -p u593848004_hrms < /secure/backup/path/hrms_prod_dump.sql
 ```
 
 **Important:** Do NOT run `npx prisma migrate dev` — it will fail with MySQL 1553 errors due to FK drift. The dump already contains the correct schema. After import:
@@ -148,25 +148,30 @@ server {
 
 ---
 
-## 6. Default Credentials
+## 6. Initial Administrator Account
 
-| Role | Email | Password |
-|------|-------|----------|
-| Super Admin | `2018@lordsandkings.co` | `lord@2018` |
-| HR Manager | `hr@lordsandkings.co` | `lke00000` |
-| Employee | `sathish@lordsandkings.co` | `lke1807` |
+Do **not** commit credentials to this repository.
 
-**Change all passwords after first login.**
+Create the first administrator account through a one-off, environment-driven
+bootstrap (for example `ADMIN_EMAIL` / `ADMIN_TEMP_PASSWORD` supplied at runtime
+and removed immediately afterwards). The account must:
+
+- use a randomly generated temporary password delivered out of band,
+- force a password change at first login,
+- be disabled if it is not used within 24 hours.
+
+Account credentials are managed by the operations team in the password manager,
+never in source control or documentation.
 
 ---
 
 ## 7. Post-Deploy Verification
 
 ```bash
-# Backend health
-curl https://your-domain.com/api/v1/auth/login -X POST \
+# Backend health (no credentials in the command line — use environment variables)
+curl "$API_BASE_URL/api/v1/auth/login" -X POST \
   -H "Content-Type: application/json" \
-  -d '{"email":"2018@lordsandkings.co","password":"lord@2018"}'
+  -d "{\"email\":\"$SMOKE_TEST_EMAIL\",\"password\":\"$SMOKE_TEST_PASSWORD\"}"
 
 # Should return accessToken + user object (200)
 ```

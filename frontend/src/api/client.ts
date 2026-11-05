@@ -15,6 +15,10 @@ function getToken() {
 }
 
 function getActiveCompanyId(): string | null {
+  // Prefer the authenticated store (populated from /auth/me) over raw storage,
+  // so a stale value left by a previous user can never be sent as the tenant.
+  const fromStore = useAuthStore.getState().activeCompanyId;
+  if (fromStore) return fromStore;
   return localStorage.getItem('activeCompanyId');
 }
 
@@ -453,8 +457,10 @@ export const employeesApi = {
 };
 
 export const attendanceApi = {
-  checkIn: (data: { employeeId: string; method: string; lat?: number; lng?: number }) =>
-    api<any>('/attendance/check-in', { method: 'POST', body: JSON.stringify(data) }),
+  checkIn: (data: { employeeId: string; method: string; lat?: number; lng?: number; macAddress?: string }) => {
+    const mac = data.macAddress || getDeviceContext().macAddress;
+    return api<any>('/attendance/check-in', { method: 'POST', body: JSON.stringify({ ...data, ...(mac ? { macAddress: mac } : {}) }) });
+  },
   checkOut: (logId: string) =>
     api<any>(`/attendance/check-out/${logId}`, { method: 'POST' }),
   manualPunch: (data: { employeeId: string; date: string; time: string; type: 'IN' | 'OUT'; reason: string }) =>
@@ -574,7 +580,7 @@ balances: (employeeId: string, year?: number) => {
     qs.set('year', String(year));
     qs.set('month', String(month));
     if (companyId) qs.set('companyId', companyId);
-    return api<any>(`/leave/monthly-allocation?${qs.toString()}`);
+    return api<any>(`/leave/monthly-allocation?${qs.toString()}`, { method: 'POST' });
   },
   monthlyAllocationStatus: () => api<any>('/leave/monthly-allocation/status'),
   listHolidays: () => api<any[]>('/leave/holidays'),
@@ -1241,6 +1247,7 @@ export interface UserSessionRecord {
   employeeCode?: string | null;
   employeeName?: string | null;
   ipAddress?: string | null;
+  macAddress?: string | null;
   platform?: string | null;
   osName?: string | null;
   osVersion?: string | null;

@@ -20,6 +20,10 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule, { bodyParser: false });
 
+  // Let Nest run OnModuleDestroy (PrismaService.$disconnect) when the platform
+  // sends SIGTERM/SIGINT during a deploy, instead of dropping in-flight work.
+  app.enableShutdownHooks();
+
   // Increase payload size limit to support image/logo uploads
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
@@ -38,11 +42,16 @@ async function bootstrap() {
     .map((o) => o.trim())
     .filter(Boolean);
 
+  // Production must declare its origins explicitly. Falling back to a suffix
+  // wildcard in production would let anyone on *.vercel.app / *.onrender.com
+  // call the API with credentials.
+  if (process.env.NODE_ENV === 'production' && corsOrigins.length === 0) {
+    throw new Error('CORS_ORIGINS must be set to an explicit comma-separated allow-list in production');
+  }
+
   const allowedOrigins: (string | RegExp)[] = corsOrigins.length > 0
     ? corsOrigins
     : [
-        /^https:\/\/.*\.vercel\.app$/,
-        /^https:\/\/.*\.onrender\.com$/,
         /^http:\/\/localhost(:\d+)?$/,
         /^http:\/\/127\.0\.0\.1(:\d+)?$/,
       ];

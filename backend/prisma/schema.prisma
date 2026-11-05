@@ -80,6 +80,7 @@ model AttendanceLog {
   checkIn              DateTime?
   checkOut             DateTime?
   method               String?
+  macAddress           String?
   latitude             Float?
   longitude            Float?
   status               String                  @default("present")
@@ -104,7 +105,7 @@ model AttendanceLog {
   attendanceAudits     AttendanceAudit[]
   compOffBalances      CompOffBalance[]
 
-  @@index([employeeId, date])
+  @@unique([employeeId, date])
   @@index([shiftId])
 }
 
@@ -142,7 +143,7 @@ model PermissionRequest {
   company      Company   @relation(fields: [companyId], references: [id])
 
   @@index([companyId, status])
-  @@index([employeeId, date])
+  @@unique([employeeId, date])
 }
 
 model AttendanceAudit {
@@ -833,6 +834,7 @@ model SecurityEvent {
   osName          String?
   osVersion       String?
   arch            String?
+  macAddress      String?
   deviceId        String?
   deviceInfo      Json?
   detectionReason String?  @db.Text
@@ -853,6 +855,7 @@ model UserSession {
   userId        String
   companyId     String?
   deviceId      String?
+  macAddress    String?
   clientType    String?
   platform      String?
   osName        String?
@@ -877,6 +880,7 @@ model TrustedDevice {
   companyId  String
   userId     String?
   deviceId   String
+  macAddress String?
   clientType String?
   platform   String?
   osName     String?

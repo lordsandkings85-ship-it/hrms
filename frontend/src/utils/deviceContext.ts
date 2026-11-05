@@ -13,6 +13,7 @@ export interface DeviceContext {
   osName?: string;
   osVersion?: string;
   arch?: string;
+  macAddress?: string;
   signals: string[];
   webgl?: string;
   webdriver?: boolean;
@@ -110,6 +111,7 @@ export function getDeviceContext(): DeviceContext {
     cached = {
       ...desktop,
       deviceId: getDeviceId(),
+      macAddress: desktop.macAddress,
       clientType: 'desktop',
       signals: Array.isArray(desktop.signals) ? desktop.signals.slice(0, 40) : [],
     };
@@ -162,6 +164,7 @@ export function deviceHeaders(): Record<string, string> {
     if (ctx.platform) headers['X-Client-Platform'] = ctx.platform;
     if (ctx.arch) headers['X-Client-Arch'] = ctx.arch;
     if (ctx.osVersion) headers['X-OS-Version'] = ctx.osVersion.slice(0, 96);
+    if (ctx.macAddress) headers['X-Device-MAC'] = ctx.macAddress;
     return headers;
   } catch {
     return {};

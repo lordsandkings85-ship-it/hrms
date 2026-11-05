@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, ArrowRight, CheckCircle2, Fingerprint, BarChart3, ShieldCheck, Mail, Lock } from 'lucide-react';
 import { authApi } from '../../api/client';
-import { useAuthStore } from '../../store/useAuthStore';
 import { Spinner } from '../../components/ui/Spinner';
 import workoraIcon from '../../assets/brand/workora-icon.png';
 import { APP_VERSION } from '../../constants';
@@ -17,8 +16,6 @@ const FEATURES = [
 ];
 
 export default function LoginPage() {
-  useEffect(() => { useAuthStore.getState().logout(); }, []);
-
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
