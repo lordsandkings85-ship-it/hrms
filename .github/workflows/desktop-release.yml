@@ -75,8 +75,52 @@ jobs:
         run: |
           cd desktop
           npm run build:all
-          npx cross-env CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --x64 --publish never
+
+          # Detach any lingering volumes before building ARM64
+          for v in /Volumes/Workora*; do
+            [ -d "$v" ] && hdiutil detach "$v" -force || true
+          done
+
+          echo "=== Packaging macOS ARM64 (Apple Silicon) ==="
           npx cross-env CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --arm64 --publish never
+
+          # Backup ARM64 updater manifest
+          cp release/latest-mac.yml release/latest-mac-arm64.yml
+
+          # Ensure volumes are unmounted and disk cache flushes before building x64
+          sleep 5
+          for v in /Volumes/Workora*; do
+            [ -d "$v" ] && hdiutil detach "$v" -force || true
+          done
+
+          echo "=== Packaging macOS x64 (Intel) ==="
+          npx cross-env CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --x64 --publish never
+
+          # Merge ARM64 and x64 manifests into unified latest-mac.yml for multi-arch auto updates
+          node -e "
+            const fs = require('fs');
+            const arm64Path = 'release/latest-mac-arm64.yml';
+            const x64Path = 'release/latest-mac.yml';
+            if (fs.existsSync(arm64Path) && fs.existsSync(x64Path)) {
+              const arm64 = fs.readFileSync(arm64Path, 'utf8');
+              const x64 = fs.readFileSync(x64Path, 'utf8');
+              const arm64FilesMatch = arm64.match(/files:\r?\n([\s\S]*?)(?=\r?\n[a-zA-Z0-9_-]+:|$)/);
+              const x64FilesMatch = x64.match(/files:\r?\n([\s\S]*?)(?=\r?\n[a-zA-Z0-9_-]+:|$)/);
+              if (arm64FilesMatch && x64FilesMatch) {
+                const combinedFiles = 'files:\n' + arm64FilesMatch[1].trimEnd() + '\n' + x64FilesMatch[1].trimEnd();
+                const updated = x64.replace(/files:\r?\n[\s\S]*?(?=\r?\n[a-zA-Z0-9_-]+:|$)/, combinedFiles);
+                fs.writeFileSync(x64Path, updated);
+                console.log('Successfully merged latest-mac.yml for multi-arch:');
+                console.log(updated);
+              }
+            }
+          "
+
+          # Final detach cleanup
+          sleep 2
+          for v in /Volumes/Workora*; do
+            [ -d "$v" ] && hdiutil detach "$v" -force || true
+          done
         env:
           VITE_API_URL: https://hrms-backend-rl2c.onrender.com/api/v1
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -91,7 +135,7 @@ jobs:
             desktop/release/*.zip
             desktop/release/*.blockmap
             desktop/release/latest-mac.yml
-          if-no-files-found: warn
+          if-no-files-found: error
 
   publish-release:
     name: Publish Release Assets
