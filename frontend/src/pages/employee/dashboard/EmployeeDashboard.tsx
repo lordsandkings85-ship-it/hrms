@@ -1,5 +1,5 @@
 import { useAuthStore } from '../../../store/useAuthStore';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { payrollApi, payrollApiExt, attendanceApiExt, leaveApi, dashboardApi, dashboardSummaryKey, attendanceApi, announcementsApi, notificationApi } from '../../../api/client';
 import { Fingerprint, Calendar, Download, Eye, Shield, ArrowRight, TrendingUp, Megaphone, Bell, Clock, User, Banknote, CalendarDays, Receipt, Headphones, Target, ChevronRight, UserMinus, AlertTriangle, CalendarOff } from 'lucide-react';
@@ -29,6 +29,7 @@ export default function EmployeeDashboard() {
 
    const currentYear = getServerYear();
    const currentMonth = getServerMonth();
+   const navigate = useNavigate();
    const [previewingPayslipId, setPreviewingPayslipId] = useState<string | null>(null);
 
    const { data: salaryStructure } = useQuery({
@@ -544,7 +545,7 @@ export default function EmployeeDashboard() {
                         <div className="space-y-3">
                            {uniqueAnnouncements.length > 0 ? (
                               uniqueAnnouncements.slice(0, 3).map((ann: any) => (
-                                 <div key={ann.id} className="flex gap-3 p-3 rounded-lg border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                 <div key={ann.id} onClick={() => navigate('/announcements/company')} className="flex gap-3 p-3 rounded-lg border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-indigo-400 cursor-pointer transition-colors">
                                     <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-500 shrink-0">
                                        <Megaphone size={14} />
                                     </div>

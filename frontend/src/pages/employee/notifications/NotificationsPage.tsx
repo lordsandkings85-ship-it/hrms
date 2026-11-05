@@ -1,8 +1,12 @@
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ExternalLink, ChevronRight } from 'lucide-react';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { notificationApi, type Notification } from '../../../api/client';
+import { getNotificationTargetUrl } from '../../../utils/notificationRouter';
 
 export default function NotificationsPage() {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const userId = user?.id;
@@ -37,6 +41,14 @@ export default function NotificationsPage() {
     mutationFn: (id: string) => notificationApi.delete(id),
     onSuccess: invalidate,
   });
+
+  const handleNotificationClick = (notif: Notification) => {
+    if (!notif.isRead) {
+      markReadMutation.mutate(notif.id);
+    }
+    const targetUrl = getNotificationTargetUrl(notif, user);
+    navigate(targetUrl);
+  };
 
   const priorityColor = (p: string) =>
     p === 'urgent' ? 'var(--danger)' : p === 'high' || p === 'warning' ? 'var(--warning, #f59e0b)' : 'var(--action-primary)';
@@ -74,22 +86,24 @@ export default function NotificationsPage() {
         <div className="py-10 text-center text-xs" style={{ color: 'var(--text-muted)' }}>You're all caught up</div>
       ) : (
         <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-          {notifications.map((n, i) => (
+          {notifications.map((n) => (
             <div
               key={n.id}
-              className="flex items-start gap-3 px-4 py-3 border-b last:border-b-0"
+              onClick={() => handleNotificationClick(n)}
+              className="group flex items-start gap-3 px-4 py-3 border-b last:border-b-0 cursor-pointer transition-colors hover:bg-[var(--surface-hover)]"
               style={{ borderColor: 'var(--border)', background: n.isRead ? undefined : 'var(--surface-hover)' }}
             >
               <span
-                className="w-2.5 h-2.5 rounded-full mt-1 shrink-0"
+                className="w-2.5 h-2.5 rounded-full mt-1 shrink-0 transition-transform group-hover:scale-125"
                 style={{ background: !n.isRead ? 'var(--action-primary)' : 'transparent', border: '1px solid var(--border)' }}
               />
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)', fontWeight: n.isRead ? 400 : 600 }}>
-                  {n.title}
+                <div className="text-sm font-semibold flex items-center gap-1.5" style={{ color: 'var(--text-primary)', fontWeight: n.isRead ? 400 : 600 }}>
+                  <span>{n.title}</span>
+                  <ChevronRight size={13} className="text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
                 {n.message && (
-                  <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{n.message}</div>
+                  <div className="text-xs mt-0.5 line-clamp-2" style={{ color: 'var(--text-muted)' }}>{n.message}</div>
                 )}
                 <div className="flex items-center gap-2 mt-1.5">
                   <span
@@ -103,10 +117,13 @@ export default function NotificationsPage() {
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                 {n.isRead ? (
                   <button
-                    onClick={() => markUnreadMutation.mutate(n.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      markUnreadMutation.mutate(n.id);
+                    }}
                     className="text-[11px] hover:underline"
                     style={{ color: 'var(--text-muted)' }}
                   >
@@ -114,7 +131,10 @@ export default function NotificationsPage() {
                   </button>
                 ) : (
                   <button
-                    onClick={() => markReadMutation.mutate(n.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      markReadMutation.mutate(n.id);
+                    }}
                     className="text-[11px] hover:underline"
                     style={{ color: 'var(--action-primary)' }}
                   >
@@ -122,7 +142,10 @@ export default function NotificationsPage() {
                   </button>
                 )}
                 <button
-                  onClick={() => deleteMutation.mutate(n.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteMutation.mutate(n.id);
+                  }}
                   className="text-[11px] hover:underline"
                   style={{ color: 'var(--danger)' }}
                 >

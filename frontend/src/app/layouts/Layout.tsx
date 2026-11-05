@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { notificationApi, type Notification } from '../../api/client';
+import { getNotificationTargetUrl } from '../../utils/notificationRouter';
 import { useTheme, type ThemeMode } from '../../components/ui/ThemeProvider';
 import CommandPalette from '../../components/ui/CommandPalette';
 import CompanySelector from '../../components/ui/CompanySelector';
@@ -854,13 +855,8 @@ export default function Layout() {
   const openNotification = (notif: Notification) => {
     setBellOpen(false);
     if (!notif.isRead) markReadMutation.mutate(notif.id);
-    if (notif.referenceType === 'LEAVE_REQUEST') navigate('/leave');
-    else if (notif.referenceType === 'REGULARIZATION_REQUEST' || notif.type === 'REGULARIZATION') navigate('/attendance/regularization');
-    else if (notif.referenceType === 'PERMISSION_REQUEST' || notif.type === 'PERMISSION') navigate('/attendance/permission-approval');
-    else if (notif.referenceType === 'ANNOUNCEMENT' || notif.type === 'ANNOUNCEMENT') navigate('/announcements');
-    else if (notif.id.startsWith('jobs-info')) navigate('/recruitment');
-    else if (notif.type === 'LEAVE') navigate('/leave');
-    else navigate('/dashboard');
+    const targetUrl = getNotificationTargetUrl(notif, user);
+    navigate(targetUrl);
   };
 
   const openAllRead = () => {

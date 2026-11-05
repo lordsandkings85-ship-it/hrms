@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { dashboardApi, dashboardSummaryKey, leaveApi, shiftsApi } from '../../../api/client';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { getNotificationTargetUrl } from '../../../utils/notificationRouter';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
@@ -284,11 +285,15 @@ export default function HrDashboard() {
                   <div className="p-4 flex-1 overflow-y-auto space-y-3 bg-[var(--surface-alt)]">
                     {(data.notifications || []).length > 0 ? (
                       (data.notifications || []).map((notif: any) => (
-                        <div key={notif.id} className="p-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] flex items-start gap-3 shadow-sm hover:border-indigo-500/30 transition-colors">
+                        <div
+                          key={notif.id}
+                          onClick={() => navigate(getNotificationTargetUrl(notif, user))}
+                          className="p-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] flex items-start gap-3 shadow-sm hover:border-indigo-500/40 cursor-pointer transition-all"
+                        >
                           <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0"><FileText size={14}/></div>
-                          <div>
-                            <p className="text-[13px] font-bold text-[var(--text-primary)]">{notif.title}</p>
-                            <p className="text-[11px] text-[var(--text-muted)] mt-1">{notif.message || 'Official company announcement.'}</p>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[13px] font-bold text-[var(--text-primary)] truncate">{notif.title}</p>
+                            <p className="text-[11px] text-[var(--text-muted)] mt-1 line-clamp-2">{notif.message || 'Official company announcement.'}</p>
                           </div>
                         </div>
                       ))
@@ -385,9 +390,13 @@ export default function HrDashboard() {
                     if (notif.type === 'urgent') { badge = 'bg-red-500/10 text-red-500 border-red-500/20'; Icon = Target; }
                     
                     return (
-                      <div key={notif.id} className="p-3 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] flex items-start gap-3 hover:border-indigo-500/30 transition-colors">
+                      <div
+                        key={notif.id}
+                        onClick={() => navigate(getNotificationTargetUrl(notif, user))}
+                        className="p-3 rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] flex items-start gap-3 hover:border-indigo-500/40 cursor-pointer transition-all"
+                      >
                         <div className={`mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${badge}`}><Icon size={14}/></div>
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <p className="text-[13px] text-[var(--text-primary)] font-bold leading-snug">{notif.title}</p>
                           <p className="text-[11px] text-[var(--text-muted)] mt-1">{fmtDateTime(notif.time || Date.now())}</p>
                         </div>
