@@ -4,6 +4,12 @@ import MyAnnouncementsPage from '../employee/announcements/MyAnnouncementsPage';
 
 export default function AnnouncementsWrapper() {
   const { user } = useAuthStore();
-  const isAdmin = user?.role?.isSystem || user?.role?.name?.toLowerCase().includes('hr') || user?.role?.name?.toLowerCase().includes('admin');
+  const roleName = user?.role?.name?.toLowerCase() || '';
+  const isAdmin =
+    !!user?.isSuperAdmin ||
+    !!user?.role?.isSystem ||
+    roleName.includes('hr') ||
+    roleName.includes('admin');
+
   return isAdmin ? <AnnouncementsPage /> : <MyAnnouncementsPage />;
 }

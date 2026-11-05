@@ -15,7 +15,7 @@ const MyProfilePage       = lazy(() => import('./pages/employee/profile/MyProfil
 
 const DocumentsPage       = lazy(() => import('./pages/employee/documents/MyDocumentsPage'));
 const TimesheetsPage      = lazy(() => import('./pages/employee/attendance/TimesheetsPage'));
-const AnnouncementsPage   = lazy(() => import('./pages/employee/announcements/AnnouncementsPage'));
+const AnnouncementsPage   = lazy(() => import('./pages/common/AnnouncementsPage'));
 const TrainingPage        = lazy(() => import('./pages/employee/performance/TrainingPage'));
 
 const NotificationsPage   = lazy(() => import('./pages/employee/notifications/NotificationsPage'));
