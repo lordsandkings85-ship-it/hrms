@@ -43,3 +43,38 @@ export async function isGroupWideUser(prisma: PrismaService, userId?: string): P
     return module === 'organization' && (action === GROUP_WIDE_ACTION || WILDCARD.has(action));
   });
 }
+
+/**
+ * Returns the ids of root `group_parent` companies whose shared holiday
+ * calendar applies to every operating subsidiary in the group.
+ *
+ * Sibling active companies are never included, preserving strict tenant
+ * isolation between operating entities while allowing group-wide holidays
+ * registered on `group_parent` to flow down even when a subsidiary also defines
+ * its own company-specific holidays.
+ */
+export async function getGroupParentCompanyIds(prisma: PrismaService): Promise<string[]> {
+  const companyDelegate = (prisma as unknown as { company?: { findMany?: (...args: any[]) => Promise<{ id: string }[]> } }).company;
+  if (!companyDelegate || typeof companyDelegate.findMany !== 'function') {
+    return [];
+  }
+  const parents = await companyDelegate.findMany({
+    where: { status: 'group_parent' },
+    select: { id: true },
+  });
+  return Array.isArray(parents) ? parents.map((p) => p.id) : [];
+}
+
+/**
+ * Builds the Prisma `companyId` filter covering `companyId` plus any
+ * `group_parent` companies.
+ */
+export async function holidayCompanyFilter(
+  prisma: PrismaService,
+  companyId: string,
+  parentIds?: string[],
+): Promise<string | { in: string[] }> {
+  const parents = parentIds ?? (await getGroupParentCompanyIds(prisma));
+  const ids = Array.from(new Set([companyId, ...parents].filter(Boolean)));
+  return ids.length <= 1 ? (ids[0] ?? companyId) : { in: ids };
+}

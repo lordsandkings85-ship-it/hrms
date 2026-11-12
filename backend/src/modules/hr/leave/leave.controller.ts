@@ -197,7 +197,7 @@ export class LeaveController {
   @Delete('holidays/:id')
   @Permissions({ module: 'leave', action: 'edit' })
   deleteHoliday(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.leaveService.deleteHoliday(user.companyId, id);
+    return this.leaveService.deleteHoliday(user.companyId, id, user.userId);
   }
 
   // --- Leave Balance Allocation ---

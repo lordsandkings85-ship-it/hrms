@@ -2,6 +2,7 @@ import { AttendanceService } from './attendance.service';
 import { isGroupWideUser } from '../../../utils/group-access.util';
 
 jest.mock('../../../utils/group-access.util', () => ({
+  ...jest.requireActual('../../../utils/group-access.util'),
   isGroupWideUser: jest.fn(async () => false),
 }));
 
@@ -696,6 +697,48 @@ describe('AttendanceService.monthlyWorkdaySummaries', () => {
       expect(row.paidHolidays).toBe(1);
       expect(row.absent).toBe(21); // the worked holiday counts once, not twice
       expect(row.reconciles).toBe(true);
+    });
+
+    it('inherits group_parent holidays alongside subsidiary-specific holidays without borrowing siblings', async () => {
+      const prisma: any = {
+        company: {
+          findMany: jest.fn(async () => [{ id: 'parent-1' }]),
+        },
+        employee: {
+          findMany: jest.fn(async () => [{
+            id: 'e-1', firstName: 'Mamanikandan', lastName: 'C', employeeCode: 'LAK1816',
+            workingDaysPerWeek: 6, saturdayOffRule: 'FOURTH', saturdayOffEffectiveFrom: new Date(2026, 10, 1),
+            companyId: 'child-1', department: { name: 'Finance & Accounts' },
+          }]),
+        },
+        attendancePolicy: {
+          findMany: jest.fn(async () => [{ companyId: 'child-1', key: 'custom.secondSaturdayOff', value: 'true' }]),
+          findFirst: jest.fn(async () => null),
+        },
+        holiday: {
+          findMany: jest.fn(async ({ where }: any) => {
+            const ids = Array.isArray(where?.companyId?.in) ? where.companyId.in : [where?.companyId];
+            const all = [
+              { companyId: 'parent-1', date: new Date(2026, 9, 2) },  // Oct 2 Gandhi Jayanti (group_parent)
+              { companyId: 'parent-1', date: new Date(2026, 9, 19) }, // Oct 19 Ayutha Pooja (group_parent)
+              { companyId: 'parent-1', date: new Date(2026, 9, 20) }, // Oct 20 Vijaya Dasami (group_parent)
+              { companyId: 'child-1', date: new Date(2026, 10, 9) },  // Nov 9 own holiday (must not hide Oct parent holidays!)
+              { companyId: 'sibling-2', date: new Date(2026, 9, 24) }, // Sibling holiday must never leak
+            ];
+            return all.filter((h) => ids.includes(h.companyId));
+          }),
+        },
+        attendanceLog: { findMany: jest.fn(async () => []) },
+        leaveRequest: { findMany: jest.fn(async () => []) },
+      };
+      const service = new AttendanceService(prisma as any, notifications as any);
+      const rows = await service.monthlyWorkdaySummaries('child-1', 2026, 10);
+      expect(rows[0]).toMatchObject({
+        totalWorkingDays: 26, // Oct 2026 (31 - 4 Sundays - Oct 10 2nd Sat)
+        paidHolidays: 3,      // Oct 2, Oct 19, Oct 20 from group_parent (Oct 24 sibling excluded)
+        absent: 23,
+        reconciles: true,
+      });
     });
   });
 

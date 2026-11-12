@@ -5,6 +5,7 @@ import { MailService } from '../../../common/mail/mail.service';
 import { isGroupWideUser } from '../../../utils/group-access.util';
 
 jest.mock('../../../utils/group-access.util', () => ({
+  ...jest.requireActual('../../../utils/group-access.util'),
   isGroupWideUser: jest.fn(async () => false),
 }));
 
@@ -172,6 +173,28 @@ describe('PayrollService', () => {
       expect(breakdown.paidHolidays).toBe(0);
       expect(breakdown.paidDays).toBe(0);
       expect(breakdown.lopDays).toBe(21);
+    });
+
+    it('includes group_parent holidays even when subsidiary has its own holiday', async () => {
+      const emp = baseEmployee({
+        companyId: 'company-1',
+        salaryStructures: [baseStructure()],
+        attendanceLog: [],
+      });
+      prisma.employee.findMany.mockResolvedValueOnce([emp]);
+      prisma.company.findMany = jest.fn(async () => [{ id: 'group-parent' }]);
+      prisma.holiday.findMany.mockResolvedValueOnce([
+        { id: 'h-own', companyId: 'company-1', date: new Date(2026, 7, 14) },
+        { id: 'h-parent', companyId: 'group-parent', date: new Date(2026, 7, 26) },
+        { id: 'h-sibling', companyId: 'sibling-co', date: new Date(2026, 7, 27) },
+      ]);
+
+      await service.runPayroll('company-1', 8, 2026, 'new');
+
+      const breakdown = prisma.payslip.create.mock.calls[0][0].data.breakdown;
+      expect(breakdown.holidayDays).toBe(2);
+      expect(breakdown.paidHolidays).toBe(2);
+      expect(breakdown.lopDays).toBe(19);
     });
 
     it('applies a 4th-Saturday employee override to the payroll working-day calendar', async () => {

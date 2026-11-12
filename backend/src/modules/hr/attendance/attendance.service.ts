@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { NotificationsService } from '../../notifications/notifications.service';
-import { isGroupWideUser } from '../../../utils/group-access.util';
+import { getGroupParentCompanyIds, holidayCompanyFilter, isGroupWideUser } from '../../../utils/group-access.util';
 import { computeLatePenalty, MAX_LATES_FALLBACK } from './late-allowance.util';
 import { parseSaturdayOffRule, resolveSaturdayWeeklyOff, saturdayOffLabel } from './weekly-off.util';
 
@@ -673,6 +673,7 @@ export class AttendanceService {
    *  absent row still qualify (they have no check-in) so they remain visible. */
   private async computeAbsentForDate(companyId: string, day: Date, userId?: string) {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const holidayFilter = groupWide ? undefined : await holidayCompanyFilter(this.prisma, companyId);
     const startOfDay = new Date(day.getFullYear(), day.getMonth(), day.getDate());
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
     const dow = day.getDay();
@@ -708,7 +709,7 @@ export class AttendanceService {
         select: { employeeId: true, isHalfDay: true },
       }),
       this.prisma.holiday.findMany({
-        where: groupWide ? {} : { companyId },
+        where: groupWide ? {} : { companyId: holidayFilter },
         select: { id: true, date: true },
       }),
       this.prisma.attendancePolicy.findMany({
@@ -725,12 +726,7 @@ export class AttendanceService {
       }),
     ]);
 
-    let effectiveHolidays = holidaysList;
-    if (effectiveHolidays.length === 0 && !groupWide) {
-      effectiveHolidays = await this.prisma.holiday.findMany({
-        select: { id: true, date: true },
-      });
-    }
+    const effectiveHolidays = holidaysList;
 
     const checkedIn = new Set(checkedLogs.filter((l) => l.checkIn != null).map((l) => l.employeeId));
     const fullDayLeaveIds = new Set(approvedLeaves.filter((l) => !l.isHalfDay).map((l) => l.employeeId));
@@ -1083,10 +1079,12 @@ export class AttendanceService {
       select: { value: true },
     });
 
+    const groupParentIds = await getGroupParentCompanyIds(this.prisma);
     const holidayCache = new Map<string, Set<string>>();
     const holidaySetFor = async (empCompanyId: string) => {
       if (holidayCache.has(empCompanyId)) return holidayCache.get(empCompanyId)!;
-      const holidays = await this.prisma.holiday.findMany({ where: { companyId: empCompanyId }, select: { date: true } });
+      const whereCompanyId = await holidayCompanyFilter(this.prisma, empCompanyId, groupParentIds);
+      const holidays = await this.prisma.holiday.findMany({ where: { companyId: whereCompanyId }, select: { date: true } });
       const set = new Set(holidays.map((h) => dateKey(h.date)));
       holidayCache.set(empCompanyId, set);
       return set;
@@ -1317,11 +1315,11 @@ export class AttendanceService {
     const onLeave = uniqueLogs.filter(l => l.status === 'on_leave').length;
     const totalOvertimeMins = logs.reduce((s, l) => s + l.overtimeMinutes, 0);
 
-    // Fetch the company's own holidays for the month and exclude those on
-    // working days. No cross-tenant fallback: another company's calendar must
-    // never change this company's working-day totals.
+    // Fetch the employee's company holidays plus shared group_parent holidays for the
+    // month and exclude those on working days. Sibling tenant calendars are never borrowed.
+    const whereCompanyId = await holidayCompanyFilter(this.prisma, targetCompanyId);
     const holidays = await this.prisma.holiday.findMany({
-      where: groupWide ? {} : { companyId: targetCompanyId },
+      where: { companyId: whereCompanyId },
       select: { id: true, date: true, name: true },
     });
 

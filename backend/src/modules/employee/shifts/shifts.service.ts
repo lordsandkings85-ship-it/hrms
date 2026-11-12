@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { isGroupWideUser } from '../../../utils/group-access.util';
+import { holidayCompanyFilter, isGroupWideUser } from '../../../utils/group-access.util';
 
 function tzOffsetMs(timeZone: string, date: Date): number {
   const dtf = new Intl.DateTimeFormat('en-US', {
@@ -137,7 +137,7 @@ export class ShiftsService {
   async listHolidays(companyId: string, userId?: string) {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const holidays = await this.prisma.holiday.findMany({
-      where: groupWide ? {} : { companyId },
+      where: groupWide ? {} : { companyId: await holidayCompanyFilter(this.prisma, companyId) },
       orderBy: { date: 'asc' },
     });
     return holidays;

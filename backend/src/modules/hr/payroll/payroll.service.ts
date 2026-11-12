@@ -3,7 +3,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { computeIncomeTax, computePF, computeESI, TaxInput } from './tax.calculator';
 import { decryptPiiFields, decryptNestedPii } from '../../../utils/crypto.util';
 import { MailService } from '../../../common/mail/mail.service';
-import { isGroupWideUser } from '../../../utils/group-access.util';
+import { getGroupParentCompanyIds, holidayCompanyFilter, isGroupWideUser } from '../../../utils/group-access.util';
 import { computeLatePenalty, MAX_LATES_FALLBACK } from '../attendance/late-allowance.util';
 import { resolveSaturdayWeeklyOff } from '../attendance/weekly-off.util';
 
@@ -216,9 +216,10 @@ export class PayrollService {
       throw new BadRequestException('No eligible employees found for this payroll run. Check the company scope, employee status, and that salary structures exist.');
     }
 
-    // Holiday calendar: fetched per employee company with a global fallback so payroll
-    // working days agree with the attendance module (companies without their own holiday
-    // list share holidays registered under the parent company).
+    // Holiday calendar: fetched per employee company plus shared `group_parent`
+    // holidays so operating subsidiaries inherit group holidays alongside their own.
+    const parentIds = await getGroupParentCompanyIds(this.prisma);
+    const parentIdSet = new Set(parentIds);
     const monthHolidays = await this.prisma.holiday.findMany({
       where: { date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) } },
     });
@@ -228,6 +229,7 @@ export class PayrollService {
       list.push(h);
       holidaysByCompany.set(h.companyId, list);
     }
+    const parentHolidays = parentIds.flatMap((pid) => holidaysByCompany.get(pid) || []);
 
     // Second-Saturday-off policy per employee company (6-day weeks), global fallback.
     const empCompanyIds = [...new Set(employees.map((e) => e.companyId).filter(Boolean))];
@@ -309,7 +311,7 @@ let payslipCount = 0;
         // on working days. Paid days only count real attendance (present/late/half_day/on_leave)
         // — nightly auto-backfilled 'absent' placeholder rows must NOT count as paid days.
         const ownHolidays = holidaysByCompany.get(emp.companyId) || [];
-        const holidaySource = ownHolidays;
+        const holidaySource = parentIdSet.has(emp.companyId) ? ownHolidays : [...ownHolidays, ...parentHolidays];
         const holidayKey = (d: Date) =>
           `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         const holidaySet = new Set(holidaySource.map((h) => holidayKey(h.date)));
@@ -623,8 +625,11 @@ let payslipCount = 0;
     const start = new Date(year, month - 1, 1);
     const end = new Date(year, month, 1);
 
+    const parentIds = await getGroupParentCompanyIds(this.prisma);
+    const parentIdSet = new Set(parentIds);
+    const holidayFilter = groupWide ? undefined : await holidayCompanyFilter(this.prisma, companyId, parentIds);
     const holidays = await this.prisma.holiday.findMany({
-      where: groupWide ? { date: { gte: start, lt: end } } : { companyId, date: { gte: start, lt: end } }
+      where: groupWide ? { date: { gte: start, lt: end } } : { companyId: holidayFilter, date: { gte: start, lt: end } }
     });
     const [employees, logs, cycle] = await Promise.all([
       this.prisma.employee.findMany({
@@ -748,7 +753,13 @@ let payslipCount = 0;
       const late = uniqueLogs.filter((l) => l.status === 'late').length;
       const halfDay = uniqueLogs.filter((l) => l.status === 'half_day').length;
       const onLeave = uniqueLogs.filter((l) => l.status === 'on_leave').length;
-      const holidaysCount = holidays.filter((h) => isWorkingDay(h.date)).length;
+      const empHolidayDates = new Set(
+        holidays
+          .filter((h) => !emp.companyId || !h.companyId || h.companyId === emp.companyId || parentIdSet.has(h.companyId))
+          .filter((h) => isWorkingDay(h.date))
+          .map((h) => h.date.getUTCFullYear() * 10000 + h.date.getUTCMonth() * 100 + h.date.getUTCDate()),
+      );
+      const holidaysCount = empHolidayDates.size;
       const grossDays = countWorkingDays(start, end, emp);
       const totalDays = Math.max(0, grossDays - holidaysCount);
       const absent = Math.max(0, totalDays - present - late - halfDay - onLeave);

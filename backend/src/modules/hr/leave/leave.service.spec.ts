@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { LeaveService } from './leave.service';
 
 jest.mock('../../../utils/group-access.util', () => ({
+  ...jest.requireActual('../../../utils/group-access.util'),
   isGroupWideUser: jest.fn(async () => false),
 }));
 

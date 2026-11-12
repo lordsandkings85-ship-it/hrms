@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { getGroupParentCompanyIds } from '../../../utils/group-access.util';
 
 function isEmployeeJoinedByMonth(joiningDate: Date | string | null | undefined, year: number, month: number): boolean {
   if (!joiningDate) return true;
@@ -330,6 +331,7 @@ export class MonthlyLeaveAllocationService {
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
 
+    const parentIdSet = new Set(await getGroupParentCompanyIds(this.prisma));
     const holidays = await this.prisma.holiday.findMany({ select: { date: true, companyId: true } });
     const leaveTypes = await this.prisma.leaveType.findMany();
 
@@ -382,7 +384,7 @@ export class MonthlyLeaveAllocationService {
       // 3. Compute accurate monthly balances
       let prevRemaining = 0;
       const computedMonthly: any[] = [];
-      const empHolidays = holidays.filter(h => h.companyId === emp.companyId);
+      const empHolidays = holidays.filter(h => h.companyId === emp.companyId || parentIdSet.has(h.companyId));
 
       for (let y = jYear; y <= currentYear; y++) {
         const startM = (y === jYear) ? jMonth : 1;

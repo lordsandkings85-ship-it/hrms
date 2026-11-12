@@ -2,7 +2,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { NotificationsService } from '../../notifications/notifications.service';
-import { isGroupWideUser } from '../../../utils/group-access.util';
+import { getGroupParentCompanyIds, holidayCompanyFilter, isGroupWideUser } from '../../../utils/group-access.util';
 
 @Injectable()
 export class LeaveService {
@@ -116,7 +116,7 @@ export class LeaveService {
     // Rule 4 — monthly Casual Leave accounting: reserve pending days and check balance
     if (await this.hasMonthlyBalance(employeeId, leaveTypeId, year)) {
       const holidays = await this.prisma.holiday.findMany({
-        where: groupWide ? {} : { companyId: targetCompanyId },
+        where: groupWide ? {} : { companyId: await holidayCompanyFilter(this.prisma, targetCompanyId) },
         select: { date: true },
       });
       const days = isHalfDayCount(start, new Date(endDate), isHalfDay, holidays);
@@ -198,12 +198,11 @@ export class LeaveService {
     if (!groupWide && req.employee.companyId !== companyId) throw new ForbiddenException('Leave request does not belong to this company');
     if (req.status !== 'pending') throw new BadRequestException('Leave request is already processed');
 
-    // Fetch holidays once for reuse in exclusion + attendance log creation.
-    // Never fall back to another tenant's calendar: a company with no holiday
-    // rows simply has weekend-only non-working days.
+    // Fetch holidays for the employee's company plus shared group_parent holidays.
+    // Never fall back to sibling tenants' calendars.
     const holidays = await this.prisma.holiday.findMany({
       where: {
-        companyId: req.employee.companyId,
+        companyId: await holidayCompanyFilter(this.prisma, req.employee.companyId),
         date: { gte: req.startDate, lte: req.endDate },
       },
       select: { date: true },
@@ -492,7 +491,7 @@ export class LeaveService {
       if (!leave.isHalfDay) {
         const holidays = await this.prisma.holiday.findMany({
           where: {
-            companyId: cancel.employee.companyId,
+            companyId: await holidayCompanyFilter(this.prisma, cancel.employee.companyId),
             date: { gte: leave.startDate, lte: leave.endDate },
           },
         });
@@ -637,7 +636,7 @@ export class LeaveService {
       orderBy: { createdAt: 'desc' },
     });
     const holidays = await this.prisma.holiday.findMany({
-      where: groupWide ? {} : { companyId },
+      where: groupWide ? {} : { companyId: await holidayCompanyFilter(this.prisma, companyId) },
       select: { date: true },
     });
     // Attach a computed duration (in days) so the UI doesn't have to guess.
@@ -798,7 +797,7 @@ export class LeaveService {
   async listHolidays(companyId: string, userId?: string) {
     const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
     const holidays = await this.prisma.holiday.findMany({
-      where: groupWide ? {} : { companyId },
+      where: groupWide ? {} : { companyId: await holidayCompanyFilter(this.prisma, companyId) },
       orderBy: { date: 'asc' },
     });
     return holidays;
@@ -810,8 +809,9 @@ export class LeaveService {
     });
   }
 
-  async deleteHoliday(companyId: string, id: string) {
-    const existing = await this.prisma.holiday.findFirst({ where: { id, companyId } });
+  async deleteHoliday(companyId: string, id: string, userId?: string) {
+    const groupWide = userId ? await isGroupWideUser(this.prisma, userId) : false;
+    const existing = await this.prisma.holiday.findFirst({ where: groupWide ? { id } : { id, companyId } });
     if (!existing) throw new NotFoundException('Holiday not found');
     return this.prisma.holiday.delete({ where: { id } });
   }
@@ -1285,7 +1285,7 @@ export class LeaveService {
 
     const upcomingHolidays = await this.prisma.holiday.findMany({
       where: {
-        ...(groupWide ? {} : { companyId }),
+        ...(groupWide ? {} : { companyId: await holidayCompanyFilter(this.prisma, companyId) }),
         date: { gte: now },
       },
       orderBy: { date: 'asc' },

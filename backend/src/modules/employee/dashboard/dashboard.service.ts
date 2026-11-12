@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { isApprover } from '../../../common/approver';
-import { isGroupWideUser } from '../../../utils/group-access.util';
+import { getGroupParentCompanyIds, isGroupWideUser } from '../../../utils/group-access.util';
 
 @Injectable()
 export class DashboardService {
@@ -130,19 +130,15 @@ export class DashboardService {
     const onLeaveSet = new Set(onLeaveGroup.map((g) => g.employeeId));
     const presentToday = activeIds.filter((e) => presentSet.has(e.id) && !onLeaveSet.has(e.id)).length;
     const onLeaveToday = activeIds.filter((e) => onLeaveSet.has(e.id)).length;
-    let todayHolidays = await this.prisma.holiday.findMany({
+    const groupParentIds = await getGroupParentCompanyIds(this.prisma);
+    const holidayScopeIds = Array.from(new Set([...targetCompanyIds, ...groupParentIds]));
+    const todayHolidays = await this.prisma.holiday.findMany({
       where: {
-        companyId: { in: targetCompanyIds },
+        companyId: { in: holidayScopeIds },
         date: { gte: new Date(startOfDay.getTime() - 24 * 60 * 60 * 1000), lte: new Date(endOfDay.getTime() + 24 * 60 * 60 * 1000) },
       },
       select: { date: true },
     });
-    if (todayHolidays.length === 0) {
-      todayHolidays = await this.prisma.holiday.findMany({
-        where: { date: { gte: new Date(startOfDay.getTime() - 24 * 60 * 60 * 1000), lte: new Date(endOfDay.getTime() + 24 * 60 * 60 * 1000) } },
-        select: { date: true },
-      });
-    }
     const isTodayHoliday = todayHolidays.some((h) => {
       const hd = new Date(h.date);
       return (
