@@ -45,6 +45,7 @@ async function bootstrap() {
     .filter(Boolean);
 
   const DEFAULT_PRODUCTION_ORIGINS = [
+    'https://workora-hrms.vercel.app',
     'https://workora-neon.vercel.app',
     'https://workora-mu.vercel.app',
     'file://',
