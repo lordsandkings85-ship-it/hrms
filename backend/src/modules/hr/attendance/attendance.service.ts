@@ -865,7 +865,7 @@ export class AttendanceService {
           });
           marked++;
         }
-      });
+      }, { maxWait: 10000, timeout: 30000 });
     }
 
     return { date: startOfDay, marked, skipped };
@@ -898,7 +898,7 @@ export class AttendanceService {
           });
           marked++;
         }
-      });
+      }, { maxWait: 10000, timeout: 30000 });
     }
     return { date: startOfDay, marked };
   }
