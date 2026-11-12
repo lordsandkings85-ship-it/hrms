@@ -36,25 +36,34 @@ async function bootstrap() {
   app.use(helmet());
 
   // CORS allow-list: prefer the CORS_ORIGINS env var (comma-separated exact
-  // origins); fall back to dev defaults. No wildcard, credentials allowed.
+  // origins). When unset in production, fall back to the explicit Workora
+  // origins (never suffix wildcards like *.vercel.app / *.onrender.com) so
+  // deployments without CORS_ORIGINS configured still boot safely.
   const corsOrigins = (process.env.CORS_ORIGINS || '')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
 
-  // Production must declare its origins explicitly. Falling back to a suffix
-  // wildcard in production would let anyone on *.vercel.app / *.onrender.com
-  // call the API with credentials.
+  const DEFAULT_PRODUCTION_ORIGINS = [
+    'https://workora-neon.vercel.app',
+    'https://workora-mu.vercel.app',
+    'file://',
+  ];
+
   if (process.env.NODE_ENV === 'production' && corsOrigins.length === 0) {
-    throw new Error('CORS_ORIGINS must be set to an explicit comma-separated allow-list in production');
+    console.warn(
+      `[CORS] CORS_ORIGINS is unset in production; using explicit defaults: ${DEFAULT_PRODUCTION_ORIGINS.join(', ')}`,
+    );
   }
 
   const allowedOrigins: (string | RegExp)[] = corsOrigins.length > 0
     ? corsOrigins
-    : [
-        /^http:\/\/localhost(:\d+)?$/,
-        /^http:\/\/127\.0\.0\.1(:\d+)?$/,
-      ];
+    : process.env.NODE_ENV === 'production'
+      ? DEFAULT_PRODUCTION_ORIGINS
+      : [
+          /^http:\/\/localhost(:\d+)?$/,
+          /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+        ];
 
   app.enableCors({
     origin: (origin, callback) => {
